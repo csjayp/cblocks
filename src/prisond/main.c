@@ -43,6 +43,7 @@ main(int argc, char *argv [])
 	int c;
 
 	gcfg.c_family = PF_UNSPEC;
+	gcfg.c_port = "3333";
 	while (1) {
 		option_index = 0;
 		c = getopt_long(argc, argv, "46U:s:p:h", long_options,
@@ -74,5 +75,11 @@ main(int argc, char *argv [])
 	if (gcfg.c_family != PF_UNSPEC && gcfg.c_name) {
 		errx(1, "-4, -6 and --unix-sock are incompatable");
 	}
+	if (gcfg.c_name) {
+		sock_ipc_setup_unix(&gcfg);
+	} else {
+		sock_ipc_setup_inet(&gcfg);
+	}
+	sock_ipc_event_loop(&gcfg);
 	return (0);
 }

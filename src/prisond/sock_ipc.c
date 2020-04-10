@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <sys/param.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -158,5 +159,78 @@ sock_ipc_setup_inet(struct global_params *cmd)
 		cmd->c_socks[cmd->c_sock_count++] = s;
 	}
 	freeaddrinfo(res0);
+	return (0);
+}
+
+static int
+sock_ipc_accept_connection(int sock)
+{
+	struct sockaddr_storage addrs;
+	struct sockaddr sa;
+	socklen_t slen;
+	int nsock;
+
+	slen = sizeof(sa);
+	if (getsockname(sock, &sa, &slen) == -1) {
+		err(1, "getsockname failed");
+	}
+	switch (sa.sa_family) {
+	case PF_UNIX:
+		slen = sizeof(struct sockaddr_un);
+		break;
+	case PF_INET:
+		slen = sizeof(struct sockaddr_in);
+		break;
+	case PF_INET6:
+		slen = sizeof(struct sockaddr_in6);
+		break;
+	default:
+		errx(1, "un-supported address family");
+	}
+	while (1) {
+		nsock = accept(sock, (struct sockaddr *)&addrs, &slen);
+		if (nsock == -1 && errno == EINTR) {
+			continue;
+		}
+		if (nsock == -1) {
+			err(1, "accept failed");
+		}
+		printf("accepted connection %d\n", nsock);
+		close(nsock);
+	}
+	return (0);
+}
+
+int
+sock_ipc_event_loop(struct global_params *gcp)
+{
+	fd_set rfds;
+	int error, maxfd, s;
+
+	maxfd = 0;
+	while (1) {
+		maxfd = 0;
+		FD_ZERO(&rfds);
+		for (s = 0; s < gcp->c_sock_count; s++) {
+			if (gcp->c_socks[s] > maxfd) {
+				maxfd = gcp->c_socks[s];
+			}
+			FD_SET(gcp->c_socks[s], &rfds);
+		}
+		error = select(maxfd + 1, &rfds, NULL, NULL, NULL);
+		if (error == -1 && errno == EINTR) {
+			continue;
+		}
+		if (error == -1) {
+			err(1, "select failed");
+		}
+		printf("scanning fd set\n");
+		for (s = 0; s < gcp->c_sock_count; s++) {
+			if (!FD_ISSET(gcp->c_socks[s], &rfds)) {
+				continue;
+			}
+			(void) sock_ipc_accept_connection(gcp->c_socks[s]);
+		}
+	}
 	return (0);
 }

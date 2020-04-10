@@ -1,7 +1,7 @@
 CC	?= cc
 CFLAGS	= -Wall -fsanitize=address -fstack-protector -g
 TARGETS	= prison
-OBJ	= main.o
+OBJ	= main.o sock_ipc.o
 
 all:	$(TARGETS)
 
