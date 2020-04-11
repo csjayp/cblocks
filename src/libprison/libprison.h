@@ -17,12 +17,14 @@ struct prison_response {
 
 struct prison_launch {
 	char		p_name[MAX_PRISON_NAME];
+	char		p_term[32];
 };
 
 struct prison_console_connect {
 	char		p_name[MAX_PRISON_NAME];
 	struct winsize 	p_winsize;
 	struct termios	p_termios;
+	char		p_term[64];
 };
 
 #endif

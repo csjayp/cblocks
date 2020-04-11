@@ -9,6 +9,7 @@ struct global_params {
 	char		*c_port;
 	int		 c_family;
 	char		*c_launch_name;
+	char		*c_connect_console;
 };
 
 struct global_params gcfg;

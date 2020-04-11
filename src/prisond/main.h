@@ -11,6 +11,7 @@ struct global_params {
 	int		 c_socks[MAXSOCKS];
 	size_t		 c_sock_count;
 	void		*(*c_callback)(void *);
+	char		**global_env;
 };
 
 struct global_params gcfg;

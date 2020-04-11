@@ -11,9 +11,11 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <err.h>
+#include <pthread.h>
 
 #include <libprison.h>
 
+#include "termbuf.h"
 #include "main.h"
 #include "sock_ipc.h"
 #include "dispatch.h"
@@ -43,11 +45,13 @@ usage(void)
 }
 
 int
-main(int argc, char *argv [])
+main(int argc, char *argv [], char *env[])
 {
+	pthread_t thr;
 	int option_index;
 	int c;
 
+	gcfg.global_env = env;
 	gcfg.c_callback = prison_handle_request;
 	gcfg.c_family = PF_UNSPEC;
 	gcfg.c_port = "3333";
@@ -86,6 +90,9 @@ main(int argc, char *argv [])
 		sock_ipc_setup_unix(&gcfg);
 	} else {
 		sock_ipc_setup_inet(&gcfg);
+	}
+	if (pthread_create(&thr, NULL, tty_io_queue_loop, NULL) == -1) {
+		err(1, "pthread_create(tty_io_queue_loop)");
 	}
 	sock_ipc_event_loop(&gcfg);
 	return (0);
