@@ -1,8 +1,8 @@
 CC	?= cc
-CFLAGS	= -Wall -fsanitize=address -fstack-protector -g
+CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I../libprison
 TARGETS	= prisond
-OBJ	= main.o
-LIBS	= -lpthread -lutil
+OBJ	= main.o sock_ipc.o dispatch.o termbuf.o
+LIBS	= -lpthread -lutil -lprison
 
 all:	$(TARGETS)
 
@@ -10,7 +10,7 @@ all:	$(TARGETS)
 	$(CC) $(CFLAGS) -c $<
 
 prisond: $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS)
+	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L../libprison
 
 clean:
-	rm -fr *.o prisond
+	rm -fr *.o prisond *.core
