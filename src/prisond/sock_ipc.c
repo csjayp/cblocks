@@ -1,9 +1,13 @@
 #include <sys/types.h>
+#include <sys/queue.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <sys/param.h>
 #include <sys/un.h>
+
 #include <netinet/in.h>
+
+#include <arpa/inet.h>
 
 #include <netdb.h>
 #include <stdio.h>
@@ -15,86 +19,7 @@
 #include <err.h>
 
 #include "main.h"
-
-int
-sock_ipc_may_read(int fd, void *buf, size_t n)
-{
-	ssize_t res, pos;
-	char *s;
-
-	s = buf;
-	pos = 0;
-	while (n > pos) {
-		res = read(fd, s + pos, n - pos);
-		switch (res) {
-		case -1:
-			if (errno == EINTR || errno == EAGAIN) {
-				continue;
-			}
-		case 0:
-			return (1);
-		default:
-			pos += res;
-		}
-	}
-	return (0);
-}
-
-/*
- * Read data with the assertion that it all must come through, or
- * else abort the process.  Based on atomicio() from openssh. 
- */
-ssize_t
-sock_ipc_must_read(int fd, void *buf, size_t n)
-{
-	ssize_t res, pos;
-	char *s;
-
-	s = buf;
-	pos = 0;
-	while (n > pos) {
-		res = read(fd, s + pos, n - pos);
-		switch (res) {
-		case -1:
-			if (errno == EINTR || errno == EAGAIN) {
-				continue;
-			}
-		case 0:
-			return (0);
-		default:
-			pos += res;
-		}
-	}
-	return (n);
-}
-
-/*
- * Write data with the assertion that it all has to be written, or
- * else abort the process.  Based on atomicio() from openssh.
- */
-ssize_t
-sock_ipc_must_write(int fd, void *buf, size_t n)
-{
-	ssize_t res, pos;
-	char *s;
-
-	pos = 0;
-	s = buf;
-	while (n > pos) {
-		res = write(fd, s + pos, n - pos);
-		switch (res) {
-		case -1:
-			if (errno == EINTR || errno == EAGAIN) {
-				continue;
-			}
-		case 0:
-			return (0);
-		default:
-			pos += res;
-		}
-	}
-	return (n);
-}
+#include "sock_ipc.h"
 
 int
 sock_ipc_setup_unix(struct global_params *cmd)
@@ -117,6 +42,20 @@ sock_ipc_setup_unix(struct global_params *cmd)
 		err(1, "listen(PF_UNIX) failed");
 	}
 	return (0);
+}
+
+static struct prison_peer *
+sock_ipc_construct_peer(int sock, int family)
+{
+	struct prison_peer *p;
+
+	p = calloc(1, sizeof(*p));
+	if (p == NULL) {
+		err(1, "calloc(prison peer) failed");
+	}
+	p->p_sock = sock;
+	p->p_family = family;
+	return (p);
 }
 
 int
@@ -166,9 +105,12 @@ static int
 sock_ipc_accept_connection(int sock)
 {
 	struct sockaddr_storage addrs;
+	struct prison_peer *p;
 	struct sockaddr sa;
 	socklen_t slen;
 	int nsock;
+	uid_t uid;
+	gid_t gid;
 
 	slen = sizeof(sa);
 	if (getsockname(sock, &sa, &slen) == -1) {
@@ -195,8 +137,15 @@ sock_ipc_accept_connection(int sock)
 		if (nsock == -1) {
 			err(1, "accept failed");
 		}
+		if (sa.sa_family == PF_UNIX) {
+			if (getpeereid(nsock, &uid, &gid) == -1) {
+				err(1, "getpeereid failed");
+			}
+			printf("user %d gid %d\n", uid, gid);
+		}
 		printf("accepted connection %d\n", nsock);
-		close(nsock);
+		p = sock_ipc_construct_peer(nsock, sa.sa_family);
+		(void) (*gcfg.c_callback)(p);
 	}
 	return (0);
 }

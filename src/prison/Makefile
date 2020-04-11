@@ -1,6 +1,7 @@
 CC	?= cc
-CFLAGS	= -Wall -fsanitize=address -fstack-protector -g
+CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I../libprison
 TARGETS	= prison
+LIBS	= -lprison
 OBJ	= main.o sock_ipc.o
 
 all:	$(TARGETS)
@@ -9,7 +10,7 @@ all:	$(TARGETS)
 	$(CC) $(CFLAGS) -c $<
 
 prison: $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS)
+	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L../libprison
 
 clean:
 	rm -fr *.o prison

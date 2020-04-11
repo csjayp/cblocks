@@ -1,16 +1,22 @@
 #include <sys/types.h>
+#include <sys/queue.h>
 #include <sys/socket.h>
+#include <sys/ttycom.h>
 #include <sys/param.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 
 #include <stdio.h>
+#include <termios.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <err.h>
 
+#include <libprison.h>
+
 #include "main.h"
 #include "sock_ipc.h"
+#include "dispatch.h"
 
 static struct option long_options[] = {
 	{ "ipv4",		no_argument,	0, '4' },
@@ -42,6 +48,7 @@ main(int argc, char *argv [])
 	int option_index;
 	int c;
 
+	gcfg.c_callback = prison_handle_request;
 	gcfg.c_family = PF_UNSPEC;
 	gcfg.c_port = "3333";
 	while (1) {

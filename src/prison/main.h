@@ -8,9 +8,7 @@ struct global_params {
 	char		*c_host;
 	char		*c_port;
 	int		 c_family;
-	int		 c_socks[MAXSOCKS];
-	size_t		 c_sock_count;
-	void		*(*c_callback)(void *);
+	char		*c_launch_name;
 };
 
 struct global_params gcfg;
