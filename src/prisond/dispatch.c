@@ -125,11 +125,11 @@ void *
 tty_io_queue_loop(void *arg)
 {
 	struct prison_instance *pi;
-	int maxfd, error;
 	struct timeval tv;
+	int maxfd, error;
 	u_char buf[8192];
+	ssize_t cc, dd;
 	fd_set rfds;
-	ssize_t cc;
 
 	printf("tty_io_queue_loop: dispatched\n");
 	while (1) {
@@ -168,7 +168,7 @@ tty_io_queue_loop(void *arg)
 			if (pi->p_state != STATE_CONNECTED) {
 				continue;
 			}
-			ssize_t dd = write(pi->p_peer_sock, buf, cc);
+			dd = write(pi->p_peer_sock, buf, cc);
 			if (dd == -1 && errno == EPIPE) {
 				err(1, "handled disappearing consoles here");
 			}
