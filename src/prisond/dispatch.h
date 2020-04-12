@@ -4,9 +4,9 @@
 void		*prison_handle_request(void *);
 
 struct prison_instance {
-	int				p_state;
-#define	INSTANCE_DEAD		1
-#define	STATE_CONNECTED		2
+	uint32_t			p_state;
+#define	STATE_DEAD		0x00000001
+#define	STATE_CONNECTED		0x00000002
 	char				p_name[256];
 	pid_t				p_pid;
 	int				p_ttyfd;

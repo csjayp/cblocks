@@ -18,8 +18,8 @@ struct tty_buffer {
 	size_t		t_tot_len;
 };
 
-
-size_t		termbuf_remove_oldest(struct tty_buffer *);
-void		termbuf_append(struct tty_buffer *, u_char *, size_t);
+char		*termbuf_to_contig(struct tty_buffer *);
+size_t	 	 termbuf_remove_oldest(struct tty_buffer *);
+void		 termbuf_append(struct tty_buffer *, u_char *, size_t);
 
 #endif
