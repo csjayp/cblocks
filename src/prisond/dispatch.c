@@ -294,7 +294,7 @@ dispatch_launch_prison(int sock)
 		sprintf(buf, "TERM=%s", pl.p_term);
 		env[0] = strdup(buf);
 		env[1] = NULL;
-		execve(*argv, argv, gcfg.global_env);
+		execve(*argv, argv, env);
 		err(1, "execve failed");
 	}
 	TAILQ_INIT(&pi->p_ttybuf.t_head);

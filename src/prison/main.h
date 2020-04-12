@@ -10,6 +10,7 @@ struct global_params {
 	int		 c_family;
 	char		*c_launch_name;
 	char		*c_connect_console;
+	char		*c_term_type;
 };
 
 struct global_params gcfg;
