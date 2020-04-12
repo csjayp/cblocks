@@ -36,6 +36,7 @@ static struct option long_options[] = {
 	{ "help",		no_argument, 0, 'h' },
 	{ "launch",		required_argument, 0, 'r' },
 	{ "console",		required_argument, 0, 'C' },
+	{ "terminal-type",	required_argument, 0, 't' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -58,6 +59,7 @@ usage(void)
 	    " -p, --port=PORT             Conect to port\n"
 	    " -r, --launch=NAME           Launch prison by name\n"
 	    " -C, --console=NAME          Attach to container console\n"
+	    " -t, --terminal-type         TERM to use when creating containers\n"
 	);
 	exit(1);
 }
@@ -282,11 +284,17 @@ prison_launch(int sock, char *name)
 	struct prison_launch pl;
 	struct prison_response resp;
 	uint32_t cmd;
+	char *term;
 
+	if (gcfg.c_term_type != NULL) {
+		term = gcfg.c_term_type;
+	} else {
+		term = getenv("TERM");
+	}
 	cmd = PRISON_IPC_LAUNCH_PRISON;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	strlcpy(pl.p_name, name, sizeof(pl.p_name));
-	strlcpy(pl.p_term, getenv("TERM"), sizeof(pl.p_term));
+	strlcpy(pl.p_term, term, sizeof(pl.p_term));
 	sock_ipc_must_write(sock, &pl, sizeof(pl));
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
 	printf("got error code %d\n", resp.p_ecode);
@@ -302,12 +310,15 @@ main(int argc, char *argv [])
 	gcfg.c_port = "3333";
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "C:r:46U:s:p:h", long_options,
+		c = getopt_long(argc, argv, "t:C:r:46U:s:p:h", long_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 't':
+			gcfg.c_term_type = optarg;
+			break;
 		case 'C':
 			gcfg.c_connect_console = optarg;
 			break;
@@ -337,6 +348,9 @@ main(int argc, char *argv [])
 	signal(SIGPIPE, SIG_IGN);
 	if (gcfg.c_family != PF_UNSPEC && gcfg.c_name) {
 		errx(1, "-4, -6 and --unix-sock are incompatable");
+	}
+	if (gcfg.c_connect_console && gcfg.c_term_type) {
+		errx(1, "term type is only for container creation");
 	}
 	if (gcfg.c_name) {
 		ctlsock = sock_ipc_connect_unix(&gcfg);

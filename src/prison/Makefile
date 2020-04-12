@@ -13,4 +13,4 @@ prison: $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L../libprison
 
 clean:
-	rm -fr *.o prison
+	rm -fr *.o prison *.out
