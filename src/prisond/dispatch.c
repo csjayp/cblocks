@@ -77,20 +77,21 @@ prison_detach_console(const char *name)
 static void
 prison_reap_children(void)
 {
-	struct prison_instance *pi;
+	struct prison_instance *pi, *p_temp;
 	int status;
+	pid_t pid;
 
-	if (!reap_children) {
-		return;
-	}
 	pthread_mutex_lock(&prison_mutex);
-	TAILQ_FOREACH(pi, &pr_head, p_glue) {
-		if (waitpid(pi->p_pid, &status, WNOHANG) != pi->p_pid) {
+	TAILQ_FOREACH_SAFE(pi, &pr_head, p_glue, p_temp) {
+		printf("--> reaper -- checking %s %u\n", pi->p_name, pi->p_pid);
+		pid = waitpid(pi->p_pid, &status, WNOHANG);
+		printf("--> %d pid\n", pid);
+		if (pid != pi->p_pid) {
 			continue;
 		}
 		pi->p_state |= STATE_DEAD;
-		close(pi->p_peer_sock);
 		printf("collected exit status from proc %d\n", pi->p_pid);
+		prison_remove(pi);
 	}
 	pthread_mutex_unlock(&prison_mutex);
 	reap_children = 0;
@@ -107,9 +108,6 @@ tty_initialize_fdset(fd_set *rfds)
 	pthread_mutex_lock(&prison_mutex);
 	TAILQ_FOREACH_SAFE(pi, &pr_head, p_glue, p_temp) {
 		if ((pi->p_state & STATE_DEAD) != 0) {
-			if ((pi->p_state & STATE_CONNECTED) == 0) {
-				prison_remove(pi);
-			}
 			continue;
 		}
 		if (pi->p_ttyfd > maxfd) {
@@ -133,6 +131,7 @@ tty_io_queue_loop(void *arg)
 
 	printf("tty_io_queue_loop: dispatched\n");
 	while (1) {
+		printf("selecting..\n");
 		prison_reap_children();
 		maxfd = tty_initialize_fdset(&rfds);
 		tv.tv_sec = 1;
@@ -156,6 +155,7 @@ tty_io_queue_loop(void *arg)
 			cc = read(pi->p_ttyfd, buf, sizeof(buf));
 			if (cc == 0) {
 				printf("state dead for %s\n", pi->p_name);
+				reap_children = 1;
 				pi->p_state |= STATE_DEAD;
 				continue;
 			}
@@ -262,20 +262,16 @@ tty_console_session(const char *name, int sock, int ttyfd)
 		if (cc == -1 && errno == EINTR) {
 			continue;
 		}
+		if (cc == -1) {
+			err(1, "read failed");
+		}
 		/*
-		 * It's possible that the container process died for whatever
-		 * reason. When it gets reaped, the file descriptor becomes
-		 * invalidated.
-		 *
-		 * NB: what if a new fd is created in it's place? need a better
-		 * what to invalidate this session, possible pthread_kill()
+		 * NB: There probably needs to be a better way to do this 
+		 * rather than iterating through the jail list for read input
+		 * from the console.
 		 */
-		if (cc == -1 && errno == EBADF) {
-			if (prison_instance_is_dead(name)) {
-				break;
-			} else {
-				err(1, "read failed");
-			}
+		if (prison_instance_is_dead(name)) {
+			break;
 		}
 		vptr = buf;
 		cmd = (uint32_t *)vptr;
