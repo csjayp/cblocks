@@ -45,14 +45,12 @@ prison_remove(struct prison_instance *pi)
 	size_t cur;
 
 	printf("removing prison instance\n");
-	/* assert lock held */
 	(void) close(pi->p_peer_sock);
 	(void) close(pi->p_ttyfd);
 	TAILQ_REMOVE(&pr_head, pi, p_glue);
 	cur = pi->p_ttybuf.t_tot_len;
 	while (cur > 0) {
 		cur = termbuf_remove_oldest(&pi->p_ttybuf);
-		printf("removing termbuf obj\n");
 	}
 	free(pi);
 }
@@ -61,11 +59,11 @@ void *
 tty_io_queue_loop(void *arg)
 {
 	struct prison_instance *pi, *p_temp;
+	int maxfd, error, status;
 	struct timeval tv;
+	u_char buf[8192];
 	fd_set rfds;
-	int maxfd;
-	int error;
-	int status;
+	ssize_t cc;
 
 	printf("tty_io_queue_loop: dispatched\n");
 	while (1) {
@@ -103,7 +101,6 @@ tty_io_queue_loop(void *arg)
 			err(1, "select(tty io) failed");
 		}
 		if (error == 0) {
-			printf("timeout...\n");
 			continue;
 		}
 		pthread_mutex_lock(&prison_mutex);
@@ -111,9 +108,6 @@ tty_io_queue_loop(void *arg)
 			if (!FD_ISSET(pi->p_ttyfd, &rfds)) {
 				continue;
 			}
-			ssize_t cc;
-			u_char buf[8192];
-			bzero(buf, sizeof(buf));
 			cc = read(pi->p_ttyfd, buf, sizeof(buf));
 			if (cc == 0) {
 				pi->p_state |= STATE_DEAD;
@@ -215,15 +209,6 @@ tty_console_session(int sock, struct prison_instance *pi)
 			vptr += sizeof(uint32_t);
 			cc -= sizeof(uint32_t);
 			bytes = write(ttyfd, vptr, cc);
-			printf("wrote bytes: %zd\n", bytes);
-			/*
-			 * NB: we should probably be cleaning up the prison instance here.
-			 */
-			if (bytes == -1 && errno == EBADF) {
-				printf("writing to bad TTY device\n");
-				/* NB: re-think this */
-				break;
-			}
 			if (bytes != cc) {
 				err(1, "tty_write failed");
 			}
@@ -241,9 +226,9 @@ dispatch_connect_console(int sock)
 	struct prison_console_connect pcc;
 	struct prison_response resp;
 	struct prison_instance *pi;
-	int match;
 	ssize_t tty_buflen;
 	char *tty_block;
+	int match;
 
 	bzero(&resp, sizeof(resp));
 	sock_ipc_must_read(sock, &pcc, sizeof(pcc));
@@ -296,12 +281,12 @@ dispatch_connect_console(int sock)
 int
 dispatch_launch_prison(int sock)
 {
-	struct prison_launch pl;
-	struct prison_instance *pi;
-	struct prison_response resp;
-	char *env[32], buf[128];
-	ssize_t cc;
 	extern struct global_params gcfg;
+	struct prison_response resp;
+	struct prison_instance *pi;
+	char *env[32], *argv[32];
+	struct prison_launch pl;
+	ssize_t cc;
 
 	cc = sock_ipc_must_read(sock, &pl, sizeof(pl));
 	if (cc == 0) {
@@ -322,21 +307,19 @@ dispatch_launch_prison(int sock)
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
 	if (pi->p_pid == 0) {
 		tty_set_noecho(STDIN_FILENO);
-		char *argv[12];
 		argv[0] = "/bin/tcsh";
 		argv[1] = NULL;
-		sprintf(buf, "TERM=%s", pl.p_term);
-		env[0] = strdup(buf);
+		env[0] = strdup(pl.p_term);
 		env[1] = NULL;
 		execve(*argv, argv, env);
 		err(1, "execve failed");
 	}
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
-	printf("launched shell as pid %d\n", pi->p_pid);
 	pthread_mutex_lock(&prison_mutex);
 	TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
 	pthread_mutex_unlock(&prison_mutex);
+	printf("launched shell as pid %d\n", pi->p_pid);
 	resp.p_ecode = 0;
 	resp.p_errbuf[0] = '\0';
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
@@ -382,14 +365,12 @@ dispatch_work(void *arg)
 			break;
 		}
 	}
-	/*
-	 * NB: clean up
-	 */
 	printf("peer disconnected\n");
 	close(p->p_sock);
 	pthread_mutex_lock(&peer_mutex);
 	TAILQ_REMOVE(&p_head, p, p_glue);
 	pthread_mutex_unlock(&peer_mutex);
+	free(p);
 	return (NULL);
 }
 
