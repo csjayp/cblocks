@@ -90,6 +90,7 @@ sock_ipc_must_write(int fd, void *buf, size_t n)
 			if (errno == EINTR || errno == EAGAIN) {
 				continue;
 			}
+			err(1, "sock_ipc_must_write failed");
 		case 0:
 			return (0);
 		default:

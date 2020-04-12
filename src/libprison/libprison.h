@@ -17,7 +17,7 @@ struct prison_response {
 
 struct prison_launch {
 	char		p_name[MAX_PRISON_NAME];
-	char		p_term[32];
+	char		p_term[128];
 };
 
 struct prison_console_connect {

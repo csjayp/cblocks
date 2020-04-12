@@ -13,6 +13,7 @@ struct prison_instance {
 	char				p_ttyname[256];
 	TAILQ_ENTRY(prison_instance)	p_glue;
 	struct tty_buffer		p_ttybuf;
+	int				p_peer_sock;
 };
 
 void *tty_io_queue_loop(void *);

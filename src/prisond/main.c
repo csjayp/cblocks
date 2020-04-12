@@ -10,6 +10,7 @@
 #include <termios.h>
 #include <getopt.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <err.h>
 #include <pthread.h>
 
@@ -86,6 +87,7 @@ main(int argc, char *argv [], char *env[])
 	if (gcfg.c_family != PF_UNSPEC && gcfg.c_name) {
 		errx(1, "-4, -6 and --unix-sock are incompatable");
 	}
+	signal(SIGPIPE, SIG_IGN);
 	if (gcfg.c_name) {
 		sock_ipc_setup_unix(&gcfg);
 	} else {

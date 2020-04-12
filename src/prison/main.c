@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 
 #include <stdio.h>
+#include <signal.h>
 #include <termios.h>
 #include <errno.h>
 #include <string.h>
@@ -52,84 +53,169 @@ usage(void)
 	exit(1);
 }
 
-static void
-tty_input_init(void)
+void
+tty_reset_sane(void)
 {
-	struct termios term;
+	struct termios def;
 
-	if (tcgetattr(STDIN_FILENO, &otermios) == -1) {
-		err(1, "tcgetattr(STDIN_FILENO) failed");
-	}
-	bcopy(&otermios, &term, sizeof(term));
-	//term.c_lflag &= ~(ICANON | ECHO); /* CBREAK, no ECHO */
-	/*
-	 * Disable the ICRNL flag to disambiguate ^J and Enter, also disable the
-	 * software flow control to leave ^Q and ^S ready to be bound
-	 */
-	term.c_iflag &= ~(ICRNL | IXON | IXOFF);
-	term.c_cc[VMIN] = 1; /* read() is satisfied after 1 char */
-	term.c_cc[VTIME] = 0; /* No timer */
-
-	/* Disable INTR, QUIT, VDSUSP and SUSP keys */
-	term.c_cc[VINTR] = _POSIX_VDISABLE;
-	term.c_cc[VQUIT] = _POSIX_VDISABLE;
-	if (tcsetattr(STDIN_FILENO, TCSANOW, &term) == -1) {
+	cfmakesane(&def);
+	otermios.c_cflag = def.c_cflag | (otermios.c_cflag & CLOCAL);
+	otermios.c_iflag = def.c_iflag;
+	/* preserve user-preference flags in lflag */
+#define LKEEP	(ECHOKE|ECHOE|ECHOK|ECHOPRT|ECHOCTL|ALTWERASE|TOSTOP|NOFLSH)
+	otermios.c_lflag = def.c_lflag | (otermios.c_lflag & LKEEP);
+	otermios.c_oflag = def.c_oflag;
+	if (tcsetattr(STDIN_FILENO, TCSANOW, &otermios) == -1) {
 		err(1, "tcsetattr(STDIN_FILENO) failed");
 	}
+}
+
+struct termios _saved_tio;
+
+void
+tty_atexit(void)
+{
+	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &otermios) == -1) {
+		err(1, "tcsetattr(TCSAFLUSH)");
+	}
+}
+
+ssize_t tty_write(int fd, const void *vptr, size_t n)
+{
+	size_t left;
+	ssize_t written;
+	const char *ptr;
+
+	ptr = vptr;
+	left = n;
+	while (left > 0) {
+		if ((written = write(fd, ptr, left)) <= 0) {
+			return (written);
+		}
+		left -= written;
+		ptr += written;
+	}
+	return (n);
+}
+
+int
+tty_set_raw_mode(int fd)
+{
+	struct termios tbuf;
+
+	atexit(tty_atexit);
+	if (tcgetattr(fd, &otermios) == -1) {
+		return (-1);
+	}
+	tbuf = otermios;
+	tbuf.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+	tbuf.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+	tbuf.c_cflag &= ~(CSIZE | PARENB);
+	tbuf.c_cflag |= CS8;
+	tbuf.c_oflag &= ~(OPOST);
+	tbuf.c_cc[VMIN] = 1;
+	tbuf.c_cc[VTIME] = 0;
+	if (tcsetattr(fd, TCSAFLUSH, &tbuf) == -1) {
+		return (-1);
+	}
+	return (0);
+}
+
+void
+enter_raw_mode(int quiet)
+{
+        struct termios tio;
+
+        if (tcgetattr(fileno(stdin), &tio) == -1) {
+                if (!quiet)
+                        perror("tcgetattr");
+                return;
+        }
+        _saved_tio = tio;
+        tio.c_iflag |= IGNPAR;
+        tio.c_iflag &= ~(ISTRIP | INLCR | IGNCR | ICRNL | IXON | IXANY | IXOFF);
+#ifdef IUCLC
+        tio.c_iflag &= ~IUCLC;
+#endif
+        tio.c_lflag &= ~(ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHONL);
+#ifdef IEXTEN
+        tio.c_lflag &= ~IEXTEN;
+#endif
+        tio.c_oflag &= ~OPOST;
+        tio.c_cc[VMIN] = 1;
+        tio.c_cc[VTIME] = 0;
+        if (tcsetattr(fileno(stdin), TCSADRAIN, &tio) == -1) {
+		err(1, "fatal");
+        } 
 }
 
 void
 tty_console_session(int sock)
 {
-        fd_set rfds;
-        int maxfd, error;
-        ssize_t cc;
-        u_char buf[8192];
+	fd_set rfds;
+	int error, maxfd;
+	char buf[8192];
+	ssize_t cc, dd;
+	FILE *fp;
 
-	//tty_input_init();
-        maxfd = 0;
-        if (sock > maxfd) {
-                maxfd = sock;
-        }
-        if (STDIN_FILENO > maxfd) {
-                maxfd = STDIN_FILENO;
-        }
-        while (1) {
-                FD_ZERO(&rfds);
-                FD_SET(sock, &rfds);
-                FD_SET(STDIN_FILENO, &rfds);
-                error = select(maxfd + 1, &rfds, NULL, NULL, NULL);
-                if (error == -1 && errno == EINTR) {
-                        continue;
-                }
-                if (FD_ISSET(sock, &rfds)) {
-                        cc = read(sock, buf, sizeof(buf));
-                        if (cc == 0) {
-                                break;
-                        }
-                        if (cc == -1 && errno == EINTR) {
-                                continue;
-                        }
-                        if (cc == -1) {
-                                err(1, "read failed");
-                        }
-                        write(STDOUT_FILENO, buf, cc);
-                }
-                if (FD_ISSET(STDIN_FILENO, &rfds)) {
-                        cc = read(STDIN_FILENO, buf, sizeof(buf));
-                        if (cc == 0) {
-                                break;
-                        }
-                        if (cc == -1 && errno == EINTR) {
-                                continue;
-                        }
-                        if (cc == -1) {
-                                err(1, "read failed");
-                        }
-                        write(sock, buf, cc);
-                }
-
-        }
+	fp = fopen("/tmp/diags", "w+");
+	if (fp == NULL) {
+		err(1, "fopen failed");
+	}
+	fprintf(fp, "booyaka\n");
+	fflush(fp);
+	while (1) {
+		maxfd = 0;
+		FD_ZERO(&rfds);
+		if (sock > maxfd) {
+			maxfd = sock;
+		}
+		FD_SET(sock, &rfds);
+		if (STDIN_FILENO > maxfd) {
+			maxfd = STDIN_FILENO;
+		}
+		FD_SET(STDIN_FILENO, &rfds);
+		error = select(maxfd + 1, &rfds, NULL, NULL, NULL);
+		if (error == -1 && errno == EINTR) {
+			fprintf(fp, "select failed with EINTR\n");
+			continue;
+		}
+		fprintf(fp, "select returned\n");
+		fflush(fp);
+		if (FD_SET(sock, &rfds)) {
+			cc = read(sock, buf, sizeof(buf));
+			if (cc == 0) {
+				break;
+			}
+			if (cc == -1 && errno == EINTR) {
+				continue;
+			}
+			if (cc == -1) {
+				err(1, "read(from console sock) failed");
+			}
+			fprintf(fp, "wrote some data: %zu bytes\n", cc);
+			fwrite(buf, cc, 1, fp);
+			fflush(fp);
+			if (tty_write(STDOUT_FILENO, buf, cc) != cc) {
+				err(1, "tty_write failed");
+			}
+		}
+		if (FD_SET(STDIN_FILENO, &rfds)) {
+			cc = read(STDIN_FILENO, buf, sizeof(buf));
+			if (cc == 0) {
+				break;
+			}
+			if (cc == -1 && errno == EINTR) {
+				continue;
+			}
+			if (cc == -1) {
+				err(1, "read(from console sock) failed");
+			}
+			if (tty_write(sock, buf, cc) != cc) {
+				err(1, "tty write");
+			}
+		}
+	}
 }
 
 void
@@ -155,6 +241,7 @@ prison_connect_console(int sock, char *name)
 		return;
 	}
 	printf("got error code %d\n", resp.p_ecode);
+	tty_set_raw_mode(STDIN_FILENO);
 	tty_console_session(sock);
 }
 
@@ -169,6 +256,13 @@ prison_launch(int sock, char *name)
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	strlcpy(pl.p_name, name, sizeof(pl.p_name));
 	strlcpy(pl.p_term, getenv("TERM"), sizeof(pl.p_term));
+        if (tcgetattr(STDIN_FILENO, &pl.p_termios) == -1) {
+                err(1, "tcgetattr(STDIN_FILENO) failed");
+        }
+        if (ioctl(STDIN_FILENO, TIOCGWINSZ, &pl.p_winsize) == -1) {
+                err(1, "ioctl(TIOCGWINSZ): failed");
+        }
+
 	sock_ipc_must_write(sock, &pl, sizeof(pl));
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
 	printf("got error code %d\n", resp.p_ecode);
@@ -216,6 +310,7 @@ main(int argc, char *argv [])
 			/* NOT REACHED */
 		}
 	}
+	signal(SIGPIPE, SIG_IGN);
 	if (gcfg.c_family != PF_UNSPEC && gcfg.c_name) {
 		errx(1, "-4, -6 and --unix-sock are incompatable");
 	}

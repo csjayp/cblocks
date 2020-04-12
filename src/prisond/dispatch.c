@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/queue.h>
+#include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/ttycom.h>
 
@@ -27,6 +28,24 @@ TAILQ_HEAD( , prison_instance) pr_head;
 pthread_mutex_t peer_mutex;
 pthread_mutex_t prison_mutex;
 
+ssize_t tty_write(int fd, const void *vptr, size_t n)
+{
+        size_t left;
+        ssize_t written;
+        const char *ptr;
+         
+        ptr = vptr;
+        left = n;
+        while (left > 0) {
+                if ((written = write(fd, ptr, left)) <= 0) {
+                        return (written);
+                }
+                left -= written;
+                ptr += written;
+        }
+        return (n);
+}
+
 void *
 tty_io_queue_loop(void *arg)
 {
@@ -43,7 +62,6 @@ tty_io_queue_loop(void *arg)
 		pthread_mutex_lock(&prison_mutex);
 		TAILQ_FOREACH(pi, &pr_head, p_glue) {
 			switch (pi->p_state) {
-			case STATE_CONNECTED:
 			case INSTANCE_DEAD:
 				continue;
 			}
@@ -73,13 +91,22 @@ tty_io_queue_loop(void *arg)
 			}
 			ssize_t cc;
 			u_char buf[8192];
+			bzero(buf, sizeof(buf));
 			cc = read(pi->p_ttyfd, buf, sizeof(buf));
 			if (cc == 0) {
 				pi->p_state = INSTANCE_DEAD;
 				continue;
 			}
 			termbuf_append(&pi->p_ttybuf, buf, cc);
-			printf("%s: queued %zu bytes for consol\n", pi->p_name, cc);
+			printf("%s: queued %zu bytes for console\n", pi->p_name, cc);
+			if (pi->p_state != STATE_CONNECTED) {
+				continue;
+			}
+			ssize_t dd = write(pi->p_peer_sock, buf, cc);
+			if (dd == -1 && errno == EPIPE) {
+				err(1, "handled disappearing consoles here");
+			}
+			printf("%zu bytes written to console\n", dd);
 		}
 		pthread_mutex_unlock(&prison_mutex);
 	}
@@ -120,70 +147,40 @@ void
 tty_console_session(int sock, struct prison_instance *pi)
 {
 	struct termbuf *tbp;
-	fd_set rfds;
-	int maxfd, error;
 	ssize_t cc;
-	u_char buf[8192];
 
 	printf("console session established, flushing buffers...\n");
 	pi->p_state = STATE_CONNECTED;
 	TAILQ_FOREACH(tbp, &pi->p_ttybuf.t_head, t_glue) {
 		switch (tbp->t_flag) {
 		case TERMBUF_STATIC:
-			write(sock, tbp->t_static, tbp->t_len);
+			cc = write(sock, tbp->t_static, tbp->t_len);
+			if (cc == -1)
+				err(1, "write(TERMBUF_STATIC) failed");
 			break;
 		case TERMBUF_DYNAMIC:
-			write(sock, tbp->t_dynamic, tbp->t_len);
+			cc = write(sock, tbp->t_dynamic, tbp->t_len);
+			if (cc == -1)
+				err(1, "write(TERMBUF_DYNAMIC)");
 			break;
 		}
 	}
-	maxfd = 0;
-	if (sock > maxfd) {
-		maxfd = sock;
-	}
-	if (pi->p_ttyfd > maxfd) {
-		maxfd = pi->p_ttyfd;
-	}
-	printf("entering polling loop for TTY\n");
-	while (1) {
-		FD_ZERO(&rfds);
-		FD_SET(sock, &rfds);
-		FD_SET(pi->p_ttyfd, &rfds);
-		error = select(maxfd + 1, &rfds, NULL, NULL, NULL);
-		if (error == -1 && errno == EINTR) {
+	for (;;) {
+		char buf[1024];
+
+		bzero(buf, sizeof(buf));
+		ssize_t cc = read(sock, buf, sizeof(buf));
+		if (cc == 0) {
+			break;
+		}
+		if (cc == -1 && errno == EINTR) {
 			continue;
 		}
-		if (FD_ISSET(sock, &rfds)) {
-			cc = read(sock, buf, sizeof(buf));
-			if (cc == 0) {
-				printf("read from sock returned 0\n");
-				break;
-			}
-			if (cc == -1 && errno == EINTR) {
-				continue;
-			}
-			if (cc == -1) {
-				err(1, "read failed");
-			}
-			write(pi->p_ttyfd, buf, cc);
+		if (tty_write(pi->p_ttyfd, buf, cc) != cc) {
+			err(1, "tty_write failed");
 		}
-		if (FD_ISSET(pi->p_ttyfd, &rfds)) {
-                        cc = read(pi->p_ttyfd, buf, sizeof(buf));
-                        if (cc == 0) {
-				printf("read from tty returned 0\n");
-                                break;
-                        }
-                        if (cc == -1 && errno == EINTR) {
-                                continue;
-                        }
-                        if (cc == -1) {
-                                err(1, "read failed");
-                        }
-			termbuf_append(&pi->p_ttybuf, buf, cc);
-                        write(sock, buf, cc);
-		}
-
 	}
+	printf("console dis-connected\n");
 }
 
 int
@@ -217,10 +214,19 @@ dispatch_connect_console(int sock)
 	if (tcsetattr(pi->p_ttyfd, TCSANOW, &pcc.p_termios) == -1) {
 		err(1, "tcsetattr(TCSANOW) console connect");
 	}
+	printf("setting window size row=%u col=%u xpix=%u ypix=%u\n",
+	    pcc.p_winsize.ws_row, pcc.p_winsize.ws_col, pcc.p_winsize.ws_xpixel, pcc.p_winsize.ws_ypixel);
+
 	if (ioctl(pi->p_ttyfd, TIOCSWINSZ, &pcc.p_winsize) == -1) {
 		err(1, "ioctl(TIOCSWINSZ): failed");
 	}
+	pi->p_peer_sock = sock;
 	tty_console_session(sock, pi);
+	/*
+	 * NB: XXX: locking
+	 */
+	pi->p_state = 0; 	/* clear CONNECTED state */
+	pi->p_peer_sock = -1;
 	return (1);
 }
 
@@ -254,7 +260,7 @@ dispatch_launch_prison(int sock)
 	if (pi->p_pid == 0) {
 		tty_set_noecho(STDIN_FILENO);
 		char *argv[12];
-		argv[0] = "/usr/local/bin/zsh";
+		argv[0] = "/bin/tcsh";
 		argv[1] = NULL;
 		sprintf(buf, "TERM=%s", pl.p_term);
 		env[0] = strdup(buf);
@@ -282,11 +288,7 @@ dispatch_work(void *arg)
 	ssize_t cc;
 	int done;
 
-	printf("debug: %s\n", __func__);
 	p = (struct prison_peer *)arg;
-	pthread_mutex_lock(&peer_mutex);
-	TAILQ_INSERT_HEAD(&p_head, p, p_glue);
-	pthread_mutex_unlock(&peer_mutex);
 	done = 0;
 	while (!done) {
 		printf("waiting for command\n");
@@ -298,10 +300,7 @@ dispatch_work(void *arg)
 		switch (cmd) {
 		case PRISON_IPC_CONSOLE_CONNECT:
 			cc = dispatch_connect_console(p->p_sock);
-			if (cc == 0) {
-				done = 1;
-				continue;
-			}
+			done = 1;
 			break;
 		case PRISON_IPC_LAUNCH_PRISON:
 			cc = dispatch_launch_prison(p->p_sock);
@@ -324,6 +323,9 @@ dispatch_work(void *arg)
 	 */
 	printf("peer disconnected\n");
 	close(p->p_sock);
+	pthread_mutex_lock(&peer_mutex);
+	TAILQ_REMOVE(&p_head, p, p_glue);
+	pthread_mutex_unlock(&peer_mutex);
 	return (NULL);
 }
 
@@ -337,5 +339,8 @@ prison_handle_request(void *arg)
 	if (pthread_create(&p->p_thr, NULL, dispatch_work, arg) != 0) {
 		err(1, "pthread_create(dispatch_work) failed");
 	}
+	pthread_mutex_lock(&peer_mutex);
+	TAILQ_INSERT_HEAD(&p_head, p, p_glue);
+	pthread_mutex_unlock(&peer_mutex);
 	return (NULL);
 }
