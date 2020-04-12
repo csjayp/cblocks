@@ -55,11 +55,77 @@ prison_remove(struct prison_instance *pi)
 	free(pi);
 }
 
+static void
+prison_detach_console(const char *name)
+{
+	struct prison_instance *pi;
+
+	pthread_mutex_lock(&prison_mutex);
+	TAILQ_FOREACH(pi, &pr_head, p_glue) {
+		if (strcmp(pi->p_name, name) != 0) {
+			continue;
+		}
+		pi->p_state &= ~STATE_CONNECTED;
+		pi->p_peer_sock = -1;
+		pthread_mutex_unlock(&prison_mutex);
+		return;
+	}
+	pthread_mutex_unlock(&prison_mutex);
+	err(1, "attempt to detach non-exisent prison");
+}
+
+static void
+prison_reap_children(void)
+{
+	struct prison_instance *pi;
+	int status;
+
+	if (!reap_children) {
+		return;
+	}
+	pthread_mutex_lock(&prison_mutex);
+	TAILQ_FOREACH(pi, &pr_head, p_glue) {
+		if (waitpid(pi->p_pid, &status, WNOHANG) != pi->p_pid) {
+			continue;
+		}
+		pi->p_state |= STATE_DEAD;
+		close(pi->p_peer_sock);
+		printf("collected exit status from proc %d\n", pi->p_pid);
+	}
+	pthread_mutex_unlock(&prison_mutex);
+	reap_children = 0;
+}
+
+static int
+tty_initialize_fdset(fd_set *rfds)
+{
+	struct prison_instance *pi, *p_temp;
+	int maxfd;
+
+	FD_ZERO(rfds);
+	maxfd = 0;
+	pthread_mutex_lock(&prison_mutex);
+	TAILQ_FOREACH_SAFE(pi, &pr_head, p_glue, p_temp) {
+		if ((pi->p_state & STATE_DEAD) != 0) {
+			if ((pi->p_state & STATE_CONNECTED) == 0) {
+				prison_remove(pi);
+			}
+			continue;
+		}
+		if (pi->p_ttyfd > maxfd) {
+			maxfd = pi->p_ttyfd;
+		}
+		FD_SET(pi->p_ttyfd, rfds);
+	}
+	pthread_mutex_unlock(&prison_mutex);
+	return (maxfd);
+}
+
 void *
 tty_io_queue_loop(void *arg)
 {
-	struct prison_instance *pi, *p_temp;
-	int maxfd, error, status;
+	struct prison_instance *pi;
+	int maxfd, error;
 	struct timeval tv;
 	u_char buf[8192];
 	fd_set rfds;
@@ -67,29 +133,8 @@ tty_io_queue_loop(void *arg)
 
 	printf("tty_io_queue_loop: dispatched\n");
 	while (1) {
-		maxfd = 0;
-		FD_ZERO(&rfds);
-		pthread_mutex_lock(&prison_mutex);
-		TAILQ_FOREACH_SAFE(pi, &pr_head, p_glue, p_temp) {
-			if (reap_children) {
-				if (waitpid(pi->p_pid, &status, WNOHANG) == pi->p_pid) {
-					pi->p_state |= STATE_DEAD;
-					printf("collected exit status from proc %d\n", pi->p_pid);
-				}
-			}
-			if ((pi->p_state & STATE_DEAD) != 0) {
-				if ((pi->p_state & STATE_CONNECTED) == 0) {
-					prison_remove(pi);
-				}
-				continue;
-			}
-			if (pi->p_ttyfd > maxfd) {
-				maxfd = pi->p_ttyfd;
-			}
-			FD_SET(pi->p_ttyfd, &rfds);
-		}
-		pthread_mutex_unlock(&prison_mutex);
-		reap_children = 0;
+		prison_reap_children();
+		maxfd = tty_initialize_fdset(&rfds);
 		tv.tv_sec = 1;
 		tv.tv_usec = 0;
 		error = select(maxfd + 1, &rfds, NULL, NULL, &tv);
@@ -110,8 +155,12 @@ tty_io_queue_loop(void *arg)
 			}
 			cc = read(pi->p_ttyfd, buf, sizeof(buf));
 			if (cc == 0) {
+				printf("state dead for %s\n", pi->p_name);
 				pi->p_state |= STATE_DEAD;
 				continue;
+			}
+			if (cc == -1) {
+				err(1, "read failed:");
 			}
 			termbuf_append(&pi->p_ttybuf, buf, cc);
 			printf("%s: queued %zu bytes for console: %zu\n",
@@ -160,6 +209,27 @@ prison_instance_is_unique(char *name)
 	return (1);
 }
 
+static int
+prison_instance_is_dead(const char *name)
+{
+	struct prison_instance *pi;
+	int isdead;
+
+	isdead = 0;
+	pthread_mutex_lock(&prison_mutex);
+	TAILQ_FOREACH(pi, &pr_head, p_glue) {
+		if (strcmp(pi->p_name, name) != 0) {
+			continue;
+		}
+		isdead = ((pi->p_state & STATE_DEAD) != 0);
+		pthread_mutex_unlock(&prison_mutex);
+		return (isdead);
+        }
+        pthread_mutex_unlock(&prison_mutex);
+	err(1, "prison_instance_is_dead: on non-existent instance");
+        return (1);
+}
+
 void
 dispatch_handle_resize(int ttyfd, char *buf)
 {
@@ -175,17 +245,14 @@ dispatch_handle_resize(int ttyfd, char *buf)
 }
 
 void
-tty_console_session(int sock, struct prison_instance *pi)
+tty_console_session(const char *name, int sock, int ttyfd)
 {
+	char buf[1024], *vptr;
+	uint32_t *cmd;
 	ssize_t bytes;
-	int ttyfd;
 
 	printf("tty_console_session: enter, reading commands from client\n");
-	ttyfd = pi->p_ttyfd;
 	for (;;) {
-		char buf[1024], *vptr;
-		uint32_t *cmd;
-
 		bzero(buf, sizeof(buf));
 		ssize_t cc = read(sock, buf, sizeof(buf));
 		if (cc == 0) {
@@ -195,9 +262,20 @@ tty_console_session(int sock, struct prison_instance *pi)
 		if (cc == -1 && errno == EINTR) {
 			continue;
 		}
-		if ((pi->p_state & STATE_DEAD) != 0) {
-			printf("getting bytes for dead proc\n");
-			break;
+		/*
+		 * It's possible that the container process died for whatever
+		 * reason. When it gets reaped, the file descriptor becomes
+		 * invalidated.
+		 *
+		 * NB: what if a new fd is created in it's place? need a better
+		 * what to invalidate this session, possible pthread_kill()
+		 */
+		if (cc == -1 && errno == EBADF) {
+			if (prison_instance_is_dead(name)) {
+				break;
+			} else {
+				err(1, "read failed");
+			}
 		}
 		vptr = buf;
 		cmd = (uint32_t *)vptr;
@@ -220,6 +298,20 @@ tty_console_session(int sock, struct prison_instance *pi)
 	printf("console dis-connected\n");
 }
 
+struct prison_instance *
+prison_lookup_instance(const char *name)
+{
+	struct prison_instance *pi;
+
+	TAILQ_FOREACH(pi, &pr_head, p_glue) {
+		if (strcmp(name, pi->p_name) != 0) {
+			continue;
+		}
+		return (pi);
+	}
+	return (NULL);
+}
+
 int
 dispatch_connect_console(int sock)
 {
@@ -228,53 +320,49 @@ dispatch_connect_console(int sock)
 	struct prison_instance *pi;
 	ssize_t tty_buflen;
 	char *tty_block;
-	int match;
+	int match, ttyfd;
 
 	bzero(&resp, sizeof(resp));
 	sock_ipc_must_read(sock, &pcc, sizeof(pcc));
 	printf("got console connect for container %s\n", pcc.p_name);
 	match = 0;
 	pthread_mutex_lock(&prison_mutex);
-	TAILQ_FOREACH(pi, &pr_head, p_glue) {
-		if (strcmp(pi->p_name, pcc.p_name) != 0) {
-			continue;
-		}
-		match = 1;
-		break;
-	}
-	if (!match) {
-		printf("invalid container\n");
+	pi = prison_lookup_instance(pcc.p_name);
+	if (pi == NULL) {
 		pthread_mutex_unlock(&prison_mutex);
 		sprintf(resp.p_errbuf, "%s invalid container", pcc.p_name);
 		resp.p_ecode = 1;
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
 	}
-	printf("console connected for %s\n", pcc.p_name);
+	if ((pi->p_state & STATE_CONNECTED) != 0) {
+		pthread_mutex_unlock(&prison_mutex);
+		sprintf(resp.p_errbuf, "%s console already attached", pcc.p_name);
+		resp.p_ecode = 1;
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		return (1);
+	}
 	pi->p_state = STATE_CONNECTED;
+	ttyfd = pi->p_ttyfd;
 	tty_block = termbuf_to_contig(&pi->p_ttybuf);
 	tty_buflen = pi->p_ttybuf.t_tot_len;
+	pi->p_peer_sock = sock;
 	pthread_mutex_unlock(&prison_mutex);
-        resp.p_ecode = 0;
-        sock_ipc_must_write(sock, &resp, sizeof(resp));
+	printf("console connected for %s\n", pcc.p_name);
+	resp.p_ecode = 0;
+	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	if (tty_block) {
 		sock_ipc_must_write(sock, tty_block, tty_buflen);
 		free(tty_block);
 	}
-	if (tcsetattr(pi->p_ttyfd, TCSANOW, &pcc.p_termios) == -1) {
+	if (tcsetattr(ttyfd, TCSANOW, &pcc.p_termios) == -1) {
 		err(1, "tcsetattr(TCSANOW) console connect");
 	}
-	if (ioctl(pi->p_ttyfd, TIOCSWINSZ, &pcc.p_winsize) == -1) {
+	if (ioctl(ttyfd, TIOCSWINSZ, &pcc.p_winsize) == -1) {
 		err(1, "ioctl(TIOCSWINSZ): failed");
 	}
-	pi->p_peer_sock = sock;
-	tty_console_session(sock, pi);
-	if ((pi->p_state & STATE_DEAD) != 0) {
-		prison_remove(pi);
-		return (1);
-	}
-	pi->p_state &= ~STATE_CONNECTED;
-	pi->p_peer_sock = -1;
+	tty_console_session(pcc.p_name, sock, ttyfd);
+	prison_detach_console(pcc.p_name);
 	return (1);
 }
 
