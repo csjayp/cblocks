@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <err.h>
 
+#include "main.h"
 #include "termbuf.h"
 
 #ifdef __TEST_TERMBUF_CODE__
@@ -14,7 +15,7 @@ termbuf_head_t t_head;
 size_t term_buf_tot_len;
 #endif
 
-void
+size_t
 termbuf_remove_oldest(struct tty_buffer *ttyb)
 {
 	struct termbuf *tbp;
@@ -27,12 +28,15 @@ termbuf_remove_oldest(struct tty_buffer *ttyb)
 	}
 	ttyb->t_tot_len -= tbp->t_len;
 	free(tbp);
+	return (ttyb->t_tot_len);
 }
 
 void
 termbuf_append(struct tty_buffer *ttyb, u_char *bytes, size_t len)
 {
+	extern struct global_params gcfg;
 	struct termbuf *tbp;
+	size_t cur;
 
 	assert(bytes != NULL);
 	assert(len != 0);
@@ -54,6 +58,12 @@ termbuf_append(struct tty_buffer *ttyb, u_char *bytes, size_t len)
 	}
 	ttyb->t_tot_len += tbp->t_len;
 	TAILQ_INSERT_TAIL(&ttyb->t_head, tbp, t_glue);
+	if (ttyb->t_tot_len > gcfg.c_tty_buf_size) {
+		cur = ttyb->t_tot_len;
+		while (cur >= gcfg.c_tty_buf_size) {
+			cur = termbuf_remove_oldest(ttyb);
+		}
+	}
 }
 
 

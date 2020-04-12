@@ -9,6 +9,8 @@ ssize_t		sock_ipc_must_write(int, void *, size_t);
 
 #define	PRISON_IPC_LAUNCH_PRISON	1
 #define	PRISON_IPC_CONSOLE_CONNECT	2
+#define	PRISON_IPC_CONSOLE_DATA		3
+#define PRISON_IPC_CONSOL_RESIZE	4
 
 struct prison_response {
 	int		p_ecode;

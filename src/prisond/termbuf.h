@@ -19,7 +19,7 @@ struct tty_buffer {
 };
 
 
-void		termbuf_remove_oldest(struct tty_buffer *);
+size_t		termbuf_remove_oldest(struct tty_buffer *);
 void		termbuf_append(struct tty_buffer *, u_char *, size_t);
 
 #endif

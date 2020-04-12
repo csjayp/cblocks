@@ -27,6 +27,7 @@ static struct option long_options[] = {
 	{ "unix-sock",		required_argument, 0, 'U' },
 	{ "listen-host",	required_argument, 0, 's' },
 	{ "listen-port",	required_argument, 0, 'p' },
+	{ "tty-buffer-size",	required_argument, 0, 'T' },
 	{ "help",		no_argument, 0, 'h' },
 	{ 0, 0, 0, 0 }
 };
@@ -41,6 +42,7 @@ usage(void)
 	    " -U, --unix-sock=PATH        Path to UNIX socket\n"
 	    " -s, --listen-host=HOST      Listen host/address\n"
 	    " -p, --listen-port=PORT      Listen on port\n"
+	    " -T, --tty-buffer-size=SIZE  Store at most SIZE bytes in console\n"
 	);
 	exit(1);
 }
@@ -50,20 +52,27 @@ main(int argc, char *argv [], char *env[])
 {
 	pthread_t thr;
 	int option_index;
+	char *r;
 	int c;
 
 	gcfg.global_env = env;
 	gcfg.c_callback = prison_handle_request;
 	gcfg.c_family = PF_UNSPEC;
 	gcfg.c_port = "3333";
+	gcfg.c_tty_buf_size = 5 * 4096;
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "46U:s:p:h", long_options,
+		c = getopt_long(argc, argv, "T:46U:s:p:h", long_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'T':
+			gcfg.c_tty_buf_size = strtoul(optarg, &r, 10);
+			if (*r != '\0') {
+				errx(1, "invalid TTY buf size: %s", optarg);
+			}
 		case '4':
 			gcfg.c_family = PF_INET;
 			break;

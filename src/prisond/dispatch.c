@@ -98,7 +98,8 @@ tty_io_queue_loop(void *arg)
 				continue;
 			}
 			termbuf_append(&pi->p_ttybuf, buf, cc);
-			printf("%s: queued %zu bytes for console\n", pi->p_name, cc);
+			printf("%s: queued %zu bytes for console: %zu\n",
+			    pi->p_name, cc, pi->p_ttybuf.t_tot_len);
 			if (pi->p_state != STATE_CONNECTED) {
 				continue;
 			}
@@ -144,6 +145,20 @@ prison_instance_is_unique(char *name)
 }
 
 void
+dispatch_handle_resize(int ttyfd, char *buf)
+{
+	struct winsize *wsize;
+	char *vptr;
+
+	vptr = buf;
+	vptr += sizeof(uint32_t);
+	wsize = (struct winsize *)vptr;
+	if (ioctl(ttyfd, TIOCSWINSZ, wsize) == -1) {
+		err(1, "ioctl(TIOCSWINSZ): failed");
+	}
+}
+
+void
 tty_console_session(int sock, struct prison_instance *pi)
 {
 	struct termbuf *tbp;
@@ -166,7 +181,8 @@ tty_console_session(int sock, struct prison_instance *pi)
 		}
 	}
 	for (;;) {
-		char buf[1024];
+		char buf[1024], *vptr;
+		uint32_t *cmd;
 
 		bzero(buf, sizeof(buf));
 		ssize_t cc = read(sock, buf, sizeof(buf));
@@ -176,8 +192,21 @@ tty_console_session(int sock, struct prison_instance *pi)
 		if (cc == -1 && errno == EINTR) {
 			continue;
 		}
-		if (tty_write(pi->p_ttyfd, buf, cc) != cc) {
-			err(1, "tty_write failed");
+		vptr = buf;
+		cmd = (uint32_t *)vptr;
+		switch (*cmd) {
+		case PRISON_IPC_CONSOL_RESIZE:
+			dispatch_handle_resize(pi->p_ttyfd, buf);
+			break;
+		case PRISON_IPC_CONSOLE_DATA:
+			vptr += sizeof(uint32_t);
+			cc -= sizeof(uint32_t);
+			if (tty_write(pi->p_ttyfd, vptr, cc) != cc) {
+				err(1, "tty_write failed");
+			}
+			break;
+		default:
+			errx(1, "unknown console instruction");
 		}
 	}
 	printf("console dis-connected\n");
