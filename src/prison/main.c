@@ -81,24 +81,6 @@ tty_atexit(void)
 	}
 }
 
-ssize_t tty_write(int fd, const void *vptr, size_t n)
-{
-	size_t left;
-	ssize_t written;
-	const char *ptr;
-
-	ptr = vptr;
-	left = n;
-	while (left > 0) {
-		if ((written = write(fd, ptr, left)) <= 0) {
-			return (written);
-		}
-		left -= written;
-		ptr += written;
-	}
-	return (n);
-}
-
 int
 tty_set_raw_mode(int fd)
 {
@@ -138,6 +120,7 @@ tty_handle_socket(void *arg)
 	while (1) {
 		cc = read(*sock, buf, sizeof(buf));
 		if (cc == 0) {
+			exit(1);
 			break;
 		}
 		if (cc == -1 && errno == EINTR) {
@@ -155,6 +138,7 @@ tty_handle_socket(void *arg)
 		}
 		write(STDIN_FILENO, buf, cc);
 	}
+	printf("tty_handle_socket: exiting\n");
 	return (NULL);
 }
 
@@ -223,6 +207,7 @@ tty_handle_stdin(void *arg)
 			break;
 		}
 	}
+	printf("tty_handle_stdin exiting\n");
         return (NULL);
 }
 
