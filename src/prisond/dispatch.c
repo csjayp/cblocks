@@ -44,7 +44,6 @@ prison_remove(struct prison_instance *pi)
 {
 	size_t cur;
 
-	printf("removing prison instance\n");
 	(void) close(pi->p_peer_sock);
 	(void) close(pi->p_ttyfd);
 	TAILQ_REMOVE(&pr_head, pi, p_glue);
@@ -83,9 +82,7 @@ prison_reap_children(void)
 
 	pthread_mutex_lock(&prison_mutex);
 	TAILQ_FOREACH_SAFE(pi, &pr_head, p_glue, p_temp) {
-		printf("--> reaper -- checking %s %u\n", pi->p_name, pi->p_pid);
 		pid = waitpid(pi->p_pid, &status, WNOHANG);
-		printf("--> %d pid\n", pid);
 		if (pid != pi->p_pid) {
 			continue;
 		}
@@ -131,7 +128,6 @@ tty_io_queue_loop(void *arg)
 
 	printf("tty_io_queue_loop: dispatched\n");
 	while (1) {
-		printf("selecting..\n");
 		prison_reap_children();
 		maxfd = tty_initialize_fdset(&rfds);
 		tv.tv_sec = 1;
@@ -388,13 +384,18 @@ dispatch_launch_prison(int sock)
 		err(1, "calloc failed");
 	}
 	strlcpy(pi->p_name, pl.p_name, sizeof(pi->p_name));
+	printf("creating process with TERM=%s\n", pl.p_term);
+	env[0] = strdup(pl.p_term);
+	env[1] = NULL;
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
 	if (pi->p_pid == 0) {
+		char buf[64];
 		tty_set_noecho(STDIN_FILENO);
+		sprintf(buf, "TERM=%s", pl.p_term);
+		env[0] = strdup(buf);
+		env[1] = NULL;
 		argv[0] = "/bin/tcsh";
 		argv[1] = NULL;
-		env[0] = strdup(pl.p_term);
-		env[1] = NULL;
 		execve(*argv, argv, env);
 		err(1, "execve failed");
 	}
