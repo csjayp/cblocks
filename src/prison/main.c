@@ -54,25 +54,6 @@ usage(void)
 }
 
 void
-tty_reset_sane(void)
-{
-	struct termios def;
-
-	cfmakesane(&def);
-	otermios.c_cflag = def.c_cflag | (otermios.c_cflag & CLOCAL);
-	otermios.c_iflag = def.c_iflag;
-	/* preserve user-preference flags in lflag */
-#define LKEEP	(ECHOKE|ECHOE|ECHOK|ECHOPRT|ECHOCTL|ALTWERASE|TOSTOP|NOFLSH)
-	otermios.c_lflag = def.c_lflag | (otermios.c_lflag & LKEEP);
-	otermios.c_oflag = def.c_oflag;
-	if (tcsetattr(STDIN_FILENO, TCSANOW, &otermios) == -1) {
-		err(1, "tcsetattr(STDIN_FILENO) failed");
-	}
-}
-
-struct termios _saved_tio;
-
-void
 tty_atexit(void)
 {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &otermios) == -1) {
@@ -122,40 +103,12 @@ tty_set_raw_mode(int fd)
 }
 
 void
-enter_raw_mode(int quiet)
-{
-        struct termios tio;
-
-        if (tcgetattr(fileno(stdin), &tio) == -1) {
-                if (!quiet)
-                        perror("tcgetattr");
-                return;
-        }
-        _saved_tio = tio;
-        tio.c_iflag |= IGNPAR;
-        tio.c_iflag &= ~(ISTRIP | INLCR | IGNCR | ICRNL | IXON | IXANY | IXOFF);
-#ifdef IUCLC
-        tio.c_iflag &= ~IUCLC;
-#endif
-        tio.c_lflag &= ~(ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHONL);
-#ifdef IEXTEN
-        tio.c_lflag &= ~IEXTEN;
-#endif
-        tio.c_oflag &= ~OPOST;
-        tio.c_cc[VMIN] = 1;
-        tio.c_cc[VTIME] = 0;
-        if (tcsetattr(fileno(stdin), TCSADRAIN, &tio) == -1) {
-		err(1, "fatal");
-        } 
-}
-
-void
 tty_console_session(int sock)
 {
 	fd_set rfds;
 	int error, maxfd;
 	char buf[8192];
-	ssize_t cc, dd;
+	ssize_t cc;
 	FILE *fp;
 
 	fp = fopen("/tmp/diags", "w+");
@@ -256,13 +209,6 @@ prison_launch(int sock, char *name)
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	strlcpy(pl.p_name, name, sizeof(pl.p_name));
 	strlcpy(pl.p_term, getenv("TERM"), sizeof(pl.p_term));
-        if (tcgetattr(STDIN_FILENO, &pl.p_termios) == -1) {
-                err(1, "tcgetattr(STDIN_FILENO) failed");
-        }
-        if (ioctl(STDIN_FILENO, TIOCGWINSZ, &pl.p_winsize) == -1) {
-                err(1, "ioctl(TIOCGWINSZ): failed");
-        }
-
 	sock_ipc_must_write(sock, &pl, sizeof(pl));
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
 	printf("got error code %d\n", resp.p_ecode);
