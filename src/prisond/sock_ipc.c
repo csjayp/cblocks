@@ -156,7 +156,6 @@ sock_ipc_event_loop(struct global_params *gcp)
 	fd_set rfds;
 	int error, maxfd, s;
 
-	maxfd = 0;
 	while (1) {
 		maxfd = 0;
 		FD_ZERO(&rfds);
