@@ -23,6 +23,7 @@
 
 #include "main.h"
 #include "sock_ipc.h"
+#include "parser.h"
 
 struct termios otermios;
 int need_resize;
@@ -39,6 +40,21 @@ static struct option long_options[] = {
 	{ "terminal-type",	required_argument, 0, 't' },
 	{ 0, 0, 0, 0 }
 };
+
+void
+manifest_load(char *path)
+{
+	FILE *f;
+
+	f = fopen(path, "r");
+	if (f == NULL) {
+		err(1, "fopen manifest failed");
+	}
+	yyfile = path;
+	yyin = f;
+	yyparse();
+	(void) fclose(f);
+}
 
 static void
 handle_window_resize(int sig)
@@ -330,6 +346,7 @@ main(int argc, char *argv [])
 			/* NOT REACHED */
 		}
 	}
+	manifest_load("Prisonfile");
 	signal(SIGPIPE, SIG_IGN);
 	if (gcfg.c_family != PF_UNSPEC && gcfg.c_name) {
 		errx(1, "-4, -6 and --unix-sock are incompatable");

@@ -1,0 +1,30 @@
+#
+# Comment
+#
+# This is just an example Prisonfile to test the high level parsng
+# framework. This format attempts to replicate the Dockerfile format
+# because it's generally well understood, and simple. There are a few
+# minor differences though.
+#
+FROM whatever:3243423 AS boo
+  ADD somedir/ /foo
+  WORKDIR /foo
+  RUN make
+
+FROM golang-build:12332423 AS go
+  ADD go/ /build
+  WORKDIR /build
+  COPY --stage boo /foo/build /build
+  RUN "go build"
+
+FROM freebsd-12.1-release-amd64:324325345435
+  RUN "pkg update && pkg install foobar && \
+    pkg install baz \
+    pkg install bar"
+  COPY etc/file .
+  COPY --stage 2 /build/bing /badda-bing
+  COPY etc/hosts /etc/resolv.conf
+  ADD whatever.tar.gz /foo
+  ADD http://www.whatever.com .
+
+ENTRYPOINT ["/bin/bash"]
