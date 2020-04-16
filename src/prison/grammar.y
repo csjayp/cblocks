@@ -30,12 +30,19 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <fnmatch.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <err.h>
+#include <assert.h>
 
 #include "parser.h"
 #include "build.h"
 
+static struct build_manifest	*cur_build_manifest;
 static struct build_stage	*cur_build_stage;
+static struct build_step	*cur_build_step;
+static int stage_counter;
 
 %}
 
@@ -59,37 +66,157 @@ root	: /* empty */
 
 stage	:
 	stage_def
+	| entry_def
+	;
+
+entry_def:
+	ENTRYPOINT OPEN_SQUARE_BRACKET STRING CLOSE_SQUARE_BRACKET
+        {
+		struct build_manifest *bmp;
+
+		bmp = get_current_build_manifest();
+		if (bmp->entry_point != NULL) {
+			errx(1, "ENTRPOINT: only one entry point per build specification");
+		}
+		bmp->entry_point = strdup($3);
+		if (bmp->entry_point == NULL) {
+			err(1, "strdup: entrypoint failed");
+		}
+        }
+        ;
+
+copy_spec:
+	COPY_FROM STRING STRING STRING
+	| COPY_FROM INTEGER STRING STRING
+	| STRING STRING
+	{
+		struct build_step *b_step;
+		struct build_stage *bsp;
+
+		assert(cur_build_step != NULL);
+		assert(cur_build_stage != NULL);
+		bsp = cur_build_stage;
+		b_step = cur_build_step;
+		b_step->step_data.step_copy.sc_source = strdup($1);
+		if (!b_step->step_data.step_copy.sc_source) {
+			err(1, "strdup failed");
+		}
+		b_step->step_data.step_copy.sc_dest = strdup($2);
+		if (!b_step->step_data.step_copy.sc_dest) {
+			err(1, "strdup failed");
+		}
+		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
+		cur_build_step = NULL;
+	}
 	;
 
 op_spec:
-	RUN STRING
+	RUN
 	{
-		printf("\texecuting '%s'\n", $2);
+		struct build_step *b_step;
+
+		b_step = calloc(1, sizeof(*b_step));
+		if (b_step == NULL) {
+			err(1, "calloc(build step) faild");
+		}
+		b_step->step_op = STEP_RUN;
+		cur_build_step = b_step;
 	}
-	| ADD STRING STRING
+	STRING
 	{
-		printf("\tAdding file/tar/linked file refereced by %s to %s in container\n",
-		    $2, $3);
+		struct build_step *b_step;
+		struct build_stage *bsp;
+
+		assert(cur_build_step != NULL);
+		assert(cur_build_stage != NULL);
+		bsp = cur_build_stage;
+		b_step = cur_build_step;
+		b_step->step_data.step_cmd = strdup($3);
+		if (b_step->step_data.step_cmd == NULL) {
+			err(1, "calloc(run command) failed");
+		}
+		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
+		cur_build_step = NULL;
 	}
-	| COPY COPY_FROM STRING STRING STRING
+	| ADD
 	{
-		printf("\tCopy file (%s) from stage %s to %s\n", $4, $3, $5);
+		struct build_step *b_step;
+
+		b_step = calloc(1, sizeof(*b_step));
+		if (b_step == NULL) {
+			err(1, "calloc(build step) faild");
+		}
+		b_step->step_op = STEP_ADD;
+		cur_build_step = b_step;
 	}
-	| COPY COPY_FROM INTEGER STRING STRING
+	STRING STRING
 	{
-		printf("\tCopy file (%s) from stage %d to %s\n", $4, $3, $5);
+		char **pattern_list, *pat;
+		struct build_step *b_step;
+		struct build_stage *bsp;
+		int match;
+
+		bsp = cur_build_stage;
+		b_step = cur_build_step;
+		b_step->step_data.step_add.sa_source = $3;
+		b_step->step_data.step_add.sa_dest = $4;
+		if (strncasecmp("http://", $3, 7) == 0) {
+			b_step->step_data.step_add.sa_op = ADD_TYPE_URL;
+		} else if (strncasecmp("https://", $3, 8) == 0) {
+			b_step->step_data.step_add.sa_op = ADD_TYPE_URL;
+		}
+		pattern_list = archive_extensions;
+		match = 0;
+		while ((pat = *pattern_list++)) {
+			if (!fnmatch(pat, $3, FNM_CASEFOLD)) {
+				match = 1;
+				break;
+			}
+		}
+		if (match) {
+			b_step->step_data.step_add.sa_op = ADD_TYPE_ARCHIVE;
+		}
+		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
+		cur_build_step = NULL;
 	}
-	| COPY STRING STRING
+	| COPY
 	{
-		printf("\tCopying local file %s to %s in container\n", $2, $3);
+		struct build_step *b_step;
+
+		b_step = calloc(1, sizeof(*b_step));
+		if (b_step == NULL) {
+			err(1, "calloc(build step) faild");
+		}
+		b_step->step_op = STEP_COPY;
+		cur_build_step = b_step;
+	} copy_spec
+	| WORKDIR
+	{
+		struct build_step *b_step;
+
+		b_step = calloc(1, sizeof(*b_step));
+		if (b_step == NULL) {
+			err(1, "calloc(build step) faild");
+		}
+		b_step->step_op = STEP_WORKDIR;
+		cur_build_step = b_step;
+
 	}
-	| WORKDIR STRING
+	STRING
 	{
-		printf("\tsetting work directory to %s\n", $2);
-	}
-	| ENTRYPOINT OPEN_SQUARE_BRACKET STRING CLOSE_SQUARE_BRACKET
-	{
-		printf("\tSeting container entry point to %s\n", $3);
+		struct build_step *b_step;
+		struct build_stage *bsp;
+
+		b_step = cur_build_step;
+		bsp = cur_build_stage;
+		assert(b_step != NULL);
+		assert(bsp != NULL);
+		b_step->step_data.step_workdir.sw_dir = strdup($3);
+		if (!b_step->step_data.step_workdir.sw_dir) {
+			err(1, "strdup failed");
+		}
+		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
+		cur_build_step = NULL;
 	}
 	;
 
@@ -103,6 +230,7 @@ from_spec:
 		struct build_stage *bsp;
 
 		bsp = cur_build_stage;
+		assert(bsp != NULL);
 		bsp->bs_base_container = strdup($1);
 		if (!bsp->bs_base_container) {
 			err(1, "faild to copy base container name");
@@ -113,6 +241,8 @@ from_spec:
 		struct build_stage *bsp;
 
 		bsp = cur_build_stage;
+		assert(bsp != NULL);
+		printf("DEBUG: %s %s\n", $3, $1);
 		bsp->bs_name = strdup($3);
 		bsp->bs_base_container = strdup($1);
 	}
@@ -131,9 +261,44 @@ stage_def:
 	}
 	from_spec operations
 	{
+		struct build_manifest *bmp;
 		struct build_stage *bsp;
 
+		bmp = get_current_build_manifest();
 		bsp = cur_build_stage;
-		TAILQ_INSERT_HEAD(&manifest.stage_head, bsp, stage_glue);
+		bsp->bs_index = stage_counter++;
+		printf("Inserted Stage: %s %p\n", bsp->bs_base_container, bsp);
+		TAILQ_INSERT_HEAD(&bmp->stage_head, bsp, stage_glue);
+		cur_build_stage = NULL;
 	}
 	;
+%%
+
+struct build_manifest *
+build_manifest_init(void)
+{
+	struct build_manifest *bmp;
+
+	bmp = calloc(1, sizeof(*bmp));
+	if (bmp == NULL) {
+		err(1, "calloc(build_manifest_init) failed");
+	}
+	TAILQ_INIT(&bmp->stage_head);
+	return (bmp);
+}
+
+void
+set_current_build_manifest(struct build_manifest *bmp)
+{
+
+	cur_build_manifest = bmp;
+}
+
+struct build_manifest *
+get_current_build_manifest(void)
+{
+
+	assert(cur_build_manifest != NULL);
+	return (cur_build_manifest);
+}
+

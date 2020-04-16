@@ -33,23 +33,29 @@ static struct option build_options[] = {
 	{ 0, 0, 0, 0 }
 };
 
-void
+struct build_manifest *
 build_manifest_load(struct build_config *bcp)
 {
+	struct build_manifest *bmp;
 	char manifest_path[128];
 	FILE *f;
 
+	bmp = build_manifest_init();
+	if (bmp == NULL) {
+		err(1, "failed to get build manifest");
+	}
 	(void) snprintf(manifest_path, sizeof(manifest_path), "%s/%s",
 	    bcp->b_path, bcp->b_prison_file);
 	f = fopen(manifest_path, "r");
 	if (f == NULL) {
 		err(1, "fopen manifest failed");
 	}
-	TAILQ_INIT(&manifest.stage_head);
 	yyfile = manifest_path;
 	yyin = f;
+	set_current_build_manifest(bmp);
 	yyparse();
 	fclose(f);
+	return (bmp);
 }
 
 static void
@@ -64,9 +70,20 @@ build_usage(void)
 	exit(1);
 }
 
+static void
+build_process_stages(struct build_manifest *bmp)
+{
+	struct build_stage *bsp;
+
+	TAILQ_FOREACH(bsp, &bmp->stage_head, stage_glue) {
+		printf("-- FROM %s %p\n", bsp->bs_base_container, bsp);
+	}
+}
+
 int
 build_main(int argc, char *argv [], int cltlsock)
 {
+	struct build_manifest *bmp;
 	struct build_config bc;
 	int option_index;
 	int c;
@@ -104,6 +121,7 @@ build_main(int argc, char *argv [], int cltlsock)
 		build_usage();
 	}
 	(void) fprintf(stdout, "building Prison at %s\n", bc.b_path);
-	build_manifest_load(&bc);
+	bmp = build_manifest_load(&bc);
+	build_process_stages(bmp);
 	return (0);
 }

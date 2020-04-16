@@ -25,6 +25,7 @@ FROM freebsd-12.1-release-amd64:324325345435
   COPY --stage 2 /build/bing /badda-bing
   COPY etc/hosts /etc/resolv.conf
   ADD whatever.tar.gz /foo
+  ADD some/directory/src.tgz src/
   ADD http://www.whatever.com .
 
 ENTRYPOINT ["/bin/bash"]
