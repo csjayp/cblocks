@@ -33,7 +33,6 @@ static void
 launch_usage(void)
 {
 	(void) fprintf(stderr,
-	    "Options\n"
 	    " -h, --help                  Print help\n"
 	    " -n, --name=NAME             Name of container image to launch\n"
 	    " -t, --terminal=TERM         Terminal type to use (TERM)\n");

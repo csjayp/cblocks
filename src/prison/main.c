@@ -33,7 +33,7 @@ struct sub_command {
 static struct sub_command sub_command_list[] = {
 	{ "launch",	launch_main, "Launch a new container instance"  },
 	{ "console",	console_main, "Attach to a container console" },
-	{ "build",	NULL, "Build a new container image" },
+	{ "build",	build_main, "Build a new container image" },
 	{ NULL,		NULL, NULL }
 };
 

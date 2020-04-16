@@ -48,6 +48,7 @@ static void
 console_usage(void)
 {
 	(void) fprintf(stderr,
+	    "Usage: prison console [OPTIONS]\n\n"
 	    "Options\n"
 	    " -h, --help        Display program usage\n"
 	    " -n, --name        Name of console to connect to\n"
