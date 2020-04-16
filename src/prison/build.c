@@ -1,4 +1,5 @@
 #include <sys/types.h>
+#include <sys/queue.h>
 #include <sys/ioctl.h>
 #include <sys/ttycom.h>
 
@@ -17,6 +18,7 @@
 
 #include "main.h"
 #include "parser.h"
+#include "build.h"
 
 struct build_config {
 	char		*b_name;
@@ -43,6 +45,7 @@ build_manifest_load(struct build_config *bcp)
 	if (f == NULL) {
 		err(1, "fopen manifest failed");
 	}
+	TAILQ_INIT(&manifest.stage_head);
 	yyfile = manifest_path;
 	yyin = f;
 	yyparse();
@@ -69,7 +72,7 @@ build_main(int argc, char *argv [], int cltlsock)
 	int c;
 
 	bzero(&bc, sizeof(bc));
-	bc.b_prison_path = "Prisonfile";
+	bc.b_prison_file = "Prisonfile";
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;

@@ -25,10 +25,18 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+#include <sys/types.h>
+#include <sys/queue.h>
+
 #include <stdio.h>
 #include <stdint.h>
+#include <err.h>
 
 #include "parser.h"
+#include "build.h"
+
+static struct build_stage	*cur_build_stage;
+
 %}
 
 %union {
@@ -89,13 +97,43 @@ operations : /* empty */
 	| operations op_spec
 	;
 
-stage_def:
-	FROM STRING operations
+from_spec:
+	| STRING
 	{
-		printf("--- stage committed: base image %s\n", $2);
+		struct build_stage *bsp;
+
+		bsp = cur_build_stage;
+		bsp->bs_base_container = strdup($1);
+		if (!bsp->bs_base_container) {
+			err(1, "faild to copy base container name");
+		}
 	}
-	| FROM STRING AS STRING operations
+	| STRING AS STRING
 	{
-		printf("--- stage %s committed: base image %s\n", $4, $2);
+		struct build_stage *bsp;
+
+		bsp = cur_build_stage;
+		bsp->bs_name = strdup($3);
+		bsp->bs_base_container = strdup($1);
+	}
+	;
+
+stage_def:
+	FROM
+	{
+		struct build_stage *bsp;
+
+		bsp = calloc(1, sizeof(*bsp));
+		if (bsp == NULL) {
+			err(1, "calloc(build stage) failed");
+		}
+		cur_build_stage = bsp;
+	}
+	from_spec operations
+	{
+		struct build_stage *bsp;
+
+		bsp = cur_build_stage;
+		TAILQ_INSERT_HEAD(&manifest.stage_head, bsp, stage_glue);
 	}
 	;

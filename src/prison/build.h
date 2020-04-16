@@ -11,7 +11,9 @@ struct build_step {
 
 struct build_stage {
 	char				*bs_name;
+	char				*bs_base_container;
 	TAILQ_HEAD( , build_step)	step_head;
+	TAILQ_ENTRY(build_stage)	stage_glue;
 };
 
 struct build_manifest {
@@ -19,5 +21,7 @@ struct build_manifest {
 	char				*entry_point;
 	char				*maintainr;
 };
+
+struct build_manifest			manifest;
 
 #endif	/* BUILD_DOT_H_ */
