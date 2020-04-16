@@ -15,4 +15,8 @@ struct global_params {
 
 struct global_params gcfg;
 
+void		reset_getopt_state(void);
+int		console_main(int, char **, int);
+int		launch_main(int, char **, int);
+
 #endif

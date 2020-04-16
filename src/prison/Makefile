@@ -2,7 +2,7 @@ CC	?= cc
 CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I../libprison
 TARGETS	= prison
 LIBS	= -lprison
-OBJ	= y.tab.o lex.yy.o main.o sock_ipc.o
+OBJ	= console.o launch.o y.tab.o lex.yy.o main.o sock_ipc.o
 
 all:	$(TARGETS)
 
