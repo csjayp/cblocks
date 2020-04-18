@@ -44,6 +44,16 @@ static struct build_stage	*cur_build_stage;
 static struct build_step	*cur_build_step;
 static int stage_counter;
 
+static char *archive_extensions[] = {
+	"*.tar.gz",
+	"*.tgz",
+	"*.txz",
+	"*.tar.xz",
+	"*.tar.bz2",
+	"*.tbz2",
+	NULL
+};
+
 %}
 
 %union {

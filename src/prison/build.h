@@ -29,7 +29,7 @@
 
 struct build_step_workdir {
 	char					*sw_dir;
-}	;
+};
 
 struct build_step_add {
 	int					 sa_op;
@@ -72,16 +72,6 @@ struct build_manifest {
 	TAILQ_HEAD( , build_stage)		 stage_head;
 	char					*entry_point;
 	char					*maintainr;
-};
-
-char *archive_extensions[] = {
-	"*.tar.gz",
-	"*.tgz",
-	"*.txz",
-	"*.tar.xz",
-	"*.tar.bz2",
-	"*.tbz2",
-	NULL
 };
 
 #endif	/* BUILD_DOT_H_ */
