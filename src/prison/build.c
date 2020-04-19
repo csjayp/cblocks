@@ -25,12 +25,15 @@
  * SUCH DAMAGE.
  */
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/queue.h>
 #include <sys/ioctl.h>
+#include <sys/wait.h>
 #include <sys/ttycom.h>
 
 #include <stdio.h>
 #include <errno.h>
+#include <assert.h>
 #include <string.h>
 #include <getopt.h>
 #include <stdlib.h>
@@ -50,6 +53,7 @@ struct build_config {
 	char		*b_name;
 	char		*b_prison_file;
 	char		*b_path;
+	char		*b_context_path;
 };
 
 static struct option build_options[] = {
@@ -96,6 +100,90 @@ build_usage(void)
 	exit(1);
 }
 
+static int
+build_send_context(int sock, struct build_config *bcp)
+{
+	struct stat sb;
+	int fd;
+	u_int cmd;
+	struct prison_build_context pbc;
+	struct prison_response resp;
+
+	if (stat(bcp->b_context_path, &sb) == -1) {
+		err(1, "stat failed");
+	}
+	fd = open(bcp->b_context_path, O_RDONLY);
+	if (fd == -1) {
+		err(1, "error opening build context");
+	}
+	printf("Sending build context (%zu) bytes total\n", sb.st_size);
+	cmd = PRISON_IPC_SEND_BUILD_CTX;
+	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
+	pbc.p_context_size = sb.st_size;
+	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
+	strlcpy(pbc.p_prison_file, bcp->b_prison_file, sizeof(pbc.p_prison_file));
+	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
+	if (sock_ipc_from_to(fd, sock, sb.st_size) == -1) {
+		err(1, "sock_ipc_from_to: failed");
+	}
+	sock_ipc_must_read(sock, &resp, sizeof(resp));
+	printf("read status code %d from daemon\n", resp.p_ecode);
+	return (0);
+}
+
+static int
+build_generate_context(struct build_config *bcp)
+{
+	char *argv[10], *build_context_path, *template;
+	char dst[256];
+	int ret, status, pid;
+
+	printf("Constructing build context...");
+	fflush(stdout);
+	template = strdup("/tmp/prison-bcontext.XXXXXXXXX");
+	build_context_path = mktemp(template);
+	if (build_context_path == NULL) {
+		err(1, "failed to generate random file");
+	}
+	snprintf(dst, sizeof(dst), "%s.tar.gz", build_context_path);
+	build_context_path = mktemp(template);
+	pid = fork();
+	if (pid == -1) {
+		err(1, "fork faild");
+	}
+	if (pid == 0) {
+		argv[0] = "/usr/bin/tar";
+		argv[1] = "-C";
+		argv[2] = bcp->b_path;
+		argv[3] = "-cpf";
+		argv[4] = build_context_path;
+		argv[5] = ".";
+		argv[6] = NULL;
+		execve(*argv, argv, NULL);
+		err(1, "failed to exec tar for build context");
+	}
+	while (1) {
+		ret = waitpid(pid, &status, 0);
+		if (ret == -1 && errno == EINTR) {
+			continue;
+		} else if (ret == -1) {
+			err(1, "waitpid faild");
+		}
+		break;
+		assert(ret == pid);
+	}
+	if (rename(build_context_path, dst) == -1) {
+		err(1, "could not rename build context");
+	}
+	printf("DONE\n");
+	free(template);
+	bcp->b_context_path = strdup(dst);
+	if (bcp->b_context_path == NULL) {
+		err(1, "strdup failed");
+	}
+	return (status);
+}
+
 static void
 build_process_stages(struct build_manifest *bmp)
 {
@@ -119,7 +207,7 @@ build_main(int argc, char *argv [], int cltlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "n:t:", build_options,
+		c = getopt_long(argc, argv, "f:n:t:", build_options,
 		    &option_index);
 		if (c == -1) {
 			break;
@@ -149,5 +237,7 @@ build_main(int argc, char *argv [], int cltlsock)
 	(void) fprintf(stdout, "building Prison at %s\n", bc.b_path);
 	bmp = build_manifest_load(&bc);
 	build_process_stages(bmp);
+	build_generate_context(&bc);
+	build_send_context(cltlsock, &bc);
 	return (0);
 }

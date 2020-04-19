@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <err.h>
 #include <errno.h>
 #include <stdint.h>
@@ -338,12 +339,11 @@ dispatch_connect_console(int sock)
 	struct prison_instance *pi;
 	ssize_t tty_buflen;
 	char *tty_block;
-	int match, ttyfd;
+	int ttyfd;
 
 	bzero(&resp, sizeof(resp));
 	sock_ipc_must_read(sock, &pcc, sizeof(pcc));
 	printf("got console connect for container %s\n", pcc.p_name);
-	match = 0;
 	pthread_mutex_lock(&prison_mutex);
 	pi = prison_lookup_instance(pcc.p_name);
 	if (pi == NULL) {
@@ -437,6 +437,32 @@ dispatch_launch_prison(int sock)
 	return (1);
 }
 
+int
+dispatch_build_recieve(int sock)
+{
+	struct prison_build_context pbc;
+	struct prison_response resp;
+	ssize_t cc;
+
+	printf("executing build recieve\n");
+	cc = sock_ipc_must_read(sock, &pbc, sizeof(pbc));
+	if (cc == 0) {
+		printf("didn't get proper build context headers\n");
+		return (0);
+	}
+	int fd = open("/dev/null", O_RDWR);
+	if (fd == -1) {
+		err(1, "open dev null");
+	}
+	if (sock_ipc_from_to(sock, fd, pbc.p_context_size) == -1) {
+		err(1, "sock_ipc_from_to failed");
+	}
+	bzero(&resp, sizeof(resp));
+	resp.p_ecode = 0;
+	sock_ipc_must_write(sock, &resp, sizeof(resp));
+	return (1);
+}
+
 void *
 dispatch_work(void *arg)
 {
@@ -456,6 +482,10 @@ dispatch_work(void *arg)
 		}
 		printf("read command %d\n", cmd);
 		switch (cmd) {
+		case PRISON_IPC_SEND_BUILD_CTX:
+			cc = dispatch_build_recieve(p->p_sock);
+			done = 1;
+			break;
 		case PRISON_IPC_CONSOLE_CONNECT:
 			cc = dispatch_connect_console(p->p_sock);
 			done = 1;

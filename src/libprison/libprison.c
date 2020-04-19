@@ -125,3 +125,32 @@ sock_ipc_must_write(int fd, void *buf, size_t n)
 	}
 	return (n);
 }
+
+ssize_t
+sock_ipc_from_to(int from, int to, off_t len)
+{
+	ssize_t bytes_read;
+	off_t block_count;
+	size_t toread;
+	int pagesize;
+	u_char *buf;
+
+	pagesize = getpagesize();
+	buf = calloc(1, pagesize);
+	if (buf == NULL) {
+		err(1, "calloc failed");
+	}
+	for (block_count = 0; block_count < len; block_count += pagesize) {
+		toread = pagesize;
+		if ((pagesize + block_count) > len) {
+			toread = len - block_count;
+		}
+		if (sock_ipc_must_read(from, buf, toread) != toread) {
+			return (-1);
+		}
+		if (sock_ipc_must_write(to, buf, toread) != toread) {
+			return (-1);
+		}
+	}
+	return (len);
+}

@@ -30,6 +30,8 @@
 int		sock_ipc_may_read(int, void *, size_t);
 ssize_t		sock_ipc_must_read(int, void *, size_t);
 ssize_t		sock_ipc_must_write(int, void *, size_t);
+ssize_t		sock_ipc_from_to(int, int, off_t);
+
 
 #define	MAX_PRISON_NAME	512
 
@@ -37,6 +39,13 @@ ssize_t		sock_ipc_must_write(int, void *, size_t);
 #define	PRISON_IPC_CONSOLE_CONNECT	2
 #define	PRISON_IPC_CONSOLE_DATA		3
 #define PRISON_IPC_CONSOL_RESIZE	4
+#define	PRISON_IPC_SEND_BUILD_CTX	5
+
+struct prison_build_context {
+	char		p_image_name[1024];
+	char		p_prison_file[1024];
+	off_t		p_context_size;
+};
 
 struct prison_response {
 	int		p_ecode;
