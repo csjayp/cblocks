@@ -104,12 +104,10 @@ static int
 build_send_context(int sock, struct build_config *bcp)
 {
 	struct stat sb;
-	u_char buf[4096];
-	int fd, towrite, block;
+	int fd;
 	u_int cmd;
 	struct prison_build_context pbc;
 	struct prison_response resp;
-	ssize_t cc;
 
 	if (stat(bcp->b_context_path, &sb) == -1) {
 		err(1, "stat failed");
@@ -118,35 +116,18 @@ build_send_context(int sock, struct build_config *bcp)
 	if (fd == -1) {
 		err(1, "error opening build context");
 	}
+	printf("Sending build context (%zu) bytes total\n", sb.st_size);
 	cmd = PRISON_IPC_SEND_BUILD_CTX;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	pbc.p_context_size = sb.st_size;
 	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
 	strlcpy(pbc.p_prison_file, bcp->b_prison_file, sizeof(pbc.p_prison_file));
 	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
-	off_t written = 0;
-	for (block = 0; block < sb.st_size; block += 4096) {
-		if ((block + 4096) > sb.st_size) {
-			towrite = sb.st_size - block;
-		} else {
-			towrite = 4096;
-		}
-		while (1) {
-			cc = read(fd, buf, towrite);
-			if (cc == -1 && errno == EINTR) {
-				continue;
-			}
-			if (cc == -1) {
-				err(1, "read failed");
-			}
-			break;
-			written += cc;
-		}
-		sock_ipc_must_write(sock, buf, cc);
+	if (sock_ipc_from_to(fd, sock, sb.st_size) == -1) {
+		err(1, "sock_ipc_from_to: failed");
 	}
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
-	printf("got %d code\n", resp.p_ecode);
-	printf("wrote %zu bytes\n", written);
+	printf("read status code %d from daemon\n", resp.p_ecode);
 	return (0);
 }
 

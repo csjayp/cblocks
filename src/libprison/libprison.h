@@ -30,6 +30,8 @@
 int		sock_ipc_may_read(int, void *, size_t);
 ssize_t		sock_ipc_must_read(int, void *, size_t);
 ssize_t		sock_ipc_must_write(int, void *, size_t);
+ssize_t		sock_ipc_from_to(int, int, off_t);
+
 
 #define	MAX_PRISON_NAME	512
 

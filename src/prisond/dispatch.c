@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <err.h>
 #include <errno.h>
 #include <stdint.h>
@@ -338,12 +339,11 @@ dispatch_connect_console(int sock)
 	struct prison_instance *pi;
 	ssize_t tty_buflen;
 	char *tty_block;
-	int match, ttyfd;
+	int ttyfd;
 
 	bzero(&resp, sizeof(resp));
 	sock_ipc_must_read(sock, &pcc, sizeof(pcc));
 	printf("got console connect for container %s\n", pcc.p_name);
-	match = 0;
 	pthread_mutex_lock(&prison_mutex);
 	pi = prison_lookup_instance(pcc.p_name);
 	if (pi == NULL) {
@@ -442,10 +442,7 @@ dispatch_build_recieve(int sock)
 {
 	struct prison_build_context pbc;
 	struct prison_response resp;
-	int cc, pagesize, toread;
-	ssize_t bytes;
-	off_t block;
-	u_char *buf;
+	ssize_t cc;
 
 	printf("executing build recieve\n");
 	cc = sock_ipc_must_read(sock, &pbc, sizeof(pbc));
@@ -453,41 +450,13 @@ dispatch_build_recieve(int sock)
 		printf("didn't get proper build context headers\n");
 		return (0);
 	}
-	pagesize = getpagesize();
-	buf = malloc(pagesize);
-	if (buf == NULL) {
-		warn("malloc failed");
-		return (0);
+	int fd = open("/dev/null", O_RDWR);
+	if (fd == -1) {
+		err(1, "open dev null");
 	}
-	off_t written = 0;
-	for (block = 0; block < pbc.p_context_size; block += pagesize) {
-		if ((pagesize + block) > pbc.p_context_size) {
-			toread = pbc.p_context_size - block;
-		} else {
-			toread = pagesize;
-		}
-		while (1) {
-			bytes = read(sock, buf, toread);
-			if (bytes == -1 && errno == EINTR) {
-				continue;
-			}
-			if (bytes == -1) {
-				warn("failed to read, aborting");
-				return (0);
-			}
-			if (bytes == 0) {
-				return (0);
-			}
-			written += bytes;
-			break;
-		}
-		if ((block % (4096 * 100)) == 0) {
-			putchar('.');
-			fflush(stdout);
-		}
+	if (sock_ipc_from_to(sock, fd, pbc.p_context_size) == -1) {
+		err(1, "sock_ipc_from_to failed");
 	}
-	fprintf(stderr, "\nread %zu byte build context for image %s\n",
-	    written, pbc.p_image_name);
 	bzero(&resp, sizeof(resp));
 	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
