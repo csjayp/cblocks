@@ -437,6 +437,63 @@ dispatch_launch_prison(int sock)
 	return (1);
 }
 
+int
+dispatch_build_recieve(int sock)
+{
+	struct prison_build_context pbc;
+	struct prison_response resp;
+	int cc, pagesize, toread;
+	ssize_t bytes;
+	off_t block;
+	u_char *buf;
+
+	printf("executing build recieve\n");
+	cc = sock_ipc_must_read(sock, &pbc, sizeof(pbc));
+	if (cc == 0) {
+		printf("didn't get proper build context headers\n");
+		return (0);
+	}
+	pagesize = getpagesize();
+	buf = malloc(pagesize);
+	if (buf == NULL) {
+		warn("malloc failed");
+		return (0);
+	}
+	off_t written = 0;
+	for (block = 0; block < pbc.p_context_size; block += pagesize) {
+		if ((pagesize + block) > pbc.p_context_size) {
+			toread = pbc.p_context_size - block;
+		} else {
+			toread = pagesize;
+		}
+		while (1) {
+			bytes = read(sock, buf, toread);
+			if (bytes == -1 && errno == EINTR) {
+				continue;
+			}
+			if (bytes == -1) {
+				warn("failed to read, aborting");
+				return (0);
+			}
+			if (bytes == 0) {
+				return (0);
+			}
+			written += bytes;
+			break;
+		}
+		if ((block % (4096 * 100)) == 0) {
+			putchar('.');
+			fflush(stdout);
+		}
+	}
+	fprintf(stderr, "\nread %zu byte build context for image %s\n",
+	    written, pbc.p_image_name);
+	bzero(&resp, sizeof(resp));
+	resp.p_ecode = 0;
+	sock_ipc_must_write(sock, &resp, sizeof(resp));
+	return (1);
+}
+
 void *
 dispatch_work(void *arg)
 {
@@ -456,6 +513,10 @@ dispatch_work(void *arg)
 		}
 		printf("read command %d\n", cmd);
 		switch (cmd) {
+		case PRISON_IPC_SEND_BUILD_CTX:
+			cc = dispatch_build_recieve(p->p_sock);
+			done = 1;
+			break;
 		case PRISON_IPC_CONSOLE_CONNECT:
 			cc = dispatch_connect_console(p->p_sock);
 			done = 1;
