@@ -45,6 +45,7 @@ struct prison_build_context {
 	char		p_image_name[1024];
 	char		p_prison_file[1024];
 	off_t		p_context_size;
+	char		p_tag[1024];
 };
 
 struct prison_response {

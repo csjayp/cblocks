@@ -27,12 +27,14 @@
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/ttycom.h>
 #include <sys/param.h>
 #include <sys/un.h>
 #include <netinet/in.h>
 
 #include <stdio.h>
+#include <errno.h>
 #include <termios.h>
 #include <getopt.h>
 #include <stdlib.h>
@@ -47,6 +49,16 @@
 #include "sock_ipc.h"
 #include "dispatch.h"
 
+#include "config.h"
+
+static char *data_sub_dirs[] = {
+	"spool",
+	"lib",
+	"images",
+	"instances",
+	NULL,
+};
+
 static struct option long_options[] = {
 	{ "ipv4",		no_argument,	0, '4' },
 	{ "ipv6",		no_argument,	0, '6' },
@@ -54,6 +66,7 @@ static struct option long_options[] = {
 	{ "listen-host",	required_argument, 0, 's' },
 	{ "listen-port",	required_argument, 0, 'p' },
 	{ "tty-buffer-size",	required_argument, 0, 'T' },
+	{ "data-directory",	required_argument, 0, 'd' },
 	{ "help",		no_argument, 0, 'h' },
 	{ 0, 0, 0, 0 }
 };
@@ -69,8 +82,33 @@ usage(void)
 	    " -s, --listen-host=HOST      Listen host/address\n"
 	    " -p, --listen-port=PORT      Listen on port\n"
 	    " -T, --tty-buffer-size=SIZE  Store at most SIZE bytes in console\n"
+	    " -d, --data-directory        Where the prisond data/spools/images are stored\n"
 	);
 	exit(1);
+}
+
+static void
+initialize_data_directory(void)
+{
+	struct stat sb;
+	char path[256], *dir, **dir_list;
+	int ret;
+
+	ret = stat(gcfg.c_data_dir, &sb);
+	if (ret == -1) {
+		err(1, "ERROR: data directory: %s", gcfg.c_data_dir);
+	}
+	if ((sb.st_mode & S_IFDIR) == 0) {
+		errx(1, "%s: is not a directory", gcfg.c_data_dir);
+	}
+	dir_list = data_sub_dirs;
+	while ((dir = *dir_list++)) {
+		(void) snprintf(path, sizeof(path), "%s/%s",
+		    gcfg.c_data_dir, dir);
+		if (mkdir(path, 0755) == -1 && errno != EEXIST) {
+			err(1, "mkdir failed");
+		}
+	}
 }
 
 int
@@ -81,6 +119,7 @@ main(int argc, char *argv [], char *env[])
 	char *r;
 	int c;
 
+	gcfg.c_data_dir = DEFAULT_DATA_DIR;
 	gcfg.global_env = env;
 	gcfg.c_callback = prison_handle_request;
 	gcfg.c_family = PF_UNSPEC;
@@ -88,12 +127,15 @@ main(int argc, char *argv [], char *env[])
 	gcfg.c_tty_buf_size = 5 * 4096;
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "T:46U:s:p:h", long_options,
+		c = getopt_long(argc, argv, "d:T:46U:s:p:h", long_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'd':
+			gcfg.c_data_dir = optarg;
+			break;
 		case 'T':
 			gcfg.c_tty_buf_size = strtoul(optarg, &r, 10);
 			if (*r != '\0') {
@@ -122,6 +164,7 @@ main(int argc, char *argv [], char *env[])
 	if (gcfg.c_family != PF_UNSPEC && gcfg.c_name) {
 		errx(1, "-4, -6 and --unix-sock are incompatable");
 	}
+	initialize_data_directory();
 	signal(SIGPIPE, SIG_IGN);
 	if (gcfg.c_name) {
 		sock_ipc_setup_unix(&gcfg);

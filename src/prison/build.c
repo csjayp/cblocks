@@ -54,11 +54,13 @@ struct build_config {
 	char		*b_prison_file;
 	char		*b_path;
 	char		*b_context_path;
+	char		*b_tag;
 };
 
 static struct option build_options[] = {
 	{ "name",		required_argument, 0, 'n' },
 	{ "prison-file-path",	required_argument, 0, 'f' },
+	{ "tag",		required_argument, 0, 't' },
 	{ "help",		no_argument, 0, 'h' },
 	{ 0, 0, 0, 0 }
 };
@@ -96,7 +98,8 @@ build_usage(void)
 	    "Options\n"
 	    " -h, --help                    Print help\n"
 	    " -n, --name=NAME               Name of container image to build\n"
-	    " -f, --prison-file-path=PATH   Path to Prisonfile (relative to build path)\n");
+	    " -f, --prison-file-path=PATH   Path to Prisonfile (relative to build path)\n"
+	    " -t, --tag=NAME                Tag to use for the image build\n");
 	exit(1);
 }
 
@@ -122,12 +125,18 @@ build_send_context(int sock, struct build_config *bcp)
 	pbc.p_context_size = sb.st_size;
 	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
 	strlcpy(pbc.p_prison_file, bcp->b_prison_file, sizeof(pbc.p_prison_file));
+	strlcpy(pbc.p_tag, bcp->b_tag, sizeof(pbc.p_tag));
 	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
 	if (sock_ipc_from_to(fd, sock, sb.st_size) == -1) {
 		err(1, "sock_ipc_from_to: failed");
 	}
+	close(fd);
+	if (unlink(bcp->b_context_path) == -1) {
+		err(1, "failed to cleanup build context");
+	}
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
-	printf("read status code %d from daemon\n", resp.p_ecode);
+	printf("Transfer complete. read status code %d (success) from daemon\n",
+	    resp.p_ecode);
 	return (0);
 }
 
@@ -194,6 +203,22 @@ build_process_stages(struct build_manifest *bmp)
 	}
 }
 
+static void
+build_set_default_tag(struct build_config *bcp)
+{
+	char buf[32], *p;
+
+	if (bcp->b_tag != NULL) {
+		return;
+	}
+	snprintf(buf, sizeof(buf), "%ld", time(NULL));
+	p = strdup(buf);
+	if (p == NULL) {
+		err(1, "strdup failed");
+	}
+	bcp->b_tag = p;
+}
+
 int
 build_main(int argc, char *argv [], int cltlsock)
 {
@@ -207,7 +232,7 @@ build_main(int argc, char *argv [], int cltlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "f:n:t:", build_options,
+		c = getopt_long(argc, argv, "hf:n:t:", build_options,
 		    &option_index);
 		if (c == -1) {
 			break;
@@ -222,6 +247,9 @@ build_main(int argc, char *argv [], int cltlsock)
 		case 'f':
 			bc.b_prison_file = optarg;
 			break;
+		case 't':
+			bc.b_tag = optarg;
+			break;
 		default:
 			build_usage();
 			/* NOT REACHED */
@@ -235,6 +263,7 @@ build_main(int argc, char *argv [], int cltlsock)
 		build_usage();
 	}
 	(void) fprintf(stdout, "building Prison at %s\n", bc.b_path);
+	build_set_default_tag(&bc);
 	bmp = build_manifest_load(&bc);
 	build_process_stages(bmp);
 	build_generate_context(&bc);

@@ -39,6 +39,7 @@ struct global_params {
 	void		*(*c_callback)(void *);
 	char		**global_env;
 	size_t		 c_tty_buf_size;
+	char		*c_data_dir;
 };
 
 struct global_params gcfg;

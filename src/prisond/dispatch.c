@@ -26,6 +26,7 @@
  */
 #include <sys/types.h>
 #include <sys/queue.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
@@ -438,11 +439,40 @@ dispatch_launch_prison(int sock)
 }
 
 int
+dispatch_build_set_outfile(struct prison_build_context *pbp,
+    char *ebuf, size_t len)
+{
+	char path[512], build_root[512];
+	int fd;
+
+	(void) snprintf(path, sizeof(path),
+	    "%s/spool/%s-%s.tar.gz", gcfg.c_data_dir, pbp->p_image_name,
+	    pbp->p_tag);
+	fd = open(path, O_RDWR | O_EXCL | O_CREAT, 0600);
+	if (fd == -1) {
+		snprintf(ebuf, len, "could not write to build spool: %s",
+		    strerror(errno));
+		return (-1);
+	}
+	(void) snprintf(build_root, sizeof(build_root),
+	    "%s/spool/%s-%s", gcfg.c_data_dir, pbp->p_image_name, pbp->p_tag);
+	if (mkdir(build_root, 0755) == -1) {
+		snprintf(ebuf, len, "failed to initialize build env: %s",
+		    strerror(errno));
+		(void) unlink(path);
+		close(fd);
+		return (-1);
+	}
+	return (fd);
+}
+
+int
 dispatch_build_recieve(int sock)
 {
 	struct prison_build_context pbc;
 	struct prison_response resp;
 	ssize_t cc;
+	int fd;
 
 	printf("executing build recieve\n");
 	cc = sock_ipc_must_read(sock, &pbc, sizeof(pbc));
@@ -450,9 +480,12 @@ dispatch_build_recieve(int sock)
 		printf("didn't get proper build context headers\n");
 		return (0);
 	}
-	int fd = open("/dev/null", O_RDWR);
+	fd = dispatch_build_set_outfile(&pbc, resp.p_errbuf,
+	    sizeof(resp.p_errbuf));
 	if (fd == -1) {
-		err(1, "open dev null");
+		resp.p_ecode = -1;
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		return (1);
 	}
 	if (sock_ipc_from_to(sock, fd, pbc.p_context_size) == -1) {
 		err(1, "sock_ipc_from_to failed");
@@ -460,6 +493,7 @@ dispatch_build_recieve(int sock)
 	bzero(&resp, sizeof(resp));
 	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
+	close(fd);
 	return (1);
 }
 

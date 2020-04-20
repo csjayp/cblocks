@@ -14,4 +14,4 @@ prisond: $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib
 
 clean:
-	rm -fr *.o prisond *.core
+	rm -fr *.o prisond *.core *.plist
