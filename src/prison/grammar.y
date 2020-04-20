@@ -108,14 +108,10 @@ copy_spec:
 		assert(cur_build_stage != NULL);
 		bsp = cur_build_stage;
 		b_step = cur_build_step;
-		b_step->step_data.step_copy.sc_source = strdup($1);
-		if (!b_step->step_data.step_copy.sc_source) {
-			err(1, "strdup failed");
-		}
-		b_step->step_data.step_copy.sc_dest = strdup($2);
-		if (!b_step->step_data.step_copy.sc_dest) {
-			err(1, "strdup failed");
-		}
+		strlcpy(b_step->step_data.step_copy.sc_source, $1,
+		    sizeof(b_step->step_data.step_copy.sc_source));
+		strlcpy(b_step->step_data.step_copy.sc_dest, $2,
+		    sizeof(b_step->step_data.step_copy.sc_dest));
 		cur_build_step->stage_index = cur_build_stage->bs_index;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
@@ -143,10 +139,8 @@ op_spec:
 		assert(cur_build_stage != NULL);
 		bsp = cur_build_stage;
 		b_step = cur_build_step;
-		b_step->step_data.step_cmd = strdup($3);
-		if (b_step->step_data.step_cmd == NULL) {
-			err(1, "calloc(run command) failed");
-		}
+		strlcpy(b_step->step_data.step_cmd, $3,
+		    sizeof(b_step->step_data.step_cmd));
 		cur_build_step->stage_index = cur_build_stage->bs_index;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
@@ -171,8 +165,10 @@ op_spec:
 
 		bsp = cur_build_stage;
 		b_step = cur_build_step;
-		b_step->step_data.step_add.sa_source = $3;
-		b_step->step_data.step_add.sa_dest = $4;
+		strlcpy(b_step->step_data.step_add.sa_source, $3,
+		    sizeof(b_step->step_data.step_add.sa_source));
+		strlcpy(b_step->step_data.step_add.sa_dest, $4,
+		    sizeof(b_step->step_data.step_add.sa_dest));
 		if (strncasecmp("http://", $3, 7) == 0) {
 			b_step->step_data.step_add.sa_op = ADD_TYPE_URL;
 		} else if (strncasecmp("https://", $3, 8) == 0) {
@@ -225,10 +221,8 @@ op_spec:
 		bsp = cur_build_stage;
 		assert(b_step != NULL);
 		assert(bsp != NULL);
-		b_step->step_data.step_workdir.sw_dir = strdup($3);
-		if (!b_step->step_data.step_workdir.sw_dir) {
-			err(1, "strdup failed");
-		}
+		strlcpy(b_step->step_data.step_workdir.sw_dir,
+		    $3, sizeof(b_step->step_data.step_workdir.sw_dir));
 		cur_build_step->stage_index = cur_build_stage->bs_index;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
@@ -246,10 +240,8 @@ from_spec:
 
 		bsp = cur_build_stage;
 		assert(bsp != NULL);
-		bsp->bs_base_container = strdup($1);
-		if (!bsp->bs_base_container) {
-			err(1, "faild to copy base container name");
-		}
+		strlcpy(bsp->bs_base_container, $1,
+		    sizeof(bsp->bs_base_container));
 	}
 	| STRING AS STRING
 	{
@@ -257,9 +249,9 @@ from_spec:
 
 		bsp = cur_build_stage;
 		assert(bsp != NULL);
-		printf("DEBUG: %s %s\n", $3, $1);
-		bsp->bs_name = strdup($3);
-		bsp->bs_base_container = strdup($1);
+		strlcpy(bsp->bs_name, $3, sizeof(bsp->bs_name));
+		strlcpy(bsp->bs_base_container, $1,
+		    sizeof(bsp->bs_base_container));
 	}
 	;
 

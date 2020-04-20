@@ -27,18 +27,17 @@
 #ifndef LIBPRISON_DOT_H_
 #define	LIBPRISON_DOT_H_
 #include <sys/types.h>
+#include <sys/param.h>
 #include <sys/ioctl.h>
 #include <sys/queue.h>
 #include <sys/ttycom.h>
 
 #include <termios.h>
 
-
 int		sock_ipc_may_read(int, void *, size_t);
 ssize_t		sock_ipc_must_read(int, void *, size_t);
 ssize_t		sock_ipc_must_write(int, void *, size_t);
 ssize_t		sock_ipc_from_to(int, int, off_t);
-
 
 #define	MAX_PRISON_NAME	512
 
@@ -77,7 +76,7 @@ struct prison_console_connect {
  * and daemon processs.
  */
 struct build_step_workdir {
-	char					*sw_dir;
+	char					sw_dir[MAXPATHLEN];
 };
 
 struct build_step_add {
@@ -85,13 +84,13 @@ struct build_step_add {
 #define	ADD_TYPE_FILE		1
 #define	ADD_TYPE_ARCHIVE	2
 #define	ADD_TYPE_URL		3
-	char					*sa_source;
-	char					*sa_dest;
+	char					sa_source[MAXPATHLEN];
+	char					sa_dest[MAXPATHLEN];
 };
 
 struct build_step_copy {
-	char					*sc_source;
-	char					*sc_dest;
+	char					sc_source[MAXPATHLEN];
+	char					sc_dest[MAXPATHLEN];
 };
 
 struct build_step {
@@ -103,7 +102,12 @@ struct build_step {
 #define	STEP_WORKDIR	4
 	TAILQ_ENTRY(build_step)	step_glue;
 	union {
-		char				*step_cmd;
+		/*
+		 * NB: This should be dynamic, following something like
+		 * getcnf(ARG_MAX) but we will re-visit this in the
+		 * future if need be.
+		 */
+		char				 step_cmd[2048];
 		struct build_step_copy		 step_copy;
 		struct build_step_add		 step_add;
 		struct build_step_workdir	 step_workdir;
@@ -111,9 +115,9 @@ struct build_step {
 };
 
 struct build_stage {
-	char					*bs_name;
+	char					 bs_name[1024];
 	int					 bs_index;
-	char					*bs_base_container;
+	char					 bs_base_container[1024];
 	TAILQ_HEAD( , build_step)		step_head;
 	TAILQ_ENTRY(build_stage)		stage_glue;
 };
