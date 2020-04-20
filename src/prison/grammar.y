@@ -36,8 +36,9 @@
 #include <err.h>
 #include <assert.h>
 
+#include <libprison.h>
+
 #include "parser.h"
-#include "build.h"
 
 static struct build_manifest	*cur_build_manifest;
 static struct build_stage	*cur_build_stage;

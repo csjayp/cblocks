@@ -47,7 +47,6 @@
 
 #include "main.h"
 #include "parser.h"
-#include "build.h"
 
 struct build_config {
 	char		*b_name;
