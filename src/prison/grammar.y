@@ -311,4 +311,3 @@ get_current_build_manifest(void)
 	assert(cur_build_manifest != NULL);
 	return (cur_build_manifest);
 }
-

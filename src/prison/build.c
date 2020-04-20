@@ -61,6 +61,7 @@ static struct option build_options[] = {
 	{ "name",		required_argument, 0, 'n' },
 	{ "prison-file-path",	required_argument, 0, 'f' },
 	{ "tag",		required_argument, 0, 't' },
+	{ "no-exec",		no_argument, 0, 'N' },
 	{ "help",		no_argument, 0, 'h' },
 	{ 0, 0, 0, 0 }
 };
@@ -99,7 +100,8 @@ build_usage(void)
 	    " -h, --help                    Print help\n"
 	    " -n, --name=NAME               Name of container image to build\n"
 	    " -f, --prison-file-path=PATH   Path to Prisonfile (relative to build path)\n"
-	    " -t, --tag=NAME                Tag to use for the image build\n");
+	    " -t, --tag=NAME                Tag to use for the image build\n"
+	    " -N, --no-exec                 Do everything but submit the build context\n");
 	exit(1);
 }
 
@@ -225,19 +227,22 @@ build_main(int argc, char *argv [], int cltlsock)
 	struct build_manifest *bmp;
 	struct build_config bc;
 	int option_index;
-	int c;
+	int c, noexec;
 
 	bzero(&bc, sizeof(bc));
 	bc.b_prison_file = "Prisonfile";
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "hf:n:t:", build_options,
+		c = getopt_long(argc, argv, "Nhf:n:t:", build_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'N':
+			noexec = 1;
+			break;
 		case 'h':
 			build_usage();
 			exit(1);
@@ -266,6 +271,9 @@ build_main(int argc, char *argv [], int cltlsock)
 	build_set_default_tag(&bc);
 	bmp = build_manifest_load(&bc);
 	build_process_stages(bmp);
+	if (noexec) {
+		return (0);
+	}
 	build_generate_context(&bc);
 	build_send_context(cltlsock, &bc);
 	return (0);
