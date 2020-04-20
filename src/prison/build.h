@@ -47,6 +47,7 @@ struct build_step_copy {
 
 struct build_step {
 	int					step_op;
+	int					stage_index;
 #define	STEP_ADD	1
 #define	STEP_COPY	2
 #define	STEP_RUN	3

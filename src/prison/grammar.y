@@ -115,6 +115,7 @@ copy_spec:
 		if (!b_step->step_data.step_copy.sc_dest) {
 			err(1, "strdup failed");
 		}
+		cur_build_step->stage_index = cur_build_stage->bs_index;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
@@ -145,6 +146,7 @@ op_spec:
 		if (b_step->step_data.step_cmd == NULL) {
 			err(1, "calloc(run command) failed");
 		}
+		cur_build_step->stage_index = cur_build_stage->bs_index;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
@@ -186,6 +188,7 @@ op_spec:
 		if (match) {
 			b_step->step_data.step_add.sa_op = ADD_TYPE_ARCHIVE;
 		}
+		cur_build_step->stage_index = cur_build_stage->bs_index;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
@@ -225,6 +228,7 @@ op_spec:
 		if (!b_step->step_data.step_workdir.sw_dir) {
 			err(1, "strdup failed");
 		}
+		cur_build_step->stage_index = cur_build_stage->bs_index;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
