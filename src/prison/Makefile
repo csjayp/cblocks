@@ -23,4 +23,4 @@ prison: $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib
 
 clean:
-	rm -fr *.o prison *.out  y.tab.c y.tab.h y.output
+	rm -fr *.o prison *.out  y.tab.c y.tab.h y.output lex.yy.c

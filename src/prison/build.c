@@ -49,11 +49,12 @@
 #include "parser.h"
 
 struct build_config {
-	char		*b_name;
-	char		*b_prison_file;
-	char		*b_path;
-	char		*b_context_path;
-	char		*b_tag;
+	char			*b_name;
+	char			*b_prison_file;
+	char			*b_path;
+	char			*b_context_path;
+	char			*b_tag;
+	struct build_manifest	*b_bmp;
 };
 
 static struct option build_options[] = {
@@ -85,6 +86,7 @@ build_manifest_load(struct build_config *bcp)
 	yyfile = manifest_path;
 	yyin = f;
 	set_current_build_manifest(bmp);
+	bcp->b_bmp = bmp;
 	yyparse();
 	fclose(f);
 	return (bmp);
@@ -104,14 +106,33 @@ build_usage(void)
 	exit(1);
 }
 
+static void
+build_init_stage_count(struct build_config *bcp,
+    struct prison_build_context *pbc)
+{
+	struct build_stage *bsp;
+	struct build_step *bs;
+
+	pbc->p_nstages = 0;
+	pbc->p_nsteps = 0;
+	TAILQ_FOREACH(bsp, &bcp->b_bmp->stage_head, stage_glue) {
+		pbc->p_nstages++;
+		TAILQ_FOREACH(bs, &bsp->step_head, step_glue) {
+			pbc->p_nsteps++;
+		}
+	}
+	printf("steps=%d\n", pbc->p_nsteps);
+	printf("stages=%d\n", pbc->p_nstages);
+}
+
 static int
 build_send_context(int sock, struct build_config *bcp)
 {
-	struct stat sb;
-	int fd;
-	u_int cmd;
 	struct prison_build_context pbc;
 	struct prison_response resp;
+	struct stat sb;
+	u_int cmd;
+	int fd;
 
 	if (stat(bcp->b_context_path, &sb) == -1) {
 		err(1, "stat failed");
@@ -127,6 +148,7 @@ build_send_context(int sock, struct build_config *bcp)
 	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
 	strlcpy(pbc.p_prison_file, bcp->b_prison_file, sizeof(pbc.p_prison_file));
 	strlcpy(pbc.p_tag, bcp->b_tag, sizeof(pbc.p_tag));
+	build_init_stage_count(bcp, &pbc);
 	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
 	if (sock_ipc_from_to(fd, sock, sb.st_size) == -1) {
 		err(1, "sock_ipc_from_to: failed");
@@ -144,8 +166,7 @@ build_send_context(int sock, struct build_config *bcp)
 static int
 build_generate_context(struct build_config *bcp)
 {
-	char *argv[10], *build_context_path, *template;
-	char dst[256];
+	char *argv[10], *build_context_path, *template, dst[256];
 	int ret, status, pid;
 
 	printf("Constructing build context...");
@@ -228,6 +249,7 @@ build_main(int argc, char *argv [], int cltlsock)
 	int option_index;
 	int c, noexec;
 
+	noexec = 0;
 	bzero(&bc, sizeof(bc));
 	bc.b_prison_file = "Prisonfile";
 	reset_getopt_state();
@@ -274,6 +296,7 @@ build_main(int argc, char *argv [], int cltlsock)
 		return (0);
 	}
 	build_generate_context(&bc);
+	printf("sending context...\n");
 	build_send_context(cltlsock, &bc);
 	return (0);
 }

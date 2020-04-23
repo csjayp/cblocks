@@ -52,6 +52,8 @@ struct prison_build_context {
 	char		p_prison_file[1024];
 	off_t		p_context_size;
 	char		p_tag[1024];
+	int		p_nstages;
+	int		p_nsteps;
 };
 
 struct prison_response {
