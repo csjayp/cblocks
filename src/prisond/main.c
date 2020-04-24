@@ -90,8 +90,8 @@ usage(void)
 static void
 initialize_data_directory(void)
 {
-	struct stat sb;
 	char path[256], *dir, **dir_list;
+	struct stat sb;
 	int ret;
 
 	ret = stat(gcfg.c_data_dir, &sb);
@@ -114,8 +114,8 @@ initialize_data_directory(void)
 int
 main(int argc, char *argv [], char *env[])
 {
-	pthread_t thr;
 	int option_index;
+	pthread_t thr;
 	char *r;
 	int c;
 
