@@ -34,6 +34,9 @@
 
 #include <termios.h>
 
+struct tailhead_stage;
+struct tailhead_step;
+
 int		sock_ipc_may_read(int, void *, size_t);
 ssize_t		sock_ipc_must_read(int, void *, size_t);
 ssize_t		sock_ipc_must_write(int, void *, size_t);
@@ -120,12 +123,12 @@ struct build_stage {
 	char					 bs_name[1024];
 	int					 bs_index;
 	char					 bs_base_container[1024];
-	TAILQ_HEAD( , build_step)		step_head;
+	TAILQ_HEAD(tailhead_step, build_step)	step_head;
 	TAILQ_ENTRY(build_stage)		stage_glue;
 };
 
 struct build_manifest {
-	TAILQ_HEAD( , build_stage)		 stage_head;
+	TAILQ_HEAD(tailhead_stage, build_stage)	 stage_head;
 	char					*entry_point;
 	char					*maintainr;
 };

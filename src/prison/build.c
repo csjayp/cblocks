@@ -121,8 +121,25 @@ build_init_stage_count(struct build_config *bcp,
 			pbc->p_nsteps++;
 		}
 	}
-	printf("steps=%d\n", pbc->p_nsteps);
-	printf("stages=%d\n", pbc->p_nstages);
+}
+
+static void
+build_send_stages(int sock, struct build_config *bcp)
+{
+	struct build_stage *stage;
+	struct build_step *step;
+
+	TAILQ_FOREACH_REVERSE(stage, &bcp->b_bmp->stage_head,
+	    tailhead_stage, stage_glue) {
+		sock_ipc_must_write(sock, stage, sizeof(*stage));
+	}
+	TAILQ_FOREACH_REVERSE(stage, &bcp->b_bmp->stage_head,
+	    tailhead_stage, stage_glue) {
+		TAILQ_FOREACH_REVERSE(step, &stage->step_head,
+		    tailhead_step, step_glue) {
+			sock_ipc_must_write(sock, step, sizeof(*step));
+		}
+	}
 }
 
 static int
@@ -150,6 +167,7 @@ build_send_context(int sock, struct build_config *bcp)
 	strlcpy(pbc.p_tag, bcp->b_tag, sizeof(pbc.p_tag));
 	build_init_stage_count(bcp, &pbc);
 	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
+	build_send_stages(sock, bcp);
 	if (sock_ipc_from_to(fd, sock, sb.st_size) == -1) {
 		err(1, "sock_ipc_from_to: failed");
 	}

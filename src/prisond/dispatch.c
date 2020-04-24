@@ -51,6 +51,7 @@
 #include "main.h"
 #include "dispatch.h"
 #include "sock_ipc.h"
+#include "config.h"
 
 TAILQ_HEAD( , prison_peer) p_head;
 TAILQ_HEAD( , prison_instance) pr_head;
@@ -467,10 +468,27 @@ dispatch_build_set_outfile(struct prison_build_context *pbp,
 }
 
 int
+dispatch_process_stages(struct prison_build_context *bcp,
+    struct build_stage *stages, struct build_step *steps)
+{
+	struct build_stage *sp;
+	int index;
+
+	for (index = 0; index < bcp->p_nstages; index++) {
+		sp = &stages[index];
+		printf("DEBUG: building %d from container %s\n",
+		    sp->bs_index, sp->bs_base_container);
+	}
+	return (0);
+}
+
+int
 dispatch_build_recieve(int sock)
 {
 	struct prison_build_context pbc;
 	struct prison_response resp;
+	struct build_stage *stages;
+	struct build_step *steps;
 	ssize_t cc;
 	int fd;
 
@@ -480,19 +498,47 @@ dispatch_build_recieve(int sock)
 		printf("didn't get proper build context headers\n");
 		return (0);
 	}
-	fd = dispatch_build_set_outfile(&pbc, resp.p_errbuf,
-	    sizeof(resp.p_errbuf));
-	if (fd == -1) {
+	if (pbc.p_nstages > MAX_BUILD_STAGES ||
+	    pbc.p_nsteps > MAX_BUILD_STEPS) {
 		resp.p_ecode = -1;
+		sprintf(resp.p_errbuf, "too many build stages/steps\n");
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
 	}
+	stages = calloc(pbc.p_nstages, sizeof(*stages));
+	if (stages == NULL) {
+		resp.p_ecode = -1;
+		sprintf(resp.p_errbuf, "out of memory");
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		return (1);
+	}
+	steps = calloc(pbc.p_nsteps, sizeof(*steps));
+	if (steps == NULL) {
+		resp.p_ecode = -1;
+		sprintf(resp.p_errbuf, "out of memory");
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		return (1);
+	}
+	sock_ipc_must_read(sock, stages, pbc.p_nstages * sizeof(*stages));
+	printf("read %lu bytes of stages\n", pbc.p_nstages * sizeof(*stages));
+	sock_ipc_must_read(sock, steps, pbc.p_nsteps * sizeof(*steps));
+	printf("read %lu bytes of steps\n", pbc.p_nsteps * sizeof(*steps));
+	fd = dispatch_build_set_outfile(&pbc, resp.p_errbuf,
+	    sizeof(resp.p_errbuf));
+	if (fd == -1) {
+		free(steps);
+		free(stages);
+		resp.p_ecode = -1;
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		return (1);
+        }
 	if (sock_ipc_from_to(sock, fd, pbc.p_context_size) == -1) {
 		err(1, "sock_ipc_from_to failed");
 	}
 	bzero(&resp, sizeof(resp));
 	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
+	dispatch_process_stages(&pbc, stages, steps);
 	close(fd);
 	return (1);
 }
