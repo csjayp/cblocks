@@ -54,6 +54,69 @@
 #include "config.h"
 
 static int
+build_init_stage(char *build_root, struct build_stage *stage,
+    struct prison_build_context *pbp)
+{
+	char *cmdvec[64], script[128], index[16], build_context[128];
+	int status;
+	pid_t pid;
+
+	pid = fork();
+	if (pid == -1) {
+		err(1, "fork failed");
+	}
+	(void) snprintf(script, sizeof(script),
+	    "%s/lib/stage_init.sh", gcfg.c_data_dir);
+	(void) snprintf(index, sizeof(index), "%d", stage->bs_index);
+	(void) snprintf(build_context, sizeof(build_context),
+	    "%s/spool/%s-%s.tar.gz", gcfg.c_data_dir, pbp->p_image_name,
+	    pbp->p_tag);
+	if (pid == 0) {
+		cmdvec[0] = "/bin/sh";
+		cmdvec[1] = script;
+		cmdvec[2] = build_root;
+		cmdvec[3] = index;
+		cmdvec[4] = stage->bs_base_container;
+		cmdvec[5] = gcfg.c_data_dir;
+		cmdvec[6] = build_context;
+		if (stage->bs_name[0] != '\0') {
+			cmdvec[7] = stage->bs_name;
+			cmdvec[8] = NULL;
+		} else {
+			cmdvec[7] = NULL;
+		}
+		execve(*cmdvec, cmdvec, NULL);
+		err(1, "execv failed");
+	}
+	while (1) {
+		pid = waitpid(pid, &status, 0);
+		if (pid == -1 && errno == EINTR) {
+			continue;
+		} else if (pid == -1) {
+			err(1, "waitpid failed");
+		}
+		break;
+	}
+	return (status);
+}
+
+static int
+build_run_stages(struct prison_build_context *pbp, struct build_stage *stages)
+{
+	struct build_stage *bstg;
+	char build_root[128];
+	int k, r;
+
+	snprintf(build_root, sizeof(build_root),
+	    "%s/spool/%s-%s", gcfg.c_data_dir, pbp->p_image_name, pbp->p_tag);
+	for (k = 0; k < pbp->p_nstages; k++) {
+		bstg = &stages[k];
+		r = build_init_stage(build_root, bstg, pbp);
+	}
+	return (r);
+}
+
+static int
 dispatch_build_set_outfile(struct prison_build_context *pbp,
     char *ebuf, size_t len)
 {
@@ -85,14 +148,8 @@ static int
 dispatch_process_stages(struct prison_build_context *bcp,
     struct build_stage *stages, struct build_step *steps)
 {
-	struct build_stage *sp;
-	int index;
 
-	for (index = 0; index < bcp->p_nstages; index++) {
-		sp = &stages[index];
-		printf("DEBUG: building %d from container %s\n",
-		    sp->bs_index, sp->bs_base_container);
-	}
+	build_run_stages(bcp, stages);
 	return (0);
 }
 
