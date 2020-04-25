@@ -26,6 +26,7 @@
  */
 #include <sys/types.h>
 #include <sys/queue.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
@@ -50,6 +51,7 @@
 #include "main.h"
 #include "dispatch.h"
 #include "sock_ipc.h"
+#include "config.h"
 
 TAILQ_HEAD( , prison_peer) p_head;
 TAILQ_HEAD( , prison_instance) pr_head;
@@ -433,32 +435,6 @@ dispatch_launch_prison(int sock)
 	printf("launched shell as pid %d\n", pi->p_pid);
 	resp.p_ecode = 0;
 	resp.p_errbuf[0] = '\0';
-	sock_ipc_must_write(sock, &resp, sizeof(resp));
-	return (1);
-}
-
-int
-dispatch_build_recieve(int sock)
-{
-	struct prison_build_context pbc;
-	struct prison_response resp;
-	ssize_t cc;
-
-	printf("executing build recieve\n");
-	cc = sock_ipc_must_read(sock, &pbc, sizeof(pbc));
-	if (cc == 0) {
-		printf("didn't get proper build context headers\n");
-		return (0);
-	}
-	int fd = open("/dev/null", O_RDWR);
-	if (fd == -1) {
-		err(1, "open dev null");
-	}
-	if (sock_ipc_from_to(sock, fd, pbc.p_context_size) == -1) {
-		err(1, "sock_ipc_from_to failed");
-	}
-	bzero(&resp, sizeof(resp));
-	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	return (1);
 }

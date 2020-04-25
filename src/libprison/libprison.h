@@ -26,12 +26,21 @@
  */
 #ifndef LIBPRISON_DOT_H_
 #define	LIBPRISON_DOT_H_
+#include <sys/types.h>
+#include <sys/param.h>
+#include <sys/ioctl.h>
+#include <sys/queue.h>
+#include <sys/ttycom.h>
+
+#include <termios.h>
+
+struct tailhead_stage;
+struct tailhead_step;
 
 int		sock_ipc_may_read(int, void *, size_t);
 ssize_t		sock_ipc_must_read(int, void *, size_t);
 ssize_t		sock_ipc_must_write(int, void *, size_t);
 ssize_t		sock_ipc_from_to(int, int, off_t);
-
 
 #define	MAX_PRISON_NAME	512
 
@@ -45,6 +54,9 @@ struct prison_build_context {
 	char		p_image_name[1024];
 	char		p_prison_file[1024];
 	off_t		p_context_size;
+	char		p_tag[1024];
+	int		p_nstages;
+	int		p_nsteps;
 };
 
 struct prison_response {
@@ -64,4 +76,61 @@ struct prison_console_connect {
 	char		p_term[64];
 };
 
-#endif
+/*
+ * Data structures to facilitate image builds, shared between the client
+ * and daemon processs.
+ */
+struct build_step_workdir {
+	char					sw_dir[MAXPATHLEN];
+};
+
+struct build_step_add {
+	int					 sa_op;
+#define	ADD_TYPE_FILE		1
+#define	ADD_TYPE_ARCHIVE	2
+#define	ADD_TYPE_URL		3
+	char					sa_source[MAXPATHLEN];
+	char					sa_dest[MAXPATHLEN];
+};
+
+struct build_step_copy {
+	char					sc_source[MAXPATHLEN];
+	char					sc_dest[MAXPATHLEN];
+};
+
+struct build_step {
+	int					step_op;
+	int					stage_index;
+#define	STEP_ADD	1
+#define	STEP_COPY	2
+#define	STEP_RUN	3
+#define	STEP_WORKDIR	4
+	TAILQ_ENTRY(build_step)	step_glue;
+	union {
+		/*
+		 * NB: This should be dynamic, following something like
+		 * getcnf(ARG_MAX) but we will re-visit this in the
+		 * future if need be.
+		 */
+		char				 step_cmd[2048];
+		struct build_step_copy		 step_copy;
+		struct build_step_add		 step_add;
+		struct build_step_workdir	 step_workdir;
+	} step_data;
+};
+
+struct build_stage {
+	char					 bs_name[1024];
+	int					 bs_index;
+	char					 bs_base_container[1024];
+	TAILQ_HEAD(tailhead_step, build_step)	step_head;
+	TAILQ_ENTRY(build_stage)		stage_glue;
+};
+
+struct build_manifest {
+	TAILQ_HEAD(tailhead_stage, build_stage)	 stage_head;
+	char					*entry_point;
+	char					*maintainr;
+};
+
+#endif	/* BUILD_DOT_H_ */
