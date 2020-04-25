@@ -42,7 +42,7 @@ struct prison_instance {
 	int				p_peer_sock;
 };
 
-void *tty_io_queue_loop(void *);
-
+void	*tty_io_queue_loop(void *);
+int	 dispatch_build_recieve(int);
 
 #endif
