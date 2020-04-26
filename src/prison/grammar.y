@@ -112,7 +112,7 @@ copy_spec:
 		    sizeof(b_step->step_data.step_copy.sc_source));
 		strlcpy(b_step->step_data.step_copy.sc_dest, $2,
 		    sizeof(b_step->step_data.step_copy.sc_dest));
-		cur_build_step->stage_index = cur_build_stage->bs_index;
+		cur_build_step->stage_index = stage_counter;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
@@ -141,7 +141,7 @@ op_spec:
 		b_step = cur_build_step;
 		strlcpy(b_step->step_data.step_cmd, $3,
 		    sizeof(b_step->step_data.step_cmd));
-		cur_build_step->stage_index = cur_build_stage->bs_index;
+		cur_build_step->stage_index = stage_counter;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
@@ -185,7 +185,7 @@ op_spec:
 		if (match) {
 			b_step->step_data.step_add.sa_op = ADD_TYPE_ARCHIVE;
 		}
-		cur_build_step->stage_index = cur_build_stage->bs_index;
+		cur_build_step->stage_index = stage_counter;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
@@ -223,7 +223,7 @@ op_spec:
 		assert(bsp != NULL);
 		strlcpy(b_step->step_data.step_workdir.sw_dir,
 		    $3, sizeof(b_step->step_data.step_workdir.sw_dir));
-		cur_build_step->stage_index = cur_build_stage->bs_index;
+		cur_build_step->stage_index = stage_counter;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}

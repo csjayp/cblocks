@@ -6,18 +6,18 @@
 # because it's generally well understood, and simple. There are a few
 # minor differences though.
 #
-FROM whatever:3243423 AS boo
+FROM base AS boo
   ADD somedir/ /foo
   WORKDIR /foo
   RUN make
 
-FROM golang-build:12332423 AS go
+FROM base AS go
   ADD go/ /build
   WORKDIR /build
   COPY --stage boo /foo/build /build
   RUN "go build"
 
-FROM freebsd-12.1-release-amd64:324325345435
+FROM base
   RUN "pkg update && pkg install foobar && \
     pkg install baz \
     pkg install bar"

@@ -133,4 +133,11 @@ struct build_manifest {
 	char					*maintainr;
 };
 
+struct build_context {
+	struct prison_build_context	 pbc;
+	struct build_step		*steps;
+	struct build_stage		*stages;
+	char				*outfile;
+};
+
 #endif	/* BUILD_DOT_H_ */
