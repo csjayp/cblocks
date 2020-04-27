@@ -51,29 +51,29 @@ ssize_t		sock_ipc_from_to(int, int, off_t);
 #define	PRISON_IPC_SEND_BUILD_CTX	5
 
 struct prison_build_context {
-	char		p_image_name[1024];
-	char		p_prison_file[1024];
-	off_t		p_context_size;
-	char		p_tag[1024];
-	int		p_nstages;
-	int		p_nsteps;
+	char					p_image_name[1024];
+	char					p_prison_file[1024];
+	off_t					p_context_size;
+	char					p_tag[1024];
+	int					p_nstages;
+	int					p_nsteps;
 };
 
 struct prison_response {
-	int		p_ecode;
-	char		p_errbuf[512];
+	int					p_ecode;
+	char					p_errbuf[512];
 };
 
 struct prison_launch {
-	char		p_name[MAX_PRISON_NAME];
-	char		p_term[128];
+	char					p_name[MAX_PRISON_NAME];
+	char					p_term[128];
 };
 
 struct prison_console_connect {
-	char		p_name[MAX_PRISON_NAME];
-	struct winsize 	p_winsize;
-	struct termios	p_termios;
-	char		p_term[64];
+	char					p_name[MAX_PRISON_NAME];
+	struct winsize				p_winsize;
+	struct termios				p_termios;
+	char					p_term[64];
 };
 
 /*
@@ -134,10 +134,10 @@ struct build_manifest {
 };
 
 struct build_context {
-	struct prison_build_context	 pbc;
-	struct build_step		*steps;
-	struct build_stage		*stages;
-	char				*outfile;
+	struct prison_build_contex		pbc;
+	struct build_step			*steps;
+	struct build_stage			*stages;
+	char					*outfile;
 };
 
 #endif	/* BUILD_DOT_H_ */
