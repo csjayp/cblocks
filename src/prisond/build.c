@@ -53,6 +53,7 @@
 #include "dispatch.h"
 #include "sock_ipc.h"
 #include "config.h"
+#include "vec.h"
 
 static int
 build_emit_add_instruction(struct build_step *bsp)
@@ -117,7 +118,8 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 static int
 build_init_stage(struct build_context *bcp, char *build_root, struct build_stage *stage)
 {
-	char *cmdvec[64], script[128], index[16], context_archive[128];
+	char script[128], index[16], context_archive[128], **argv;
+	vec_t *vec;
 	int status;
 	pid_t pid;
 
@@ -132,20 +134,22 @@ build_init_stage(struct build_context *bcp, char *build_root, struct build_stage
 	    "%s/spool/%s-%s.tar.gz", gcfg.c_data_dir, bcp->pbc.p_image_name,
 	    bcp->pbc.p_tag);
 	if (pid == 0) {
-		cmdvec[0] = "/bin/sh";
-		cmdvec[1] = script;
-		cmdvec[2] = build_root;
-		cmdvec[3] = index;
-		cmdvec[4] = stage->bs_base_container;
-		cmdvec[5] = gcfg.c_data_dir;
-		cmdvec[6] = context_archive;
+		vec = vec_init(32);
+		vec_append(vec, "/bin/sh");
+		vec_append(vec, script);
+		vec_append(vec, build_root);
+		vec_append(vec, index);
+		vec_append(vec, stage->bs_base_container);
+		vec_append(vec, gcfg.c_data_dir);
+		vec_append(vec, context_archive);
 		if (stage->bs_name[0] != '\0') {
-			cmdvec[7] = stage->bs_name;
-			cmdvec[8] = NULL;
-		} else {
-			cmdvec[7] = NULL;
+			vec_append(vec, stage->bs_name);
 		}
-		execve(*cmdvec, cmdvec, NULL);
+		if (vec_finalize(vec) != 0) {
+			errx(1, "failed to construct command line");
+		}
+		argv = vec_return(vec);
+		execve(*argv, argv, NULL);
 		err(1, "execv failed");
 	}
 	while (1) {
