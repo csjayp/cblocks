@@ -143,7 +143,6 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 		vec_append(vec, stage->bs_base_container);
 		vec_append(vec, gcfg.c_data_dir);
 		vec_append(vec, context_archive);
-		vec_append(vec, bcp->staging_dir);
 		if (stage->bs_name[0] != '\0') {
 			vec_append(vec, stage->bs_name);
 		}
