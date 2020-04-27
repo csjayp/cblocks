@@ -134,10 +134,10 @@ struct build_manifest {
 };
 
 struct build_context {
-	struct prison_build_contex		pbc;
+	struct prison_build_context		pbc;
 	struct build_step			*steps;
 	struct build_stage			*stages;
-	char					*outfile;
+	char					 build_root[MAXPATHLEN];
 };
 
 #endif	/* BUILD_DOT_H_ */

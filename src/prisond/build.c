@@ -116,32 +116,33 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 }
 
 static int
-build_init_stage(struct build_context *bcp, char *build_root, struct build_stage *stage)
+build_init_stage(struct build_context *bcp, struct build_stage *stage)
 {
 	char script[128], index[16], context_archive[128], **argv;
 	vec_t *vec;
 	int status;
 	pid_t pid;
 
-	pid = fork();
-	if (pid == -1) {
-		err(1, "fork failed");
-	}
 	(void) snprintf(script, sizeof(script),
 	    "%s/lib/stage_init.sh", gcfg.c_data_dir);
 	(void) snprintf(index, sizeof(index), "%d", stage->bs_index);
 	(void) snprintf(context_archive, sizeof(context_archive),
 	    "%s/spool/%s-%s.tar.gz", gcfg.c_data_dir, bcp->pbc.p_image_name,
 	    bcp->pbc.p_tag);
+	pid = fork();
+	if (pid == -1) {
+		err(1, "fork failed");
+	}
 	if (pid == 0) {
 		vec = vec_init(32);
 		vec_append(vec, "/bin/sh");
 		vec_append(vec, script);
-		vec_append(vec, build_root);
+		vec_append(vec, bcp->build_root);
 		vec_append(vec, index);
 		vec_append(vec, stage->bs_base_container);
 		vec_append(vec, gcfg.c_data_dir);
 		vec_append(vec, context_archive);
+		vec_append(vec, bcp->staging_dir);
 		if (stage->bs_name[0] != '\0') {
 			vec_append(vec, stage->bs_name);
 		}
@@ -150,6 +151,7 @@ build_init_stage(struct build_context *bcp, char *build_root, struct build_stage
 		}
 		argv = vec_return(vec);
 		execve(*argv, argv, NULL);
+		vec_free(vec);
 		err(1, "execv failed");
 	}
 	while (1) {
@@ -168,16 +170,15 @@ static int
 build_run_stages(struct build_context *bcp)
 {
 	struct build_stage *bstg;
-	char build_root[128];
 	int k, r;
 
-	snprintf(build_root, sizeof(build_root),
+	snprintf(bcp->build_root, sizeof(bcp->build_root),
 	    "%s/spool/%s-%s", gcfg.c_data_dir, bcp->pbc.p_image_name,
 	    bcp->pbc.p_tag);
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
 		printf("-- Processing stage %d\n", bstg->bs_index);
-		r = build_init_stage(bcp, build_root, bstg);
+		r = build_init_stage(bcp, bstg);
 		build_emit_shell_script(bcp, bstg->bs_index);
 	}
 	return (r);
