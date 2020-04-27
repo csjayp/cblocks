@@ -14,15 +14,17 @@ FROM base AS boo
 FROM base AS go
   ADD go/ /build
   WORKDIR /build
-  COPY --stage boo /foo/build /build
+  COPY --STAGE boo /foo/build /build
   RUN "go build"
+  RUN ls -lt \
+  ps -ef
 
 FROM base
   RUN "pkg update && pkg install foobar && \
     pkg install baz \
     pkg install bar"
   COPY etc/file .
-  COPY --stage 2 /build/bing /badda-bing
+  COPY --STAGE 2 /build/bing /badda-bing
   COPY etc/hosts /etc/resolv.conf
   ADD whatever.tar.gz /foo
   ADD some/directory/src.tgz src/

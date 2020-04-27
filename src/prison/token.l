@@ -27,6 +27,7 @@
  */
 #include <assert.h>
 #include <stdio.h>
+#include <err.h>
 
 #include "y.tab.h"
 #include "parser.h"
@@ -59,13 +60,12 @@ ENTRYPOINT	return (ENTRYPOINT);
 \[		return (OPEN_SQUARE_BRACKET);
 \]		return (CLOSE_SQUARE_BRACKET);
 \"              {
-                        char buf[1024], *ptr;
-                        char c;
-                        int escaped = 0;
+                        char buf[8192], *ptr, c;
+                        int escaped;
 
+			escaped = 0;
                         memset(buf, 0, sizeof(buf));
-                        for (ptr = buf; strlen(buf) < (sizeof(buf) - 1);
-                            ptr++) {
+                        for (ptr = buf; strlen(buf) < (sizeof(buf) - 1);) {
                                 c = input();
                                 if (escaped && c != EOF) {
                                         *ptr = c;
@@ -94,8 +94,10 @@ ENTRYPOINT	return (ENTRYPOINT);
                                         *ptr = c;
                                         break;
                                 }
-                                if (ptr == NULL)
+                                if (ptr == NULL) {
                                         break;
+				}
+				ptr++;
                         }
                         yylval.c_string = strdup(buf);
                         assert(yylval.c_string != NULL);
@@ -112,7 +114,7 @@ void
 yyerror(const char *str)
 {
 
-	(void) fprintf(stderr, "syntax error near '%s' (%s)", yytext, str);
+	errx(1, "syntax error near %s:%d: '%s' (%s)", yyfile, lineno, yytext, str);
 }
 
 int
