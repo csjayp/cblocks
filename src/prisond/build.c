@@ -64,10 +64,10 @@ build_emit_add_instruction(struct build_step *bsp)
 	sap = &bsp->step_data.step_add;
 	switch (sap->sa_op) {
 	case ADD_TYPE_FILE:
-		printf("cp -pr %s %s\n", sap->sa_source, sap->sa_dest);
+		printf("cp -pr \"${staging_dir}/%s\" %s\n", sap->sa_source, sap->sa_dest);
 		break;
 	case ADD_TYPE_ARCHIVE:
-		printf("tar -C %s -zxf %s\n", sap->sa_dest, sap->sa_source);
+		printf("tar -C %s -zxf \"${staging_dir}/%s\"\n", sap->sa_dest, sap->sa_source);
 		break;
 	case ADD_TYPE_URL:
 		printf("fetch -o %s %s\n", sap->sa_dest, sap->sa_source);
@@ -93,6 +93,7 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 		}
 		if (!header) {
 			printf("#!/bin/sh\n\n");
+			printf(". /prison_build_variables.sh\n");
 			printf("set -e\n");
 			header = 1;
 		}
@@ -101,7 +102,7 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 			build_emit_add_instruction(bsp);
 			break;
 		case STEP_COPY:
-			printf("cp -pr %s %s\n", bsp->step_data.step_copy.sc_source,
+			printf("cp -pr \"${staging_dir}/%s\" %s\n", bsp->step_data.step_copy.sc_source,
 			    bsp->step_data.step_copy.sc_dest);
 			break;
 		case STEP_RUN:
