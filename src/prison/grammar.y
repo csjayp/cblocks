@@ -165,15 +165,29 @@ op_spec:
 
 		bsp = cur_build_stage;
 		b_step = cur_build_step;
+		/*
+		 * Set the ADD operation to ADD_TYPE_FILE (basic copy) by
+		 * default. We will look at the source operands and change
+		 * it accordinly as need be.
+		 */
+		b_step->step_data.step_add.sa_op = ADD_TYPE_FILE;
 		strlcpy(b_step->step_data.step_add.sa_source, $3,
 		    sizeof(b_step->step_data.step_add.sa_source));
 		strlcpy(b_step->step_data.step_add.sa_dest, $4,
 		    sizeof(b_step->step_data.step_add.sa_dest));
+		/*
+		 * Is this a URL that will need to be fectched?
+		 */
 		if (strncasecmp("http://", $3, 7) == 0) {
 			b_step->step_data.step_add.sa_op = ADD_TYPE_URL;
 		} else if (strncasecmp("https://", $3, 8) == 0) {
 			b_step->step_data.step_add.sa_op = ADD_TYPE_URL;
 		}
+		/*
+		 * Does the source operand match an tar acrchive name that
+		 * we support? If so, handle is an a tar achive that will
+		 * need to be extracted.
+		 */
 		pattern_list = archive_extensions;
 		match = 0;
 		while ((pat = *pattern_list++)) {
