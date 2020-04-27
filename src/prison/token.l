@@ -43,7 +43,7 @@ integer         [0-9]+
 %%
 \#.*		/* ignore comments */
 FROM		return (FROM);
-\-\-stage	return (COPY_FROM);
+\-\-STAGE	return (COPY_FROM);
 AS		return (AS);
 RUN		return (RUN);
 ADD		return (ADD);
