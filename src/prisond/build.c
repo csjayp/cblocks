@@ -40,6 +40,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <termios.h>
 #include <libutil.h>
 #include <signal.h>
@@ -52,6 +53,30 @@
 #include "dispatch.h"
 #include "sock_ipc.h"
 #include "config.h"
+
+static int
+build_emit_add_instruction(struct build_step *bsp)
+{
+	struct build_step_add *sap;
+
+	assert(bsp->step_op == STEP_ADD);
+	sap = &bsp->step_data.step_add;
+	switch (sap->sa_op) {
+	case ADD_TYPE_FILE:
+		printf("cp -pr %s %s\n", sap->sa_source, sap->sa_dest);
+		break;
+	case ADD_TYPE_ARCHIVE:
+		printf("tar -C %s -zxf %s\n", sap->sa_dest, sap->sa_source);
+		break;
+	case ADD_TYPE_URL:
+		printf("fetch -o %s %s\n", sap->sa_dest, sap->sa_source);
+		break;
+	default:
+		warnx("invalid ADD operand %d", sap->sa_op);
+		return (-1);
+	}
+	return (0);
+}
 
 static int
 build_emit_shell_script(struct build_context *bcp, int stage_index)
@@ -72,11 +97,10 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 		}
 		switch (bsp->step_op) {
 		case STEP_ADD:
-			printf("scp %s %s\n", bsp->step_data.step_add.sa_source,
-			    bsp->step_data.step_add.sa_dest);
+			build_emit_add_instruction(bsp);
 			break;
 		case STEP_COPY:
-			printf("cp %s, %s\n", bsp->step_data.step_copy.sc_source,
+			printf("cp -pr %s %s\n", bsp->step_data.step_copy.sc_source,
 			    bsp->step_data.step_copy.sc_dest);
 			break;
 		case STEP_RUN:
