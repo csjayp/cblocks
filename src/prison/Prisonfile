@@ -6,26 +6,18 @@
 # because it's generally well understood, and simple. There are a few
 # minor differences though.
 #
-FROM whatever:3243423 AS boo
-  ADD somedir/ /foo
-  WORKDIR /foo
-  RUN make
+FROM base AS latest_ports
+  ADD resolv.conf /etc
+  RUN "echo foo > /file.txt"
 
-FROM golang-build:12332423 AS go
-  ADD go/ /build
-  WORKDIR /build
-  COPY --stage boo /foo/build /build
-  RUN "go build"
+FROM base
+  ADD resolv.conf /etc
+  COPY --from 0 /file.txt .
+  RUN "pkg --yes update"
+  RUN "pkg install -y gmake"
 
-FROM freebsd-12.1-release-amd64:324325345435
-  RUN "pkg update && pkg install foobar && \
-    pkg install baz \
-    pkg install bar"
-  COPY etc/file .
-  COPY --stage 2 /build/bing /badda-bing
-  COPY etc/hosts /etc/resolv.conf
-  ADD whatever.tar.gz /foo
-  ADD some/directory/src.tgz src/
-  ADD http://www.whatever.com .
+FROM base
+  COPY --from 1 /etc/resolv.conf /etc
+  COPY --from 0 /file.txt .
 
 ENTRYPOINT ["/bin/bash"]

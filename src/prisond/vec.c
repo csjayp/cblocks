@@ -24,18 +24,72 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#ifndef PARSER_DOT_H_
-#define PARSER_DOT_H_
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
-extern int	 yyparse(void);
-extern int      yylex(void);
-void            yyerror(const char *);
-char		*yyfile;
-extern FILE		*yyin;
+#include "vec.h"
 
+vec_t *
+vec_init(size_t vec_size)
+{
+	vec_t *vec;
 
-struct build_manifest 	*build_manifest_init(void);
-void			 set_current_build_manifest(struct build_manifest *);
-struct build_manifest	*get_current_build_manifest(void);
+	vec = calloc(1, sizeof(*vec));
+	if (vec == NULL) {
+		return (NULL);
+	}
+	vec->vec_alloc = vec_size;
+	vec->vec_used = 0;
+	vec->vec_flag = 0;
+	vec->vec = calloc(vec->vec_alloc, sizeof(char *));
+	if (vec->vec == NULL) {
+		return (NULL);
+	}
+	return (vec);
+}
 
-#endif
+void
+vec_append(vec_t *vec, char *string)
+{
+
+	if (vec->vec_flag == VEC_OVERFLOW) {
+		return;
+	}
+	if (vec->vec_used == vec->vec_alloc) {
+		vec->vec_flag = VEC_OVERFLOW;
+		return;
+	}
+	vec->vec[vec->vec_used] = strdup(string);
+	if (!vec->vec[vec->vec_used]) {
+		vec->vec_flag = VEC_ENOMEM;
+		return;
+	}
+	vec->vec_used++;
+}
+
+int
+vec_finalize(vec_t *vec)
+{
+
+	vec->vec[vec->vec_used] = NULL;
+	return (vec->vec_flag);
+}
+
+char **
+vec_return(vec_t *vec)
+{
+
+	return (vec->vec);
+}
+
+void
+vec_free(vec_t *vec)
+{
+	int k;
+
+	for (k = 0; k < vec->vec_used; k++) {
+		free(vec->vec[k]);
+	}
+	free(vec);
+}

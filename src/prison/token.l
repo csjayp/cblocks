@@ -27,14 +27,18 @@
  */
 #include <assert.h>
 #include <stdio.h>
+#include <err.h>
 
 #include "y.tab.h"
 #include "parser.h"
 
 #define YY_NO_UNPUT
+int line;
+
 %}
 
 %option nounput
+%option caseless
 
 tokenchar       [^[:blank:];,<>"\n]
 tokenstring     {tokenchar}+
@@ -43,7 +47,7 @@ integer         [0-9]+
 %%
 \#.*		/* ignore comments */
 FROM		return (FROM);
-\-\-stage	return (COPY_FROM);
+\-\-FROM	return (COPY_FROM);
 AS		return (AS);
 RUN		return (RUN);
 ADD		return (ADD);
@@ -54,18 +58,17 @@ ENTRYPOINT	return (ENTRYPOINT);
                         yylval.num = atoi(yytext);
                         return (INTEGER);
                 }
-\n              lineno++;
+\n              line++;
 [ \t]+          /* whitespace ignored */
 \[		return (OPEN_SQUARE_BRACKET);
 \]		return (CLOSE_SQUARE_BRACKET);
 \"              {
-                        char buf[1024], *ptr;
-                        char c;
-                        int escaped = 0;
+                        char buf[8192], *ptr, c;
+                        int escaped;
 
+			escaped = 0;
                         memset(buf, 0, sizeof(buf));
-                        for (ptr = buf; strlen(buf) < (sizeof(buf) - 1);
-                            ptr++) {
+                        for (ptr = buf; strlen(buf) < (sizeof(buf) - 1);) {
                                 c = input();
                                 if (escaped && c != EOF) {
                                         *ptr = c;
@@ -82,7 +85,7 @@ ENTRYPOINT	return (ENTRYPOINT);
                                          * quoted strings are converted
                                          * into a single space. */
                                         *ptr = ' ';
-                                        lineno++;
+					line++;
                                         break;
                                 case '"':       /* end quote */
                                         ptr = NULL;
@@ -94,8 +97,10 @@ ENTRYPOINT	return (ENTRYPOINT);
                                         *ptr = c;
                                         break;
                                 }
-                                if (ptr == NULL)
+                                if (ptr == NULL) {
                                         break;
+				}
+				ptr++;
                         }
                         yylval.c_string = strdup(buf);
                         assert(yylval.c_string != NULL);
@@ -112,7 +117,7 @@ void
 yyerror(const char *str)
 {
 
-	(void) fprintf(stderr, "syntax error near '%s' (%s)", yytext, str);
+	errx(1, "syntax error near %s:%d: '%s' (%s)", yyfile, yylineno, yytext, str);
 }
 
 int

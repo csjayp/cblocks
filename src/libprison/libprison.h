@@ -51,29 +51,29 @@ ssize_t		sock_ipc_from_to(int, int, off_t);
 #define	PRISON_IPC_SEND_BUILD_CTX	5
 
 struct prison_build_context {
-	char		p_image_name[1024];
-	char		p_prison_file[1024];
-	off_t		p_context_size;
-	char		p_tag[1024];
-	int		p_nstages;
-	int		p_nsteps;
+	char					p_image_name[1024];
+	char					p_prison_file[1024];
+	off_t					p_context_size;
+	char					p_tag[1024];
+	int					p_nstages;
+	int					p_nsteps;
 };
 
 struct prison_response {
-	int		p_ecode;
-	char		p_errbuf[512];
+	int					p_ecode;
+	char					p_errbuf[512];
 };
 
 struct prison_launch {
-	char		p_name[MAX_PRISON_NAME];
-	char		p_term[128];
+	char					p_name[MAX_PRISON_NAME];
+	char					p_term[128];
 };
 
 struct prison_console_connect {
-	char		p_name[MAX_PRISON_NAME];
-	struct winsize 	p_winsize;
-	struct termios	p_termios;
-	char		p_term[64];
+	char					p_name[MAX_PRISON_NAME];
+	struct winsize				p_winsize;
+	struct termios				p_termios;
+	char					p_term[64];
 };
 
 /*
@@ -93,6 +93,12 @@ struct build_step_add {
 	char					sa_dest[MAXPATHLEN];
 };
 
+struct build_step_copy_from {
+	int					sc_stage;
+	char					sc_source[MAXPATHLEN];
+	char					sc_dest[MAXPATHLEN];
+};
+
 struct build_step_copy {
 	char					sc_source[MAXPATHLEN];
 	char					sc_dest[MAXPATHLEN];
@@ -105,6 +111,7 @@ struct build_step {
 #define	STEP_COPY	2
 #define	STEP_RUN	3
 #define	STEP_WORKDIR	4
+#define	STEP_COPY_FROM	5
 	TAILQ_ENTRY(build_step)	step_glue;
 	union {
 		/*
@@ -116,7 +123,9 @@ struct build_step {
 		struct build_step_copy		 step_copy;
 		struct build_step_add		 step_add;
 		struct build_step_workdir	 step_workdir;
+		struct build_step_copy_from	 step_copy_from;
 	} step_data;
+	char					 step_string[1024];
 };
 
 struct build_stage {
@@ -131,6 +140,13 @@ struct build_manifest {
 	TAILQ_HEAD(tailhead_stage, build_stage)	 stage_head;
 	char					*entry_point;
 	char					*maintainr;
+};
+
+struct build_context {
+	struct prison_build_context		pbc;
+	struct build_step			*steps;
+	struct build_stage			*stages;
+	char					 build_root[MAXPATHLEN];
 };
 
 #endif	/* BUILD_DOT_H_ */

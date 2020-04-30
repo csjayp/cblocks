@@ -98,7 +98,75 @@ entry_def:
 
 copy_spec:
 	COPY_FROM STRING STRING STRING
+	{
+		struct build_manifest *bmp;
+		struct build_step *b_step;
+		struct build_stage *bsp;
+		int match;
+
+		assert(cur_build_step != NULL);
+		assert(cur_build_stage != NULL);
+		b_step = cur_build_step;
+		b_step->step_op = STEP_COPY_FROM;
+		match = 0;
+		bmp = get_current_build_manifest();
+		assert(bmp != NULL);
+		assert(!TAILQ_EMPTY(&bmp->stage_head));
+		TAILQ_FOREACH(bsp, &bmp->stage_head, stage_glue) {
+			if (strcmp($2, bsp->bs_name) == 0) {
+				match = 1;
+				b_step->step_data.step_copy_from.sc_stage =
+				    bsp->bs_index;
+			}
+		}
+		if (!match) {
+			errx(1, "stage specification %sdoes not exist", $2);
+		}
+		strlcpy(b_step->step_data.step_copy_from.sc_source, $3,
+		    sizeof(b_step->step_data.step_copy_from.sc_source));
+		strlcpy(b_step->step_data.step_copy_from.sc_dest, $4,
+		    sizeof(b_step->step_data.step_copy_from.sc_dest));
+		cur_build_step->stage_index = stage_counter;
+		snprintf(b_step->step_string, sizeof(b_step->step_string),
+		    "COPY --FROM %s %s %s", $2, $3, $4);
+		bsp = cur_build_stage;
+		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
+	}
 	| COPY_FROM INTEGER STRING STRING
+	{
+		struct build_manifest *bmp;
+		struct build_step *b_step;
+		struct build_stage *bsp;
+		int match;
+
+		assert(cur_build_step != NULL);
+		assert(cur_build_stage != NULL);
+		b_step = cur_build_step;
+		b_step->step_op = STEP_COPY_FROM;
+		b_step->step_data.step_copy_from.sc_stage = $2;
+		match = 0;
+		bmp = get_current_build_manifest();
+		assert(bmp != NULL);
+		assert(!TAILQ_EMPTY(&bmp->stage_head));
+		TAILQ_FOREACH(bsp, &bmp->stage_head, stage_glue) {
+			if (b_step->step_data.step_copy_from.sc_stage ==
+			    bsp->bs_index) {
+				match = 1;
+			}
+		}
+		if (!match) {
+			errx(1, "stage specification %d does not exist", $2);
+		}
+		strlcpy(b_step->step_data.step_copy_from.sc_source, $3,
+		    sizeof(b_step->step_data.step_copy_from.sc_source));
+		strlcpy(b_step->step_data.step_copy_from.sc_dest, $4,
+		    sizeof(b_step->step_data.step_copy_from.sc_dest));
+		cur_build_step->stage_index = stage_counter;
+		snprintf(b_step->step_string, sizeof(b_step->step_string),
+		    "COPY --FROM %d %s %s", $2, $3, $4);
+		bsp = cur_build_stage;
+		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
+	}
 	| STRING STRING
 	{
 		struct build_step *b_step;
@@ -112,7 +180,9 @@ copy_spec:
 		    sizeof(b_step->step_data.step_copy.sc_source));
 		strlcpy(b_step->step_data.step_copy.sc_dest, $2,
 		    sizeof(b_step->step_data.step_copy.sc_dest));
-		cur_build_step->stage_index = cur_build_stage->bs_index;
+		cur_build_step->stage_index = stage_counter;
+		snprintf(b_step->step_string, sizeof(b_step->step_string),
+		    "COPY $1 $2");
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
@@ -141,7 +211,9 @@ op_spec:
 		b_step = cur_build_step;
 		strlcpy(b_step->step_data.step_cmd, $3,
 		    sizeof(b_step->step_data.step_cmd));
-		cur_build_step->stage_index = cur_build_stage->bs_index;
+		cur_build_step->stage_index = stage_counter;
+		snprintf(b_step->step_string,
+		    sizeof(b_step->step_string), "RUN %s", $3);
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
@@ -165,15 +237,31 @@ op_spec:
 
 		bsp = cur_build_stage;
 		b_step = cur_build_step;
+		snprintf(b_step->step_string, sizeof(b_step->step_string),
+		    "ADD %s %s", $3, $4);
+		/*
+		 * Set the ADD operation to ADD_TYPE_FILE (basic copy) by
+		 * default. We will look at the source operands and change
+		 * it accordinly as need be.
+		 */
+		b_step->step_data.step_add.sa_op = ADD_TYPE_FILE;
 		strlcpy(b_step->step_data.step_add.sa_source, $3,
 		    sizeof(b_step->step_data.step_add.sa_source));
 		strlcpy(b_step->step_data.step_add.sa_dest, $4,
 		    sizeof(b_step->step_data.step_add.sa_dest));
+		/*
+		 * Is this a URL that will need to be fectched?
+		 */
 		if (strncasecmp("http://", $3, 7) == 0) {
 			b_step->step_data.step_add.sa_op = ADD_TYPE_URL;
 		} else if (strncasecmp("https://", $3, 8) == 0) {
 			b_step->step_data.step_add.sa_op = ADD_TYPE_URL;
 		}
+		/*
+		 * Does the source operand match an tar acrchive name that
+		 * we support? If so, handle is an a tar achive that will
+		 * need to be extracted.
+		 */
 		pattern_list = archive_extensions;
 		match = 0;
 		while ((pat = *pattern_list++)) {
@@ -185,7 +273,7 @@ op_spec:
 		if (match) {
 			b_step->step_data.step_add.sa_op = ADD_TYPE_ARCHIVE;
 		}
-		cur_build_step->stage_index = cur_build_stage->bs_index;
+		cur_build_step->stage_index = stage_counter;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
@@ -223,7 +311,7 @@ op_spec:
 		assert(bsp != NULL);
 		strlcpy(b_step->step_data.step_workdir.sw_dir,
 		    $3, sizeof(b_step->step_data.step_workdir.sw_dir));
-		cur_build_step->stage_index = cur_build_stage->bs_index;
+		cur_build_step->stage_index = stage_counter;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}

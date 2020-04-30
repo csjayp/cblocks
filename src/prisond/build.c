@@ -40,6 +40,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <termios.h>
 #include <libutil.h>
 #include <signal.h>
@@ -52,40 +53,171 @@
 #include "dispatch.h"
 #include "sock_ipc.h"
 #include "config.h"
+#include "vec.h"
 
 static int
-build_init_stage(char *build_root, struct build_stage *stage,
-    struct prison_build_context *pbp)
+build_emit_add_instruction(struct build_step *bsp, FILE *fp)
 {
-	char *cmdvec[64], script[128], index[16], build_context[128];
+	struct build_step_add *sap;
+
+	assert(bsp->step_op == STEP_ADD);
+	sap = &bsp->step_data.step_add;
+	switch (sap->sa_op) {
+	case ADD_TYPE_FILE:
+		fprintf(fp, "cp -pr \"${stage_tmp_dir}/%s\" %s\n",
+		    sap->sa_source, sap->sa_dest);
+		break;
+	case ADD_TYPE_ARCHIVE:
+		fprintf(fp, "tar -C %s -zxf \"${stage_tmp_dir}/%s\"\n",
+		    sap->sa_dest, sap->sa_source);
+		break;
+	case ADD_TYPE_URL:
+		fprintf(fp, "fetch -o %s %s\n", sap->sa_dest, sap->sa_source);
+		break;
+	default:
+		warnx("invalid ADD operand %d", sap->sa_op);
+		return (-1);
+	}
+	return (0);
+}
+
+static char *
+build_get_stage_deps(struct build_context *bcp, int stage_index)
+{
+	struct build_step *step;
+	char retbuf[256], *p;
+	int k, j;
+
+	bzero(retbuf, sizeof(retbuf));
+	for (k = 0; k < bcp->pbc.p_nsteps; k++) {
+		step = &bcp->steps[k];
+		if (step->stage_index != stage_index) {
+			continue;
+		}
+		if (step->step_op != STEP_COPY_FROM) {
+			continue;
+		}
+		j = step->step_data.step_copy_from.sc_stage;
+		/*
+		 * NB: check the size, we need to revisit this
+		 * and fix it so that it's not using a statically
+		 * sized stack buffer.
+		 */
+		sprintf(retbuf, "%s %d", retbuf, j);
+	}
+	p = retbuf;
+	/*
+	 * Trim leading space.
+	 */
+	p++;
+	return (strdup(p));
+}
+
+static int
+build_emit_shell_script(struct build_context *bcp, int stage_index)
+{
+	char script[MAXPATHLEN];
+	struct build_step *bsp;
+	int steps, k, header, taken;
+	FILE *fp;
+
+
+	snprintf(script, sizeof(script), "%s.%d.sh",
+	    bcp->build_root, stage_index);
+	fp = fopen(script, "w+");
+	if (fp == NULL) {
+		err(1, "failed to create bootstrap script");
+	}
+	for (steps = 0, k = 0; k < bcp->pbc.p_nsteps; k++) {
+		bsp = &bcp->steps[k];
+		if (bsp->stage_index != stage_index) {
+			continue;
+		}
+		steps++;
+	}
+	header = 0;
+	for (taken = 0, k = 0; k < bcp->pbc.p_nsteps; k++) {
+		bsp = &bcp->steps[k];
+		if (bsp->stage_index != stage_index) {
+			continue;
+		}
+		if (!header) {
+			fprintf(fp, "#!/bin/sh\n\n");
+			fprintf(fp, ". /prison_build_variables.sh\n");
+			fprintf(fp, "set -e\n");
+			fprintf(fp, "set -x\n");
+			header = 1;
+		}
+		fprintf(fp, "echo \"-- Step (%d/%d)\"\n", ++taken, steps);
+		fprintf(fp, "echo \"  %s\"\n", bsp->step_string);
+		switch (bsp->step_op) {
+		case STEP_ADD:
+			build_emit_add_instruction(bsp, fp);
+			break;
+		case STEP_COPY:
+			fprintf(fp, "cp -pr \"${stage_tmp_dir}/%s\" %s\n",
+			    bsp->step_data.step_copy.sc_source,
+			    bsp->step_data.step_copy.sc_dest);
+			break;
+		case STEP_RUN:
+			fprintf(fp, "%s\n", bsp->step_data.step_cmd);
+			break;
+		case STEP_COPY_FROM:
+			fprintf(fp, "touch \"${stages}/%d/%s\"\n",
+			    bsp->step_data.step_copy_from.sc_stage,
+			    bsp->step_data.step_copy_from.sc_source);
+			fprintf(fp, "cp -pr \"${stages}/%d/%s\" %s\n",
+			    bsp->step_data.step_copy_from.sc_stage,
+			    bsp->step_data.step_copy_from.sc_source,
+			    bsp->step_data.step_copy_from.sc_dest);
+			break;
+		case STEP_WORKDIR:
+			fprintf(fp, "cd %s\n",
+			    bsp->step_data.step_workdir.sw_dir);
+			break;
+		}
+	}
+	fclose(fp);
+	return (0);
+}
+
+static int
+build_init_stage(struct build_context *bcp, struct build_stage *stage)
+{
+	char script[128], index[16], context_archive[128], **argv;
+	vec_t *vec;
 	int status;
 	pid_t pid;
 
+	(void) snprintf(script, sizeof(script),
+	    "%s/lib/stage_init.sh", gcfg.c_data_dir);
+	(void) snprintf(index, sizeof(index), "%d", stage->bs_index);
+	(void) snprintf(context_archive, sizeof(context_archive),
+	    "%s/spool/%s-%s.tar.gz", gcfg.c_data_dir, bcp->pbc.p_image_name,
+	    bcp->pbc.p_tag);
 	pid = fork();
 	if (pid == -1) {
 		err(1, "fork failed");
 	}
-	(void) snprintf(script, sizeof(script),
-	    "%s/lib/stage_init.sh", gcfg.c_data_dir);
-	(void) snprintf(index, sizeof(index), "%d", stage->bs_index);
-	(void) snprintf(build_context, sizeof(build_context),
-	    "%s/spool/%s-%s.tar.gz", gcfg.c_data_dir, pbp->p_image_name,
-	    pbp->p_tag);
 	if (pid == 0) {
-		cmdvec[0] = "/bin/sh";
-		cmdvec[1] = script;
-		cmdvec[2] = build_root;
-		cmdvec[3] = index;
-		cmdvec[4] = stage->bs_base_container;
-		cmdvec[5] = gcfg.c_data_dir;
-		cmdvec[6] = build_context;
+		vec = vec_init(32);
+		vec_append(vec, "/bin/sh");
+		vec_append(vec, script);
+		vec_append(vec, bcp->build_root);
+		vec_append(vec, index);
+		vec_append(vec, stage->bs_base_container);
+		vec_append(vec, gcfg.c_data_dir);
+		vec_append(vec, context_archive);
+		vec_append(vec, build_get_stage_deps(bcp, stage->bs_index));
 		if (stage->bs_name[0] != '\0') {
-			cmdvec[7] = stage->bs_name;
-			cmdvec[8] = NULL;
-		} else {
-			cmdvec[7] = NULL;
+			vec_append(vec, stage->bs_name);
 		}
-		execve(*cmdvec, cmdvec, NULL);
+		if (vec_finalize(vec) != 0) {
+			errx(1, "failed to construct command line");
+		}
+		argv = vec_return(vec);
+		execve(*argv, argv, NULL);
+		vec_free(vec);
 		err(1, "execv failed");
 	}
 	while (1) {
@@ -101,17 +233,25 @@ build_init_stage(char *build_root, struct build_stage *stage,
 }
 
 static int
-build_run_stages(struct prison_build_context *pbp, struct build_stage *stages)
+build_run_stages(struct build_context *bcp)
 {
+	char stage_root[MAXPATHLEN];
 	struct build_stage *bstg;
-	char build_root[128];
 	int k, r;
 
-	snprintf(build_root, sizeof(build_root),
-	    "%s/spool/%s-%s", gcfg.c_data_dir, pbp->p_image_name, pbp->p_tag);
-	for (k = 0; k < pbp->p_nstages; k++) {
-		bstg = &stages[k];
-		r = build_init_stage(build_root, bstg, pbp);
+	snprintf(bcp->build_root, sizeof(bcp->build_root),
+	    "%s/spool/%s-%s", gcfg.c_data_dir, bcp->pbc.p_image_name,
+	    bcp->pbc.p_tag);
+	for (k = 0; k < bcp->pbc.p_nstages; k++) {
+		bstg = &bcp->stages[k];
+		printf("-- Processing stage %d\n", bstg->bs_index);
+		snprintf(stage_root, sizeof(stage_root),
+		    "%s/%d", bcp->build_root, bstg->bs_index);
+		if (mkdir(stage_root, 0755) == -1) {
+			err(1, "mkdir(%s) failed", stage_root);
+		}
+		build_emit_shell_script(bcp, bstg->bs_index);
+		r = build_init_stage(bcp, bstg);
 	}
 	return (r);
 }
@@ -144,72 +284,61 @@ dispatch_build_set_outfile(struct prison_build_context *pbp,
 	return (fd);
 }
 
-static int
-dispatch_process_stages(struct prison_build_context *bcp,
-    struct build_stage *stages, struct build_step *steps)
-{
-
-	build_run_stages(bcp, stages);
-	return (0);
-}
-
 int
 dispatch_build_recieve(int sock)
 {
-	struct prison_build_context pbc;
 	struct prison_response resp;
-	struct build_stage *stages;
-	struct build_step *steps;
+	struct build_context bctx;
 	ssize_t cc;
 	int fd;
 
 	printf("executing build recieve\n");
-	cc = sock_ipc_must_read(sock, &pbc, sizeof(pbc));
+	cc = sock_ipc_must_read(sock, &bctx.pbc, sizeof(bctx.pbc));
 	if (cc == 0) {
 		printf("didn't get proper build context headers\n");
 		return (0);
 	}
-	if (pbc.p_nstages > MAX_BUILD_STAGES ||
-	    pbc.p_nsteps > MAX_BUILD_STEPS) {
+	if (bctx.pbc.p_nstages > MAX_BUILD_STAGES ||
+	    bctx.pbc.p_nsteps > MAX_BUILD_STEPS) {
 		resp.p_ecode = -1;
 		sprintf(resp.p_errbuf, "too many build stages/steps\n");
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
 	}
-	stages = calloc(pbc.p_nstages, sizeof(*stages));
-	if (stages == NULL) {
+	bctx.stages = calloc(bctx.pbc.p_nstages, sizeof(*bctx.stages));
+	if (bctx.stages == NULL) {
 		resp.p_ecode = -1;
 		sprintf(resp.p_errbuf, "out of memory");
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
 	}
-	steps = calloc(pbc.p_nsteps, sizeof(*steps));
-	if (steps == NULL) {
+	bctx.steps = calloc(bctx.pbc.p_nsteps, sizeof(*bctx.steps));
+	if (bctx.steps == NULL) {
 		resp.p_ecode = -1;
 		sprintf(resp.p_errbuf, "out of memory");
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
 	}
-	sock_ipc_must_read(sock, stages, pbc.p_nstages * sizeof(*stages));
-	printf("read %lu bytes of stages\n", pbc.p_nstages * sizeof(*stages));
-	sock_ipc_must_read(sock, steps, pbc.p_nsteps * sizeof(*steps));
-	printf("read %lu bytes of steps\n", pbc.p_nsteps * sizeof(*steps));
-	fd = dispatch_build_set_outfile(&pbc, resp.p_errbuf,
+	sock_ipc_must_read(sock, bctx.stages,
+	    bctx.pbc.p_nstages * sizeof(*bctx.stages));
+	sock_ipc_must_read(sock, bctx.steps,
+	    bctx.pbc.p_nsteps * sizeof(*bctx.steps));
+	fd = dispatch_build_set_outfile(&bctx.pbc, resp.p_errbuf,
 	    sizeof(resp.p_errbuf));
 	if (fd == -1) {
-		free(steps);
-		free(stages);
+		free(bctx.steps);
+		free(bctx.stages);
 		resp.p_ecode = -1;
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
         }
-	if (sock_ipc_from_to(sock, fd, pbc.p_context_size) == -1) {
+	if (sock_ipc_from_to(sock, fd, bctx.pbc.p_context_size) == -1) {
 		err(1, "sock_ipc_from_to failed");
 	}
+	build_run_stages(&bctx);
+	close(fd);
 	bzero(&resp, sizeof(resp));
 	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
-	dispatch_process_stages(&pbc, stages, steps);
-	close(fd);
 	return (1);
 }

@@ -24,18 +24,25 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#ifndef PARSER_DOT_H_
-#define PARSER_DOT_H_
+#ifndef VEC_DOT_H_
+#define	VEC_DOT_H_
 
-extern int	 yyparse(void);
-extern int      yylex(void);
-void            yyerror(const char *);
-char		*yyfile;
-extern FILE		*yyin;
+struct vec {
+	char			**vec;
+        size_t			vec_used;
+        size_t			vec_alloc;
+        size_t			vec_size;
+#define	VEC_OVERFLOW	1
+#define	VEC_ENOMEM	2
+	int			vec_flag;
+};
 
+typedef struct vec vec_t;
 
-struct build_manifest 	*build_manifest_init(void);
-void			 set_current_build_manifest(struct build_manifest *);
-struct build_manifest	*get_current_build_manifest(void);
+vec_t		*vec_init(size_t);
+void		 vec_append(vec_t *, char *);
+int		 vec_finalize(vec_t *);
+char		**vec_return(vec_t *);
+void		 vec_free(vec_t *);
 
-#endif
+#endif	/* VEC_DOT_H_ */
