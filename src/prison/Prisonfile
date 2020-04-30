@@ -6,28 +6,18 @@
 # because it's generally well understood, and simple. There are a few
 # minor differences though.
 #
-FROM base AS boo
-  ADD somedir/ /foo
-  WORKDIR /foo
-  RUN make
-
-FROM base AS go
-  ADD go/ /build
-  WORKDIR /build
-  COPY --STAGE boo /foo/build /build
-  RUN "go build"
-  RUN ls -lt \
-  ps -ef
+FROM base AS latest_ports
+  ADD resolv.conf /etc
+  RUN "echo foo > /file.txt"
 
 FROM base
-  RUN "pkg update && pkg install foobar && \
-    pkg install baz \
-    pkg install bar"
-  COPY etc/file .
-  COPY --STAGE 2 /build/bing /badda-bing
-  COPY etc/hosts /etc/resolv.conf
-  ADD whatever.tar.gz /foo
-  ADD some/directory/src.tgz src/
-  ADD http://www.whatever.com .
+  ADD resolv.conf /etc
+  COPY --from 0 /file.txt .
+  RUN "pkg --yes update"
+  RUN "pkg install -y gmake"
+
+FROM base
+  COPY --from 1 /etc/resolv.conf /etc
+  COPY --from 0 /file.txt .
 
 ENTRYPOINT ["/bin/bash"]

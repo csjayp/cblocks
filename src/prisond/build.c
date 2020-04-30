@@ -56,7 +56,7 @@
 #include "vec.h"
 
 static int
-build_emit_add_instruction(struct build_step *bsp)
+build_emit_add_instruction(struct build_step *bsp, FILE *fp)
 {
 	struct build_step_add *sap;
 
@@ -64,13 +64,15 @@ build_emit_add_instruction(struct build_step *bsp)
 	sap = &bsp->step_data.step_add;
 	switch (sap->sa_op) {
 	case ADD_TYPE_FILE:
-		printf("cp -pr \"${staging_dir}/%s\" %s\n", sap->sa_source, sap->sa_dest);
+		fprintf(fp, "cp -pr \"${stage_tmp_dir}/%s\" %s\n",
+		    sap->sa_source, sap->sa_dest);
 		break;
 	case ADD_TYPE_ARCHIVE:
-		printf("tar -C %s -zxf \"${staging_dir}/%s\"\n", sap->sa_dest, sap->sa_source);
+		fprintf(fp, "tar -C %s -zxf \"${stage_tmp_dir}/%s\"\n",
+		    sap->sa_dest, sap->sa_source);
 		break;
 	case ADD_TYPE_URL:
-		printf("fetch -o %s %s\n", sap->sa_dest, sap->sa_source);
+		fprintf(fp, "fetch -o %s %s\n", sap->sa_dest, sap->sa_source);
 		break;
 	default:
 		warnx("invalid ADD operand %d", sap->sa_op);
@@ -79,40 +81,103 @@ build_emit_add_instruction(struct build_step *bsp)
 	return (0);
 }
 
+static char *
+build_get_stage_deps(struct build_context *bcp, int stage_index)
+{
+	struct build_step *step;
+	char retbuf[256], *p;
+	int k, j;
+
+	bzero(retbuf, sizeof(retbuf));
+	for (k = 0; k < bcp->pbc.p_nsteps; k++) {
+		step = &bcp->steps[k];
+		if (step->stage_index != stage_index) {
+			continue;
+		}
+		if (step->step_op != STEP_COPY_FROM) {
+			continue;
+		}
+		j = step->step_data.step_copy_from.sc_stage;
+		/*
+		 * NB: check the size, we need to revisit this
+		 * and fix it so that it's not using a statically
+		 * sized stack buffer.
+		 */
+		sprintf(retbuf, "%s %d", retbuf, j);
+	}
+	p = retbuf;
+	/*
+	 * Trim leading space.
+	 */
+	p++;
+	return (strdup(p));
+}
+
 static int
 build_emit_shell_script(struct build_context *bcp, int stage_index)
 {
+	char script[MAXPATHLEN];
 	struct build_step *bsp;
-	int k, header;
+	int steps, k, header, taken;
+	FILE *fp;
 
+
+	snprintf(script, sizeof(script), "%s.%d.sh",
+	    bcp->build_root, stage_index);
+	fp = fopen(script, "w+");
+	if (fp == NULL) {
+		err(1, "failed to create bootstrap script");
+	}
+	for (steps = 0, k = 0; k < bcp->pbc.p_nsteps; k++) {
+		bsp = &bcp->steps[k];
+		if (bsp->stage_index != stage_index) {
+			continue;
+		}
+		steps++;
+	}
 	header = 0;
-	for (k = 0; k < bcp->pbc.p_nsteps; k++) {
+	for (taken = 0, k = 0; k < bcp->pbc.p_nsteps; k++) {
 		bsp = &bcp->steps[k];
 		if (bsp->stage_index != stage_index) {
 			continue;
 		}
 		if (!header) {
-			printf("#!/bin/sh\n\n");
-			printf(". /prison_build_variables.sh\n");
-			printf("set -e\n");
+			fprintf(fp, "#!/bin/sh\n\n");
+			fprintf(fp, ". /prison_build_variables.sh\n");
+			fprintf(fp, "set -e\n");
+			fprintf(fp, "set -x\n");
 			header = 1;
 		}
+		fprintf(fp, "echo \"-- Step (%d/%d)\"\n", ++taken, steps);
+		fprintf(fp, "echo \"  %s\"\n", bsp->step_string);
 		switch (bsp->step_op) {
 		case STEP_ADD:
-			build_emit_add_instruction(bsp);
+			build_emit_add_instruction(bsp, fp);
 			break;
 		case STEP_COPY:
-			printf("cp -pr \"${staging_dir}/%s\" %s\n", bsp->step_data.step_copy.sc_source,
+			fprintf(fp, "cp -pr \"${stage_tmp_dir}/%s\" %s\n",
+			    bsp->step_data.step_copy.sc_source,
 			    bsp->step_data.step_copy.sc_dest);
 			break;
 		case STEP_RUN:
-			printf("%s\n", bsp->step_data.step_cmd);
+			fprintf(fp, "%s\n", bsp->step_data.step_cmd);
+			break;
+		case STEP_COPY_FROM:
+			fprintf(fp, "touch \"${stages}/%d/%s\"\n",
+			    bsp->step_data.step_copy_from.sc_stage,
+			    bsp->step_data.step_copy_from.sc_source);
+			fprintf(fp, "cp -pr \"${stages}/%d/%s\" %s\n",
+			    bsp->step_data.step_copy_from.sc_stage,
+			    bsp->step_data.step_copy_from.sc_source,
+			    bsp->step_data.step_copy_from.sc_dest);
 			break;
 		case STEP_WORKDIR:
-			printf("cd %s\n", bsp->step_data.step_workdir.sw_dir);
+			fprintf(fp, "cd %s\n",
+			    bsp->step_data.step_workdir.sw_dir);
 			break;
 		}
 	}
+	fclose(fp);
 	return (0);
 }
 
@@ -143,6 +208,7 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 		vec_append(vec, stage->bs_base_container);
 		vec_append(vec, gcfg.c_data_dir);
 		vec_append(vec, context_archive);
+		vec_append(vec, build_get_stage_deps(bcp, stage->bs_index));
 		if (stage->bs_name[0] != '\0') {
 			vec_append(vec, stage->bs_name);
 		}
@@ -169,6 +235,7 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 static int
 build_run_stages(struct build_context *bcp)
 {
+	char stage_root[MAXPATHLEN];
 	struct build_stage *bstg;
 	int k, r;
 
@@ -178,8 +245,13 @@ build_run_stages(struct build_context *bcp)
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
 		printf("-- Processing stage %d\n", bstg->bs_index);
-		r = build_init_stage(bcp, bstg);
+		snprintf(stage_root, sizeof(stage_root),
+		    "%s/%d", bcp->build_root, bstg->bs_index);
+		if (mkdir(stage_root, 0755) == -1) {
+			err(1, "mkdir(%s) failed", stage_root);
+		}
 		build_emit_shell_script(bcp, bstg->bs_index);
+		r = build_init_stage(bcp, bstg);
 	}
 	return (r);
 }
@@ -263,10 +335,10 @@ dispatch_build_recieve(int sock)
 	if (sock_ipc_from_to(sock, fd, bctx.pbc.p_context_size) == -1) {
 		err(1, "sock_ipc_from_to failed");
 	}
+	build_run_stages(&bctx);
+	close(fd);
 	bzero(&resp, sizeof(resp));
 	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
-	build_run_stages(&bctx);
-	close(fd);
 	return (1);
 }

@@ -33,9 +33,12 @@
 #include "parser.h"
 
 #define YY_NO_UNPUT
+int line;
+
 %}
 
 %option nounput
+%option caseless
 
 tokenchar       [^[:blank:];,<>"\n]
 tokenstring     {tokenchar}+
@@ -44,7 +47,7 @@ integer         [0-9]+
 %%
 \#.*		/* ignore comments */
 FROM		return (FROM);
-\-\-STAGE	return (COPY_FROM);
+\-\-FROM	return (COPY_FROM);
 AS		return (AS);
 RUN		return (RUN);
 ADD		return (ADD);
@@ -55,7 +58,7 @@ ENTRYPOINT	return (ENTRYPOINT);
                         yylval.num = atoi(yytext);
                         return (INTEGER);
                 }
-\n              lineno++;
+\n              line++;
 [ \t]+          /* whitespace ignored */
 \[		return (OPEN_SQUARE_BRACKET);
 \]		return (CLOSE_SQUARE_BRACKET);
@@ -82,7 +85,7 @@ ENTRYPOINT	return (ENTRYPOINT);
                                          * quoted strings are converted
                                          * into a single space. */
                                         *ptr = ' ';
-                                        lineno++;
+					line++;
                                         break;
                                 case '"':       /* end quote */
                                         ptr = NULL;
@@ -114,7 +117,7 @@ void
 yyerror(const char *str)
 {
 
-	errx(1, "syntax error near %s:%d: '%s' (%s)", yyfile, lineno, yytext, str);
+	errx(1, "syntax error near %s:%d: '%s' (%s)", yyfile, yylineno, yytext, str);
 }
 
 int

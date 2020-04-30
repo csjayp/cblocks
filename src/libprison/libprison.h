@@ -93,6 +93,12 @@ struct build_step_add {
 	char					sa_dest[MAXPATHLEN];
 };
 
+struct build_step_copy_from {
+	int					sc_stage;
+	char					sc_source[MAXPATHLEN];
+	char					sc_dest[MAXPATHLEN];
+};
+
 struct build_step_copy {
 	char					sc_source[MAXPATHLEN];
 	char					sc_dest[MAXPATHLEN];
@@ -105,6 +111,7 @@ struct build_step {
 #define	STEP_COPY	2
 #define	STEP_RUN	3
 #define	STEP_WORKDIR	4
+#define	STEP_COPY_FROM	5
 	TAILQ_ENTRY(build_step)	step_glue;
 	union {
 		/*
@@ -116,7 +123,9 @@ struct build_step {
 		struct build_step_copy		 step_copy;
 		struct build_step_add		 step_add;
 		struct build_step_workdir	 step_workdir;
+		struct build_step_copy_from	 step_copy_from;
 	} step_data;
+	char					 step_string[1024];
 };
 
 struct build_stage {

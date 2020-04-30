@@ -31,7 +31,6 @@ extern int	 yyparse(void);
 extern int      yylex(void);
 void            yyerror(const char *);
 char		*yyfile;
-int			lineno = 1;
 extern FILE		*yyin;
 
 
