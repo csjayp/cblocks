@@ -163,9 +163,6 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 			fprintf(fp, "%s\n", bsp->step_data.step_cmd);
 			break;
 		case STEP_COPY_FROM:
-			fprintf(fp, "touch \"${stages}/%d/%s\"\n",
-			    bsp->step_data.step_copy_from.sc_stage,
-			    bsp->step_data.step_copy_from.sc_source);
 			fprintf(fp, "cp -pr \"${stages}/%d/%s\" %s\n",
 			    bsp->step_data.step_copy_from.sc_stage,
 			    bsp->step_data.step_copy_from.sc_source,
@@ -233,7 +230,58 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 }
 
 static int
-build_run_stages(struct build_context *bcp)
+build_run_build_stages(struct build_context *bcp)
+{
+	char stage_root[MAXPATHLEN], **argv;
+	struct build_stage *bstg;
+	int k, status, ret;
+	vec_t *vec;
+	pid_t pid;
+
+	for (k = 0; k < bcp->pbc.p_nstages; k++) {
+		bstg = &bcp->stages[k];
+		snprintf(stage_root, sizeof(stage_root),
+		    "%s/%d", bcp->build_root, bstg->bs_index);
+		pid = fork();
+		if (pid == -1) {
+			err(1, "pid failed");
+		}
+		if (pid == 0) {
+			vec = vec_init(32);
+			vec_append(vec, "/bin/sh");
+			vec_append(vec, "prison-bootstrap.sh");
+			vec_finalize(vec);
+			argv = vec_return(vec);
+			if (chdir(stage_root) == -1) {
+				err(1, "chdir failed");
+			}
+			if (chroot(".") == -1) {
+				err(1, "chroot failed");
+			}
+			execve(*argv, argv, NULL);
+			err(1, "execve failed");
+		}
+		while (1) {
+			ret = waitpid(pid, &status, 0);
+			if (ret == pid) {
+				break;
+			}
+			if (ret == -1 && errno == EINTR) {
+				continue;
+			}
+			if (ret == -1) {
+				err(1, "waitpid failed");
+			}
+		}
+	}
+	if (status != 0) {
+		printf("-- Stage build failed: %d code\n", status);
+	}
+	return (status);
+}
+
+static int
+build_run_init_stages(struct build_context *bcp)
 {
 	char stage_root[MAXPATHLEN];
 	struct build_stage *bstg;
@@ -252,6 +300,10 @@ build_run_stages(struct build_context *bcp)
 		}
 		build_emit_shell_script(bcp, bstg->bs_index);
 		r = build_init_stage(bcp, bstg);
+		if (r != 0) {
+			printf("-- Stage failed with %d code. Exiting", r);
+			break;
+		}
 	}
 	return (r);
 }
@@ -335,7 +387,18 @@ dispatch_build_recieve(int sock)
 	if (sock_ipc_from_to(sock, fd, bctx.pbc.p_context_size) == -1) {
 		err(1, "sock_ipc_from_to failed");
 	}
-	build_run_stages(&bctx);
+	if (build_run_init_stages(&bctx) != 0) {
+		resp.p_ecode = 1;
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		close(fd);
+		return (1);
+	}
+	if (build_run_build_stages(&bctx) != 0) {
+		resp.p_ecode = 1;
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		close(fd);
+		return (1);
+	}
 	close(fd);
 	bzero(&resp, sizeof(resp));
 	resp.p_ecode = 0;
