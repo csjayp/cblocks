@@ -11,7 +11,7 @@ for i in `jot $5 0`; do
     umount "${1}/${i}/dev"
 done
 for i in `jot $5 0`; do
-    umount -f "${1}/${i}"
-    chflags -R noschg "${1}"
-    rm -fr "${1}"
+    umount "${1}/${i}"
+    chflags -R noschg "${1}/${i}" 
+    rm -fr "${1}/${i}"
 done
