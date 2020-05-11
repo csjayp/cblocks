@@ -16,22 +16,6 @@ fi
 
 stage_deps_dir=""
 
-cleanup()
-{
-    for stage in $stage_deps; do
-        umount "${stage_deps_dir}/${stage}"
-    done
-    umount "${build_root}/${stage_index}/dev"
-    devfs rule -s 5000 delset
-    if [ "$stage_name" ]; then
-        echo "Importing image ${stage_name}"
-        tar -C "${build_root}/${stage_index}" --xz -cf "${data_dir}/images/${stage_name}.txz" .
-    fi
-    umount "${build_root}/${stage_index}"
-    chflags -R noschg "${build_root}/${stage_index}"
-    rm -fr "${build_root}/${stage_index}"
-}
-
 bind_devfs()
 {
     if [ ! -d "${build_root}/${stage_index}/dev" ]; then
@@ -95,7 +79,11 @@ bootstrap()
     echo "Image located and ready for use"
     echo "Underlaying image ${base_container}"
 
-    mount -t unionfs -o below ${base_root} ${build_root}/${stage_index}
+    #
+    # Make sure we use -o noatime otherwise read operations will result in
+    # shadow objects being created which can impact performance.
+    #
+    mount -t unionfs -o noatime -o below ${base_root} ${build_root}/${stage_index}
     if [ ! -d "${build_root}/${stage_index}/tmp" ] ; then
         mkdir "${build_root}/${stage_index}/tmp"
     fi
