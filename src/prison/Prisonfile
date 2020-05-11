@@ -1,23 +1,16 @@
 #
 # Comment
 #
-# This is just an example Prisonfile to test the high level parsng
-# framework. This format attempts to replicate the Dockerfile format
-# because it's generally well understood, and simple. There are a few
-# minor differences though.
-#
-FROM base AS latest_ports
-  ADD resolv.conf /etc
-  RUN "echo foo > /file.txt"
+FROM base AS pkg-updated
+  RUN "echo test123 > /test.txt"
+  RUN "ps > /ps.output.txt"
+#  RUN "pkg --yes update"
+  ADD . .
 
-FROM base
-  ADD resolv.conf /etc
-  COPY --from 0 /file.txt .
-  RUN "pkg --yes update"
-  RUN "pkg install -y gmake"
-
-FROM base
-  COPY --from 1 /etc/resolv.conf /etc
-  COPY --from 0 /file.txt .
+FROM pkg-updated
+  ADD . .
+#  COPY --FROM pkg-updated test.txt .
+#  RUN "pkg install --yes irssi"
+   RUN "echo doo stuff"
 
 ENTRYPOINT ["/bin/bash"]

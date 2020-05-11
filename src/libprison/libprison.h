@@ -57,6 +57,7 @@ struct prison_build_context {
 	char					p_tag[1024];
 	int					p_nstages;
 	int					p_nsteps;
+	char					p_term[128];
 };
 
 struct prison_response {

@@ -148,6 +148,7 @@ build_send_context(int sock, struct build_config *bcp)
 	struct prison_build_context pbc;
 	struct prison_response resp;
 	struct stat sb;
+	char *term;
 	u_int cmd;
 	int fd;
 
@@ -158,10 +159,15 @@ build_send_context(int sock, struct build_config *bcp)
 	if (fd == -1) {
 		err(1, "error opening build context");
 	}
+	term = getenv("TERM");
+	if (term == NULL) {
+		errx(1, "Can not determine TERM type\n");
+	}
 	printf("Sending build context (%zu) bytes total\n", sb.st_size);
 	cmd = PRISON_IPC_SEND_BUILD_CTX;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	pbc.p_context_size = sb.st_size;
+	strlcpy(pbc.p_term, term, sizeof(pbc.p_term));
 	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
 	strlcpy(pbc.p_prison_file, bcp->b_prison_file, sizeof(pbc.p_prison_file));
 	strlcpy(pbc.p_tag, bcp->b_tag, sizeof(pbc.p_tag));
@@ -264,6 +270,7 @@ build_main(int argc, char *argv [], int cltlsock)
 {
 	struct build_manifest *bmp;
 	struct build_config bc;
+	time_t before, after;
 	int option_index;
 	int c, noexec;
 
@@ -301,12 +308,16 @@ build_main(int argc, char *argv [], int cltlsock)
 	}
 	argc -= optind;
 	argv += optind;
+	if (bc.b_name == NULL) {
+		errx(1, "must specify image name -n");
+	}
 	bc.b_path = argv[0];
 	if (!bc.b_path) {
 		fprintf(stderr, "ERROR: no build path specified\n");
 		build_usage();
 	}
 	(void) fprintf(stdout, "building Prison at %s\n", bc.b_path);
+	before = time(NULL);
 	build_set_default_tag(&bc);
 	bmp = build_manifest_load(&bc);
 	build_process_stages(bmp);
@@ -316,5 +327,7 @@ build_main(int argc, char *argv [], int cltlsock)
 	build_generate_context(&bc);
 	printf("sending context...\n");
 	build_send_context(cltlsock, &bc);
+	after = time(NULL);
+	printf("build occured in %ld seconds\n", after - before);
 	return (0);
 }
