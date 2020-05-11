@@ -148,7 +148,7 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 			fprintf(fp, "set -x\n");
 			header = 1;
 		}
-		fprintf(fp, "echo \"-- Step (%d/%d)\"\n", ++taken, steps);
+		fprintf(fp, "echo \"--- Step (%d/%d)\"\n", ++taken, steps);
 		fprintf(fp, "echo \"  %s\"\n", bsp->step_string);
 		switch (bsp->step_op) {
 		case STEP_ADD:
@@ -230,7 +230,64 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 }
 
 static int
-build_run_build_stages(struct build_context *bcp)
+build_process_wait(pid_t pid)
+{
+	int ret, status;
+
+	while (1) {
+		ret = waitpid(pid, &status, 0);
+		if (ret == -1 && errno == EINTR) {
+			continue;
+		}
+		if (ret == -1) {
+			err(1, "waitpid failed(%d)", pid);
+		}
+		break;
+	}
+	return (status);
+}
+
+static int
+build_commit_image(struct build_context *bcp, struct build_stage *bstg)
+{
+	char commit_cmd[128], **argv, s_index[32], nstages[32];
+	int status;
+	vec_t *vec;
+	pid_t pid;
+
+	pid = fork();
+	if (pid == -1) {
+		err(1, "%s: fork failed", __func__);
+	}
+	if (pid != 0) {
+		status = build_process_wait(pid);
+		if (status != 0) {
+			warnx("failed to commit image");
+		}
+		return (status);
+	}
+	snprintf(commit_cmd, sizeof(commit_cmd), "%s/lib/commit_script.sh",
+	    gcfg.c_data_dir);
+	snprintf(nstages, sizeof(nstages), "%d", bcp->pbc.p_nstages);
+	snprintf(s_index, sizeof(s_index), "%d", bstg->bs_index);
+	vec = vec_init(8);
+	vec_append(vec, "/bin/sh");
+	vec_append(vec, commit_cmd);
+	vec_append(vec, bcp->build_root);
+	vec_append(vec, s_index);
+	vec_append(vec, gcfg.c_data_dir);
+	vec_append(vec, bcp->pbc.p_image_name);
+	vec_append(vec, nstages);
+	vec_finalize(vec);
+	argv = vec_return(vec);
+	execve(*argv, argv, NULL);
+	err(1, "execve: image commit failed");
+	/* NOT REACHED */
+	return (1);
+}
+
+static int
+build_run_build_stages(struct build_context *bcp, struct build_stage *last)
 {
 	char stage_root[MAXPATHLEN], **argv;
 	struct build_stage *bstg;
@@ -240,6 +297,7 @@ build_run_build_stages(struct build_context *bcp)
 
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
+		printf("-- Executing stage (%d/%d)\n", k + 1, bcp->pbc.p_nstages);
 		snprintf(stage_root, sizeof(stage_root),
 		    "%s/%d", bcp->build_root, bstg->bs_index);
 		pid = fork();
@@ -274,6 +332,8 @@ build_run_build_stages(struct build_context *bcp)
 			}
 		}
 	}
+	bstg = &bcp->stages[k - 1];
+	*last = *bstg;
 	if (status != 0) {
 		printf("-- Stage build failed: %d code\n", status);
 	}
@@ -339,6 +399,7 @@ dispatch_build_set_outfile(struct prison_build_context *pbp,
 int
 dispatch_build_recieve(int sock)
 {
+	struct build_stage last_stage;
 	struct prison_response resp;
 	struct build_context bctx;
 	ssize_t cc;
@@ -393,7 +454,13 @@ dispatch_build_recieve(int sock)
 		close(fd);
 		return (1);
 	}
-	if (build_run_build_stages(&bctx) != 0) {
+	if (build_run_build_stages(&bctx, &last_stage) != 0) {
+		resp.p_ecode = 1;
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		close(fd);
+		return (1);
+	}
+	if (build_commit_image(&bctx, &last_stage) != 0) {
 		resp.p_ecode = 1;
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		close(fd);

@@ -270,6 +270,7 @@ build_main(int argc, char *argv [], int cltlsock)
 {
 	struct build_manifest *bmp;
 	struct build_config bc;
+	time_t before, after;
 	int option_index;
 	int c, noexec;
 
@@ -316,6 +317,7 @@ build_main(int argc, char *argv [], int cltlsock)
 		build_usage();
 	}
 	(void) fprintf(stdout, "building Prison at %s\n", bc.b_path);
+	before = time(NULL);
 	build_set_default_tag(&bc);
 	bmp = build_manifest_load(&bc);
 	build_process_stages(bmp);
@@ -325,5 +327,7 @@ build_main(int argc, char *argv [], int cltlsock)
 	build_generate_context(&bc);
 	printf("sending context...\n");
 	build_send_context(cltlsock, &bc);
+	after = time(NULL);
+	printf("build occured in %ld seconds\n", after - before);
 	return (0);
 }

@@ -4,12 +4,13 @@
 FROM base AS pkg-updated
   RUN "echo test123 > /test.txt"
   RUN "ps > /ps.output.txt"
-  RUN "pkg --yes update"
+#  RUN "pkg --yes update"
   ADD . .
 
 FROM pkg-updated
   ADD . .
 #  COPY --FROM pkg-updated test.txt .
-  RUN "pkg install --yes irssi"
+#  RUN "pkg install --yes irssi"
+   RUN "echo doo stuff"
 
 ENTRYPOINT ["/bin/bash"]
