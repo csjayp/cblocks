@@ -44,5 +44,9 @@ struct prison_instance {
 
 void	*tty_io_queue_loop(void *);
 int	 dispatch_build_recieve(int);
+struct build_context *
+	 build_lookup_queued_context(struct prison_build_context *);
+int	 do_build_launch(void *);
+
 
 #endif

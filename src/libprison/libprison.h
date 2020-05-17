@@ -49,6 +49,9 @@ ssize_t		sock_ipc_from_to(int, int, off_t);
 #define	PRISON_IPC_CONSOLE_DATA		3
 #define PRISON_IPC_CONSOL_RESIZE	4
 #define	PRISON_IPC_SEND_BUILD_CTX	5
+#define	PRISON_IPC_LAUNCH_BUILD		6
+#define	PRISON_IPC_CONSOLE_TO_CLIENT	7
+#define	PRISON_IPC_CONSOLE_SESSION_DONE	8
 
 struct prison_build_context {
 	char					p_image_name[1024];
@@ -58,6 +61,8 @@ struct prison_build_context {
 	int					p_nstages;
 	int					p_nsteps;
 	char					p_term[128];
+	char					p_entry_point[128];
+	int					p_verbose;
 };
 
 struct prison_response {
@@ -135,6 +140,7 @@ struct build_stage {
 	char					 bs_base_container[1024];
 	TAILQ_HEAD(tailhead_step, build_step)	step_head;
 	TAILQ_ENTRY(build_stage)		stage_glue;
+	int					 bs_is_last;
 };
 
 struct build_manifest {
@@ -148,6 +154,7 @@ struct build_context {
 	struct build_step			*steps;
 	struct build_stage			*stages;
 	char					 build_root[MAXPATHLEN];
+	TAILQ_ENTRY(build_context)		bc_glue;
 };
 
 #endif	/* BUILD_DOT_H_ */
