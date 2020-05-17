@@ -48,13 +48,8 @@ get_image()
     echo ""
 }
 
-bootstrap()
+ufs_do_setup()
 {
-
-    if [ ! -d "${build_root}/${stage_index}" ]; then
-        echo "Prison daemon didn't create the stage root?"
-        exit 1
-    fi
     base_root="${data_dir}/images/${base_container}"
     echo "Checking for the presence of base image ${base_container}"
     if [ ! -d "${base_root}" ]; then
@@ -69,7 +64,7 @@ bootstrap()
             else
                 echo "Extracting base into into ${data_dir}/images/${base_container}..."
                 mkdir "${data_dir}/images/${base_container}"
-                tar -C "${data_dir}/images/${base_container}" -zxf $image 
+                tar -C "${data_dir}/images/${base_container}" -zxf $image
             fi
         else
             echo "Ephemeral image found from previous stage"
@@ -87,6 +82,18 @@ bootstrap()
     if [ ! -d "${build_root}/${stage_index}/tmp" ] ; then
         mkdir "${build_root}/${stage_index}/tmp"
     fi
+}
+
+bootstrap()
+{
+
+    if [ ! -d "${build_root}/${stage_index}" ]; then
+        echo "Prison daemon didn't create the stage root?"
+        exit 1
+    fi
+
+    echo calling ufs_do_setup
+    ufs_do_setup
 
     stage_deps_dir=`mktemp -d "${build_root}/${stage_index}/tmp/deps.XXXXXXX"`
     echo "Creating initial work directory in stage ${stage_index} environment"
