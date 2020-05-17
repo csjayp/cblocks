@@ -59,7 +59,7 @@ sock_ipc_may_read(int fd, void *buf, size_t n)
 			if (errno == EINTR || errno == EAGAIN) {
 				continue;
 			}
-			err(1, "read failed");
+			err(1, "%s: read failed", __func__);
 		case 0:
 			return (1);
 		default:
@@ -129,7 +129,6 @@ sock_ipc_must_write(int fd, void *buf, size_t n)
 ssize_t
 sock_ipc_from_to(int from, int to, off_t len)
 {
-	ssize_t bytes_read;
 	off_t block_count;
 	size_t toread;
 	int pagesize;
