@@ -130,14 +130,16 @@ console_tty_set_raw_mode(int fd)
 static void *
 console_tty_handle_socket(void *arg)
 {
+	int *sock, done;
 	uint32_t cmd;
 	size_t len;
-	int *sock;
 	char *buf;
 
 	sock = (int *)arg;
-	while (1) {
+	done = 0;
+	while (!done) {
 		if (sock_ipc_may_read(*sock, &cmd, sizeof(cmd))) {
+			exit(0);
 			break;
 		}
 		switch (cmd) {
@@ -146,6 +148,10 @@ console_tty_handle_socket(void *arg)
 			buf = malloc(len);
 			sock_ipc_must_read(*sock, buf, len);
 			(void) write(STDIN_FILENO, buf, len);
+			break;
+		case PRISON_IPC_CONSOLE_SESSION_DONE:
+			exit(0);
+			done = 1;
 			break;
 		default:
 			printf("invalid console frame type %d\n", cmd);

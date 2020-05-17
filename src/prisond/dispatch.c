@@ -71,8 +71,19 @@ handle_reap_children(int sig)
 void
 prison_remove(struct prison_instance *pi)
 {
+	uint32_t cmd;
 	size_t cur;
 
+	/*
+	 * Tell the remote side to dis-connect.
+	 *
+	 * NB: we are holding a lock here. We need to re-factor this a bit
+	 * so we aren't performing socket io while this lock is held.
+	 */
+	if ((pi->p_state & STATE_CONNECTED) != 0) {
+		cmd = PRISON_IPC_CONSOLE_SESSION_DONE;
+		sock_ipc_must_write(pi->p_peer_sock, &cmd, sizeof(cmd));
+	}
 	(void) close(pi->p_peer_sock);
 	(void) close(pi->p_ttyfd);
 	TAILQ_REMOVE(&pr_head, pi, p_glue);
