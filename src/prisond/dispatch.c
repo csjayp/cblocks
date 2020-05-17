@@ -175,8 +175,8 @@ tty_io_queue_loop(void *arg)
 	while (1) {
 		prison_reap_children();
 		maxfd = tty_initialize_fdset(&rfds);
-		tv.tv_sec = 1;
-		tv.tv_usec = 0;
+		tv.tv_sec = 0;
+		tv.tv_usec = 500000;
 		error = select(maxfd + 1, &rfds, NULL, NULL, &tv);
 		if (error == -1 && errno == EINTR) {
 			printf("select interrupted\n");
@@ -204,8 +204,6 @@ tty_io_queue_loop(void *arg)
 				err(1, "read failed:");
 			}
 			termbuf_append(&pi->p_ttybuf, buf, cc);
-			printf("%s: queued %zu bytes for console: %zu\n",
-			    pi->p_name, cc, pi->p_ttybuf.t_tot_len);
 			if (pi->p_state != STATE_CONNECTED) {
 				continue;
 			}
