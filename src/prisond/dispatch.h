@@ -29,7 +29,14 @@
 
 void		*prison_handle_request(void *);
 
+enum {
+	PRISON_TYPE_NONE,
+	PRISON_TYPE_BUILD,
+	PRISON_TYPE_REGULAR
+};
+
 struct prison_instance {
+	int				p_type;
 	uint32_t			p_state;
 #define	STATE_DEAD		0x00000001
 #define	STATE_CONNECTED		0x00000002
@@ -41,13 +48,16 @@ struct prison_instance {
 	struct tty_buffer		p_ttybuf;
 	int				p_peer_sock;
 	int				p_pipe[2];
+	char				*p_instance_tag;
 };
 
 void	*tty_io_queue_loop(void *);
 int	 dispatch_build_recieve(int);
 struct build_context *
 	 build_lookup_queued_context(struct prison_build_context *);
-int	 do_build_launch(void *);
+int	 do_build_launch(void *, struct prison_instance *);
+char *
+gen_sha256_instance_id(char *instance_name);
 
 
 #endif

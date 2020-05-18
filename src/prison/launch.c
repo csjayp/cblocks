@@ -80,6 +80,7 @@ launch_container(int sock, struct launch_config *lcp)
 	} else {
 		term = getenv("TERM");
 	}
+	bzero(&pl, sizeof(pl));
 	cmd = PRISON_IPC_LAUNCH_PRISON;
 	if (lcp->l_vec != NULL) {
 		args = vec_join(lcp->l_vec, ' ');
@@ -103,8 +104,7 @@ int
 launch_main(int argc, char *argv [], int ctlsock)
 {
 	struct launch_config lc;
-	int option_index;
-	int c;
+	int option_index, c;
 
 	bzero(&lc, sizeof(lc));
 	reset_getopt_state();
@@ -140,7 +140,8 @@ launch_main(int argc, char *argv [], int ctlsock)
 	 * Check to see if the user has spcified command line arguments to
 	 * along to the entry point for this container.
 	 */
-	if (argv[0] != NULL) {
+	lc.l_vec = NULL;
+	if (argc != 0) {
 		lc.l_vec = vec_init(argc + 1);
 		for (c = 0; c < argc; c++) {
 			vec_append(lc.l_vec, argv[c]);

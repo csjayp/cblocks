@@ -49,6 +49,8 @@
 
 #include <libprison.h>
 
+#include <openssl/sha.h>
+
 #include "termbuf.h"
 #include "main.h"
 #include "dispatch.h"
@@ -77,7 +79,9 @@ prison_remove(struct prison_instance *pi)
 {
 	uint32_t cmd;
 	size_t cur;
-
+	vec_t *vec;
+	char buf[128];
+	int status, ret;
 	/*
 	 * Tell the remote side to dis-connect.
 	 *
@@ -90,11 +94,42 @@ prison_remove(struct prison_instance *pi)
 	}
 	(void) close(pi->p_peer_sock);
 	(void) close(pi->p_ttyfd);
+	termbuf_print_queue(&pi->p_ttybuf.t_head);
 	TAILQ_REMOVE(&pr_head, pi, p_glue);
 	cur = pi->p_ttybuf.t_tot_len;
 	while (cur > 0) {
 		cur = termbuf_remove_oldest(&pi->p_ttybuf);
 	}
+	vec = vec_init(16);
+	vec_append(vec, "/bin/sh");
+	sprintf(buf, "%s/lib/stage_launch_cleanup.sh", gcfg.c_data_dir);
+	vec_append(vec, buf);
+	vec_append(vec, gcfg.c_data_dir);
+	vec_append(vec, pi->p_instance_tag);
+	sprintf(buf, "%d", pi->p_type);
+	vec_append(vec, buf);
+	vec_finalize(vec);
+	pid_t pid = fork();
+	if (pid == -1) {
+		err(1, "prison_remove: failed to execute cleanup handlers");
+	}
+	if (pid == 0) {
+		char **argv;
+		argv = vec_return(vec);
+		execve(*argv, argv, NULL);
+		err(1, "prison_remove: execve failed");
+	}
+	while (1) {
+		ret = waitpid(pid, &status, 0);
+		if (ret == -1 && errno == EINTR) {
+			continue;
+		}
+		if (ret == -1) {
+			err(1, "waitpid failed");
+		}
+		break;
+	}
+	vec_free(vec);
 	free(pi);
 }
 
@@ -218,21 +253,6 @@ tty_io_queue_loop(void *arg)
 			sock_ipc_must_write(pi->p_peer_sock, buf, cc);
 		}
 		pthread_mutex_unlock(&prison_mutex);
-	}
-}
-
-static void
-tty_set_noecho(int fd)
-{
-	struct termios term;
-
-	if (tcgetattr(fd, &term) == -1) {
-		err(1, "tcgetattr: failed");
-	}
-	term.c_lflag &= ~(ECHO | ECHOE | ECHOK | ECHONL);
-	term.c_oflag &= ~(ONLCR);
-	if (tcsetattr(fd, TCSANOW, &term) == -1) {
-		err(1, "tcsetattr: failed");
 	}
 }
 
@@ -425,24 +445,25 @@ dispatch_connect_console(int sock)
 	return (1);
 }
 
-int
-prison_create(const char *name, char *term, int (*prison_callback)(void *),
+struct prison_instance *
+prison_create(const char *name, char *term, int (*prison_callback)(void *, struct prison_instance *),
     void *arg)
 {
 	struct prison_instance *pi;
 	int ret;
 
 	if (!prison_instance_is_unique(name)) {
-		return (-1);
+		return (NULL);
 	}
 	pi = calloc(1, sizeof(*pi));
 	if (pi == NULL) {
-		return (-1);
+		return (NULL);
 	}
+	pi->p_type = PRISON_TYPE_BUILD;
 	strlcpy(pi->p_name, name, sizeof(pi->p_name));
 	if (pipe(pi->p_pipe) == -1) {
 		warn("pipe failed");
-		return (-1);
+		return (NULL);
 	}
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
 	if (pi->p_pid == 0) {
@@ -464,18 +485,14 @@ prison_create(const char *name, char *term, int (*prison_callback)(void *),
 		if (setenv("TERM", term, 1) != 0) {
 			err(1, "setenv failed");
 		}
-		// tty_set_noecho(STDIN_FILENO);
-		ret = (prison_callback)(arg);
+		ret = (prison_callback)(arg, pi);
 		_exit(ret);
 	}
 	printf("DEBUG: TTY name %s\n", pi->p_ttyname);
 	close(pi->p_pipe[0]);
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
-	pthread_mutex_lock(&prison_mutex);
-	TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
-	pthread_mutex_unlock(&prison_mutex);
-	return (0);
+	return (pi);
 }
 
 int
@@ -486,6 +503,7 @@ dispatch_build_launch(int sock)
 	struct build_context *bcp;
 	char prison_name[32];
 	ssize_t cc;
+	struct prison_instance *pi;
 
 	cc = sock_ipc_must_read(sock, &pbc, sizeof(pbc));
 	bcp = build_lookup_queued_context(&pbc);
@@ -496,15 +514,50 @@ dispatch_build_launch(int sock)
 	}
 	snprintf(prison_name, sizeof(prison_name), "%s:%s",
 	    pbc.p_image_name, pbc.p_tag);
-	if (prison_create(prison_name, pbc.p_term, do_build_launch, bcp) != 0) {
+	pi = prison_create(prison_name, pbc.p_term, do_build_launch, bcp);
+	if (pi == NULL) {
 		resp.p_ecode = -1;
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (-1);
 	}
+	pi->p_instance_tag = bcp->instance;
+	pthread_mutex_lock(&prison_mutex);
+	TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
+	pthread_mutex_unlock(&prison_mutex);
 	resp.p_ecode = 0;
 	resp.p_errbuf[0] = '\0';
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	return (1);
+}
+
+void
+gen_sha256_string(unsigned char *hash, char *output)
+{
+	int k;
+
+	for (k = 0; k < SHA256_DIGEST_LENGTH; k++) {
+		sprintf(output + (k * 2), "%02x", hash[k]);
+	}
+	output[64] = '\0';
+}
+
+char *
+gen_sha256_instance_id(char *instance_name)
+{
+	u_char hash[SHA256_DIGEST_LENGTH];
+	struct timeval tv;
+	char inbuf[128];
+	char outbuf[128+1];
+	SHA256_CTX sha256;
+
+	bzero(outbuf, sizeof(outbuf));
+	gettimeofday(&tv, NULL);
+	sprintf(inbuf, "%lu:%lu:%s", tv.tv_sec, tv.tv_usec, instance_name);
+	SHA256_Init(&sha256);
+	SHA256_Update(&sha256, inbuf, strlen(inbuf));
+	SHA256_Final(hash, &sha256);
+	gen_sha256_string(&hash[0], outbuf);
+	return (strdup(outbuf));
 }
 
 int
@@ -513,9 +566,10 @@ dispatch_launch_prison(int sock)
 	extern struct global_params gcfg;
 	struct prison_response resp;
 	struct prison_instance *pi;
-	char *env[32], *argv[32];
+	char **env, **argv;
 	struct prison_launch pl;
 	ssize_t cc;
+	vec_t *cmd_vec, *env_vec;
 
 	cc = sock_ipc_must_read(sock, &pl, sizeof(pl));
 	if (cc == 0) {
@@ -535,20 +589,35 @@ dispatch_launch_prison(int sock)
 		printf("Passing in command line arguments: %s\n", 
 		    pl.p_entry_point_args);
 	}
+	pi->p_type = PRISON_TYPE_REGULAR;
 	strlcpy(pi->p_name, pl.p_name, sizeof(pi->p_name));
 	printf("creating process with TERM=%s\n", pl.p_term);
-	env[0] = strdup(pl.p_term);
-	env[1] = NULL;
+	cmd_vec = vec_init(64);
+	env_vec = vec_init(64);
+	/*
+	 * Setup the environment variables first.
+	 */
+	char buf[256];
+	sprintf(buf, "TERM=%s", pl.p_term);
+	vec_append(env_vec, buf);
+	vec_finalize(env_vec);
+	sprintf(buf, "%s/lib/stage_launch.sh", gcfg.c_data_dir);
+	vec_append(cmd_vec, "/bin/sh");
+	vec_append(cmd_vec, buf);
+	vec_append(cmd_vec, gcfg.c_data_dir);
+	vec_append(cmd_vec, pl.p_name);
+	pi->p_instance_tag = gen_sha256_instance_id(pl.p_name);
+	vec_append(cmd_vec, pi->p_instance_tag);
+	printf("Generated instances ID=%s\n", pi->p_instance_tag);
+	if (pl.p_entry_point_args[0] != '\0') {
+		vec_append(cmd_vec, pl.p_entry_point_args);
+	}
+	vec_finalize(cmd_vec);
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
 	if (pi->p_pid == 0) {
+		argv = vec_return(cmd_vec);
+		env = vec_return(env_vec);
 		putchar('\n');
-		char buf[64];
-		// tty_set_noecho(STDIN_FILENO);
-		sprintf(buf, "TERM=%s", pl.p_term);
-		env[0] = strdup(buf);
-		env[1] = NULL;
-		argv[0] = "/bin/tcsh";
-		argv[1] = NULL;
 		execve(*argv, argv, env);
 		err(1, "execve failed");
 	}

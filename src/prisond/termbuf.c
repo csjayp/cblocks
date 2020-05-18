@@ -121,8 +121,6 @@ termbuf_append(struct tty_buffer *ttyb, u_char *bytes, size_t len)
 	}
 }
 
-
-#ifdef __TEST_TERMBUF_CODE__
 static void
 termbuf_print_buf(struct termbuf *tbp)
 {
@@ -136,11 +134,11 @@ termbuf_print_buf(struct termbuf *tbp)
 		p = tbp->t_dynamic;
 		break;
 	}
-	printf("%s\n", (char *)p);
+	printf("%s", (char *)p);
 }
 
 
-static void
+void
 termbuf_print_queue(termbuf_head_t *head)
 {
 	struct termbuf *tbp;
@@ -150,6 +148,7 @@ termbuf_print_queue(termbuf_head_t *head)
 	}
 }
 
+#ifdef __TEST_TERMBUF_CODE__
 int
 main(int argc, char *argv [])
 {
