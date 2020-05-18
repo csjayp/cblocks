@@ -141,7 +141,7 @@ launch_main(int argc, char *argv [], int ctlsock)
 	 * along to the entry point for this container.
 	 */
 	if (argv[0] != NULL) {
-		lc.l_vec = vec_init(512);
+		lc.l_vec = vec_init(argc + 1);
 		for (c = 0; c < argc; c++) {
 			vec_append(lc.l_vec, argv[c]);
 		}
