@@ -53,7 +53,6 @@
 #include "dispatch.h"
 #include "sock_ipc.h"
 #include "config.h"
-#include "vec.h"
 
 TAILQ_HEAD( , build_context) bc_head;
 

@@ -33,6 +33,7 @@
 #include <sys/ttycom.h>
 
 #include <stdio.h>
+#include <paths.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -43,6 +44,7 @@
 #include <termios.h>
 #include <libutil.h>
 #include <signal.h>
+#include <assert.h>
 #include <string.h>
 
 #include <libprison.h>
@@ -60,6 +62,8 @@ static int reap_children;
 
 pthread_mutex_t peer_mutex;
 pthread_mutex_t prison_mutex;
+
+FILE *df;
 
 static void
 handle_reap_children(int sig)
@@ -164,12 +168,12 @@ tty_io_queue_loop(void *arg)
 {
 	struct prison_instance *pi;
 	struct timeval tv;
+	u_char buf[8192];
 	int maxfd, error;
+	uint32_t cmd;
 	fd_set rfds;
 	ssize_t cc;
-	u_char buf[8192];
 	size_t len;
-	uint32_t cmd;
 
 	printf("tty_io_queue_loop: dispatched\n");
 	while (1) {
@@ -201,7 +205,7 @@ tty_io_queue_loop(void *arg)
 				continue;
 			}
 			if (cc == -1) {
-				err(1, "read failed:");
+				err(1, "%s: read failed:", __func__);
 			}
 			termbuf_append(&pi->p_ttybuf, buf, cc);
 			if (pi->p_state != STATE_CONNECTED) {
@@ -306,7 +310,7 @@ tty_console_session(const char *name, int sock, int ttyfd)
 			continue;
 		}
 		if (cc == -1) {
-			err(1, "read failed");
+			err(1, "%s: read failed", __func__);
 		}
 		/*
 		 * NB: There probably needs to be a better way to do this 
@@ -359,13 +363,12 @@ dispatch_connect_console(int sock)
 	struct prison_instance *pi;
 	ssize_t tty_buflen;
 	char *tty_block;
-	int ttyfd;
 	uint32_t cmd;
 	size_t len;
+	int ttyfd;
 
 	bzero(&resp, sizeof(resp));
 	sock_ipc_must_read(sock, &pcc, sizeof(pcc));
-	printf("got console connect for container %s\n", pcc.p_name);
 	pthread_mutex_lock(&prison_mutex);
 	pi = prison_lookup_instance(pcc.p_name);
 	if (pi == NULL) {
@@ -388,7 +391,6 @@ dispatch_connect_console(int sock)
 	tty_buflen = pi->p_ttybuf.t_tot_len;
 	pi->p_peer_sock = sock;
 	pthread_mutex_unlock(&prison_mutex);
-	printf("console connected for %s\n", pcc.p_name);
 	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	if (tty_block) {
@@ -405,40 +407,74 @@ dispatch_connect_console(int sock)
 	if (ioctl(ttyfd, TIOCSWINSZ, &pcc.p_winsize) == -1) {
 		err(1, "ioctl(TIOCSWINSZ): failed");
 	}
+	/*
+	 * If this console connection is the result of a container build, the
+	 * build process will be blocked waiting for the console connection.
+	 * write a single byte to the pipe to trigger the execution.
+	 *
+	 * NB: instead of checking the file descriptor, we should be using a
+	 * flag
+	 */
+	if (pi->p_pipe[1] != 0) {
+		char b;
+		printf("signaling to build process\n");
+		write(pi->p_pipe[1], &b, 1);
+	}
 	tty_console_session(pcc.p_name, sock, ttyfd);
 	prison_detach_console(pcc.p_name);
 	return (1);
 }
 
 int
-prison_create(const char *name, char *term,
-    int (*prison_callback)(void *), void *arg)
+prison_create(const char *name, char *term, int (*prison_callback)(void *),
+    void *arg)
 {
-        struct prison_instance *pi;
+	struct prison_instance *pi;
 	int ret;
 
 	if (!prison_instance_is_unique(name)) {
 		return (-1);
 	}
-        printf("launching prison %s\n", name);
 	pi = calloc(1, sizeof(*pi));
 	if (pi == NULL) {
 		return (-1);
 	}
 	strlcpy(pi->p_name, name, sizeof(pi->p_name));
-	printf("creating process with TERM=%s\n", term);
+	if (pipe(pi->p_pipe) == -1) {
+		warn("pipe failed");
+		return (-1);
+	}
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
 	if (pi->p_pid == 0) {
-		tty_set_noecho(STDIN_FILENO);
+		printf("\n");
+		ssize_t cc;
+		char b;
+		close(pi->p_pipe[1]);
+		while (1) {
+			printf("waiting for console synchronization\n");
+			cc = read(pi->p_pipe[0], &b, 1);
+			if (cc == -1 && errno == EINTR)
+				continue;
+			if (cc == -1)
+				err(1, "%s: read failed", __func__);
+			break;
+			assert(cc == 1);
+		}
+		printf("wokeup, continuing...\n");
+		if (setenv("TERM", term, 1) != 0) {
+			err(1, "setenv failed");
+		}
+		// tty_set_noecho(STDIN_FILENO);
 		ret = (prison_callback)(arg);
 		_exit(ret);
-        }
+	}
+	printf("DEBUG: TTY name %s\n", pi->p_ttyname);
+	close(pi->p_pipe[0]);
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
 	pthread_mutex_lock(&prison_mutex);
 	TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
 	pthread_mutex_unlock(&prison_mutex);
-	printf("launched shell as pid %d\n", pi->p_pid);
 	return (0);
 }
 
@@ -491,10 +527,13 @@ dispatch_launch_prison(int sock)
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
 	}
-	printf("launching prison %s\n", pl.p_name);
 	pi = calloc(1, sizeof(*pi));
 	if (pi == NULL) {
 		err(1, "calloc failed");
+	}
+	if (pl.p_entry_point_args[0] != '\0') {
+		printf("Passing in command line arguments: %s\n", 
+		    pl.p_entry_point_args);
 	}
 	strlcpy(pi->p_name, pl.p_name, sizeof(pi->p_name));
 	printf("creating process with TERM=%s\n", pl.p_term);
@@ -502,8 +541,9 @@ dispatch_launch_prison(int sock)
 	env[1] = NULL;
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
 	if (pi->p_pid == 0) {
+		putchar('\n');
 		char buf[64];
-		tty_set_noecho(STDIN_FILENO);
+		// tty_set_noecho(STDIN_FILENO);
 		sprintf(buf, "TERM=%s", pl.p_term);
 		env[0] = strdup(buf);
 		env[1] = NULL;
@@ -517,7 +557,6 @@ dispatch_launch_prison(int sock)
 	pthread_mutex_lock(&prison_mutex);
 	TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
 	pthread_mutex_unlock(&prison_mutex);
-	printf("launched shell as pid %d\n", pi->p_pid);
 	resp.p_ecode = 0;
 	resp.p_errbuf[0] = '\0';
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
@@ -536,12 +575,10 @@ dispatch_work(void *arg)
 	p = (struct prison_peer *)arg;
 	done = 0;
 	while (!done) {
-		printf("waiting for command\n");
 		cc = sock_ipc_may_read(p->p_sock, &cmd, sizeof(cmd));
 		if (cc == 1) {
 			break;
 		}
-		printf("read command %d\n", cmd);
 		switch (cmd) {
 		case PRISON_IPC_LAUNCH_BUILD:
 			cc = dispatch_build_launch(p->p_sock);
@@ -569,7 +606,6 @@ dispatch_work(void *arg)
 			break;
 		}
 	}
-	printf("peer disconnected\n");
 	close(p->p_sock);
 	pthread_mutex_lock(&peer_mutex);
 	TAILQ_REMOVE(&p_head, p, p_glue);

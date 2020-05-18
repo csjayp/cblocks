@@ -40,6 +40,7 @@ struct prison_instance {
 	TAILQ_ENTRY(prison_instance)	p_glue;
 	struct tty_buffer		p_ttybuf;
 	int				p_peer_sock;
+	int				p_pipe[2];
 };
 
 void	*tty_io_queue_loop(void *);
