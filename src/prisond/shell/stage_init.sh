@@ -16,22 +16,6 @@ fi
 
 stage_deps_dir=""
 
-cleanup()
-{
-    for stage in $stage_deps; do
-        umount "${stage_deps_dir}/${stage}"
-    done
-    umount "${build_root}/${stage_index}/dev"
-    devfs rule -s 5000 delset
-    if [ "$stage_name" ]; then
-        echo "Importing image ${stage_name}"
-        tar -C "${build_root}/${stage_index}" --xz -cf "${data_dir}/images/${stage_name}.txz" .
-    fi
-    umount "${build_root}/${stage_index}"
-    chflags -R noschg "${build_root}/${stage_index}"
-    rm -fr "${build_root}/${stage_index}"
-}
-
 bind_devfs()
 {
     if [ ! -d "${build_root}/${stage_index}/dev" ]; then
@@ -64,13 +48,8 @@ get_image()
     echo ""
 }
 
-bootstrap()
+ufs_do_setup()
 {
-
-    if [ ! -d "${build_root}/${stage_index}" ]; then
-        echo "Prison daemon didn't create the stage root?"
-        exit 1
-    fi
     base_root="${data_dir}/images/${base_container}"
     echo "Checking for the presence of base image ${base_container}"
     if [ ! -d "${base_root}" ]; then
@@ -85,7 +64,7 @@ bootstrap()
             else
                 echo "Extracting base into into ${data_dir}/images/${base_container}..."
                 mkdir "${data_dir}/images/${base_container}"
-                tar -C "${data_dir}/images/${base_container}" -zxf $image 
+                tar -C "${data_dir}/images/${base_container}" -zxf $image
             fi
         else
             echo "Ephemeral image found from previous stage"
@@ -95,10 +74,26 @@ bootstrap()
     echo "Image located and ready for use"
     echo "Underlaying image ${base_container}"
 
-    mount -t unionfs -o below ${base_root} ${build_root}/${stage_index}
+    #
+    # Make sure we use -o noatime otherwise read operations will result in
+    # shadow objects being created which can impact performance.
+    #
+    mount -t unionfs -o noatime -o below ${base_root} ${build_root}/${stage_index}
     if [ ! -d "${build_root}/${stage_index}/tmp" ] ; then
         mkdir "${build_root}/${stage_index}/tmp"
     fi
+}
+
+bootstrap()
+{
+
+    if [ ! -d "${build_root}/${stage_index}" ]; then
+        echo "Prison daemon didn't create the stage root?"
+        exit 1
+    fi
+
+    echo calling ufs_do_setup
+    ufs_do_setup
 
     stage_deps_dir=`mktemp -d "${build_root}/${stage_index}/tmp/deps.XXXXXXX"`
     echo "Creating initial work directory in stage ${stage_index} environment"

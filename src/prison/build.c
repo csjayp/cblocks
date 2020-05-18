@@ -55,6 +55,7 @@ struct build_config {
 	char			*b_context_path;
 	char			*b_tag;
 	struct build_manifest	*b_bmp;
+	int			 b_verbose;
 };
 
 static struct option build_options[] = {
@@ -63,6 +64,7 @@ static struct option build_options[] = {
 	{ "tag",		required_argument, 0, 't' },
 	{ "no-exec",		no_argument, 0, 'N' },
 	{ "help",		no_argument, 0, 'h' },
+	{ "verbose",		no_argument, 0, 'v' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -102,7 +104,8 @@ build_usage(void)
 	    " -n, --name=NAME               Name of container image to build\n"
 	    " -f, --prison-file-path=PATH   Path to Prisonfile (relative to build path)\n"
 	    " -t, --tag=NAME                Tag to use for the image build\n"
-	    " -N, --no-exec                 Do everything but submit the build context\n");
+	    " -N, --no-exec                 Do everything but submit the build context\n"
+	    " -v, --verbose                 Increase verbosity of build\n");
 	exit(1);
 }
 
@@ -167,9 +170,11 @@ build_send_context(int sock, struct build_config *bcp)
 	cmd = PRISON_IPC_SEND_BUILD_CTX;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	pbc.p_context_size = sb.st_size;
+	pbc.p_verbose = bcp->b_verbose;
 	strlcpy(pbc.p_term, term, sizeof(pbc.p_term));
 	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
-	strlcpy(pbc.p_prison_file, bcp->b_prison_file, sizeof(pbc.p_prison_file));
+	strlcpy(pbc.p_prison_file, bcp->b_prison_file,
+	    sizeof(pbc.p_prison_file));
 	strlcpy(pbc.p_tag, bcp->b_tag, sizeof(pbc.p_tag));
 	build_init_stage_count(bcp, &pbc);
 	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
@@ -184,6 +189,38 @@ build_send_context(int sock, struct build_config *bcp)
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
 	printf("Transfer complete. read status code %d (success) from daemon\n",
 	    resp.p_ecode);
+	cmd = PRISON_IPC_LAUNCH_BUILD;
+	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
+	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
+	sock_ipc_must_read(sock, &resp, sizeof(resp));
+	if (resp.p_ecode != 0) {
+		errx(1, "failed to launch build");
+	}
+
+	struct prison_console_connect pcc;
+	char prison_name[64];
+
+	snprintf(prison_name, sizeof(prison_name), "%s:%s",
+	    pbc.p_image_name, pbc.p_tag);
+	cmd = PRISON_IPC_CONSOLE_CONNECT;
+	if (tcgetattr(STDIN_FILENO, &pcc.p_termios) == -1) {
+		err(1, "tcgetattr(STDIN_FILENO) failed");
+	}
+	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &pcc.p_winsize) == -1) {
+		err(1, "ioctl(TIOCGWINSZ): failed");
+	}
+	strlcpy(pcc.p_name, prison_name, sizeof(pcc.p_name));
+	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
+	sock_ipc_must_write(sock, &pcc, sizeof(pcc));
+	sock_ipc_must_read(sock, &resp, sizeof(resp));
+	if (resp.p_ecode != 0) {
+		(void) printf("failed to attach console to %s: %s\n",
+		    prison_name, resp.p_errbuf);
+		return (-1);
+	}
+	printf("got error code %d\n", resp.p_ecode);
+	console_tty_set_raw_mode(STDIN_FILENO);
+	console_tty_console_session(sock);
 	return (0);
 }
 
@@ -280,12 +317,15 @@ build_main(int argc, char *argv [], int cltlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "Nhf:n:t:", build_options,
+		c = getopt_long(argc, argv, "Nhf:n:t:v", build_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'v':
+			bc.b_verbose++;
+			break;
 		case 'N':
 			noexec = 1;
 			break;

@@ -82,7 +82,7 @@ console_usage(void)
 	exit(1);
 }
 
-static void
+void
 console_tty_atexit(void)
 {
 	struct termios def;
@@ -99,7 +99,7 @@ console_tty_atexit(void)
 	}
 }
 
-static int
+int
 console_tty_set_raw_mode(int fd)
 {
 	struct termios tbuf;
@@ -130,31 +130,32 @@ console_tty_set_raw_mode(int fd)
 static void *
 console_tty_handle_socket(void *arg)
 {
-	char buf[4096];
-	ssize_t cc;
-	int *sock;
+	int *sock, done;
+	uint32_t cmd;
+	size_t len;
+	char *buf;
 
 	sock = (int *)arg;
-	while (1) {
-		cc = read(*sock, buf, sizeof(buf));
-		if (cc == 0) {
-			exit(1);
+	done = 0;
+	while (!done) {
+		if (sock_ipc_may_read(*sock, &cmd, sizeof(cmd))) {
+			exit(0);
 			break;
 		}
-		if (cc == -1 && errno == EINTR) {
-			continue;
-		}
-		/*
-		 * The socket was closed on our side. Probably a better
-		 * way to do this, perhaps with a timeout.
-		 */
-		if (cc == -1 && errno == EBADF) {
+		switch (cmd) {
+		case PRISON_IPC_CONSOLE_TO_CLIENT:
+			sock_ipc_must_read(*sock, &len, sizeof(len));
+			buf = malloc(len);
+			sock_ipc_must_read(*sock, buf, len);
+			(void) write(STDIN_FILENO, buf, len);
 			break;
+		case PRISON_IPC_CONSOLE_SESSION_DONE:
+			exit(0);
+			done = 1;
+			break;
+		default:
+			printf("invalid console frame type %d\n", cmd);
 		}
-		if (cc == -1) {
-			err(1, "read failed");
-		}
-		write(STDIN_FILENO, buf, cc);
 	}
 	printf("tty_handle_socket: exiting\n");
 	return (NULL);
@@ -229,7 +230,7 @@ console_tty_handle_stdin(void *arg)
         return (NULL);
 }
 
-static void
+void
 console_tty_console_session(int sock)
 {
 	pthread_t thr[2];

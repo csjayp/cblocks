@@ -46,6 +46,7 @@
 struct launch_config {
 	char		*l_name;
 	char		*l_terminal;
+	vec_t		*l_vec;
 };
 
 static struct option launch_options[] = {
@@ -70,8 +71,8 @@ launch_container(int sock, struct launch_config *lcp)
 {
 	struct prison_launch pl;
 	struct prison_response resp;
+	char *term, *args;
 	uint32_t cmd;
-	char *term;
 
 	if (lcp->l_terminal != NULL) {
 		printf("setting term\n");
@@ -80,6 +81,16 @@ launch_container(int sock, struct launch_config *lcp)
 		term = getenv("TERM");
 	}
 	cmd = PRISON_IPC_LAUNCH_PRISON;
+	if (lcp->l_vec != NULL) {
+		args = vec_join(lcp->l_vec, ' ');
+		if (args == NULL) {
+			err(1, "failed to alloc memory for vec");
+		}
+		strlcpy(pl.p_entry_point_args, args,
+		    sizeof(pl.p_entry_point_args));
+		free(args);
+		vec_free(lcp->l_vec);
+	}
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	strlcpy(pl.p_name, lcp->l_name, sizeof(pl.p_name));
 	strlcpy(pl.p_term, term, sizeof(pl.p_term));
@@ -119,8 +130,23 @@ launch_main(int argc, char *argv [], int ctlsock)
 			/* NOT REACHED */
 		}
 	}
+	if (lc.l_name == NULL) {
+		fprintf(stderr, "must supply container name\n");
+		launch_usage();
+	}
 	argc -= optind;
 	argv += optind;
+	/*
+	 * Check to see if the user has spcified command line arguments to
+	 * along to the entry point for this container.
+	 */
+	if (argv[0] != NULL) {
+		lc.l_vec = vec_init(argc + 1);
+		for (c = 0; c < argc; c++) {
+			vec_append(lc.l_vec, argv[c]);
+		}
+		vec_finalize(lc.l_vec);
+	}
 	launch_container(ctlsock, &lc);
 	return (0);
 }

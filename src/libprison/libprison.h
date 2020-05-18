@@ -49,6 +49,9 @@ ssize_t		sock_ipc_from_to(int, int, off_t);
 #define	PRISON_IPC_CONSOLE_DATA		3
 #define PRISON_IPC_CONSOL_RESIZE	4
 #define	PRISON_IPC_SEND_BUILD_CTX	5
+#define	PRISON_IPC_LAUNCH_BUILD		6
+#define	PRISON_IPC_CONSOLE_TO_CLIENT	7
+#define	PRISON_IPC_CONSOLE_SESSION_DONE	8
 
 struct prison_build_context {
 	char					p_image_name[1024];
@@ -58,6 +61,9 @@ struct prison_build_context {
 	int					p_nstages;
 	int					p_nsteps;
 	char					p_term[128];
+	char					p_entry_point[1024];
+	char					p_entry_point_args[1024];
+	int					p_verbose;
 };
 
 struct prison_response {
@@ -68,6 +74,7 @@ struct prison_response {
 struct prison_launch {
 	char					p_name[MAX_PRISON_NAME];
 	char					p_term[128];
+	char					p_entry_point_args[1024];
 };
 
 struct prison_console_connect {
@@ -135,11 +142,13 @@ struct build_stage {
 	char					 bs_base_container[1024];
 	TAILQ_HEAD(tailhead_step, build_step)	step_head;
 	TAILQ_ENTRY(build_stage)		stage_glue;
+	int					 bs_is_last;
 };
 
 struct build_manifest {
 	TAILQ_HEAD(tailhead_stage, build_stage)	 stage_head;
 	char					*entry_point;
+	char					*entry_point_args;
 	char					*maintainr;
 };
 
@@ -148,6 +157,26 @@ struct build_context {
 	struct build_step			*steps;
 	struct build_stage			*stages;
 	char					 build_root[MAXPATHLEN];
+	TAILQ_ENTRY(build_context)		bc_glue;
 };
+
+struct vec {
+        char                    **vec;
+        size_t                  vec_used;
+        size_t                  vec_alloc;
+        size_t                  vec_size;
+#define VEC_OVERFLOW    1
+#define VEC_ENOMEM      2
+        int                     vec_flag;
+};
+
+typedef struct vec vec_t;
+
+vec_t           *vec_init(size_t);
+void             vec_append(vec_t *, char *);
+int              vec_finalize(vec_t *);
+char            **vec_return(vec_t *);
+void             vec_free(vec_t *);
+char		*vec_join(vec_t *, char);
 
 #endif	/* BUILD_DOT_H_ */

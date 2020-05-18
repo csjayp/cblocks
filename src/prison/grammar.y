@@ -44,6 +44,7 @@ static struct build_manifest	*cur_build_manifest;
 static struct build_stage	*cur_build_stage;
 static struct build_step	*cur_build_step;
 static int stage_counter;
+vec_t *vec;
 
 static char *archive_extensions[] = {
 	"*.tar.gz",
@@ -64,7 +65,7 @@ static char *archive_extensions[] = {
 
 %token FROM AS COPY ADD RUN ENTRYPOINT STRING WORKDIR
 %token OPEN_SQUARE_BRACKET CLOSE_SQUARE_BRACKET COPY_FROM
-%token INTEGER
+%token INTEGER COMMA CMD
 
 %type <num> INTEGER
 %type <c_string> STRING
@@ -78,21 +79,68 @@ root	: /* empty */
 stage	:
 	stage_def
 	| entry_def
+	| cmd_def
+	;
+
+list_item:
+	STRING
+	{
+		assert(vec != NULL);
+		vec_append(vec, $1);
+	}
+	;
+
+list:
+	list_item
+	| list COMMA list_item
+	;
+
+cmd_def:
+	CMD
+	{
+		assert(vec == NULL);
+		vec = vec_init(512);
+		if (vec == NULL) {
+			errx(1, "could not allocate CMD vector");
+		}
+	}
+	OPEN_SQUARE_BRACKET list CLOSE_SQUARE_BRACKET
+	{
+		char *cmd_string;
+
+		vec_finalize(vec);
+		cmd_string = vec_join(vec, ' ');
+		printf("got CMD booyakasha: %s\n", cmd_string);
+		free(cmd_string);
+		vec_free(vec);
+		vec = NULL;
+	}
 	;
 
 entry_def:
-	ENTRYPOINT OPEN_SQUARE_BRACKET STRING CLOSE_SQUARE_BRACKET
+	ENTRYPOINT
+	{
+		assert(vec == NULL);
+		vec = vec_init(512);
+	}
+	OPEN_SQUARE_BRACKET list CLOSE_SQUARE_BRACKET
         {
 		struct build_manifest *bmp;
+		char *cmd_string;
 
+		vec_finalize(vec);
+		cmd_string = vec_join(vec, ' ');
 		bmp = get_current_build_manifest();
 		if (bmp->entry_point != NULL) {
 			errx(1, "ENTRPOINT: only one entry point per build specification");
 		}
-		bmp->entry_point = strdup($3);
+		bmp->entry_point = strdup(cmd_string);
 		if (bmp->entry_point == NULL) {
 			err(1, "strdup: entrypoint failed");
 		}
+		free(cmd_string);
+		vec_free(vec);
+		vec = NULL;
         }
         ;
 

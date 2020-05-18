@@ -43,4 +43,7 @@ int		console_main(int, char **, int);
 int		launch_main(int, char **, int);
 int		build_main(int, char **, int);
 
+int		console_tty_set_raw_mode(int);
+void		console_tty_console_session(int);
+
 #endif
