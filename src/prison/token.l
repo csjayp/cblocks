@@ -54,6 +54,7 @@ ADD		return (ADD);
 COPY		return (COPY);
 WORKDIR		return (WORKDIR);
 ENTRYPOINT	return (ENTRYPOINT);
+CMD		return (CMD);
 {integer}       {
                         yylval.num = atoi(yytext);
                         return (INTEGER);
@@ -61,6 +62,7 @@ ENTRYPOINT	return (ENTRYPOINT);
 \n              line++;
 [ \t]+          /* whitespace ignored */
 \[		return (OPEN_SQUARE_BRACKET);
+,		return (COMMA);
 \]		return (CLOSE_SQUARE_BRACKET);
 \"              {
                         char buf[8192], *ptr, c;
