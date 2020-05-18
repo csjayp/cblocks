@@ -21,8 +21,8 @@ bind_devfs()
     if [ ! -d "${build_root}/${stage_index}/dev" ]; then
         mkdir "${build_root}/${stage_index}/dev"
     fi
-    mount -t devfs devfs "${build_root}/${stage_index}/dev"
-    devfs -m "${build_root}/${stage_index}/dev" ruleset 5000
+    mount -t devfs devfs "${build_root}/${stage_index}/root/dev"
+    devfs -m "${build_root}/${stage_index}/root/dev" ruleset 5000
     devfs rule -s 5000 add hide
     devfs rule -s 5000 add path null unhide
     devfs rule -s 5000 add path zero unhide
@@ -33,7 +33,7 @@ bind_devfs()
     devfs rule -s 5000 add path stdin unhide
     devfs rule -s 5000 add path stdout unhide
     devfs rule -s 5000 add path stderr unhide
-    devfs -m "${build_root}/${stage_index}/dev" rule applyset
+    devfs -m "${build_root}/${stage_index}/root/dev" rule applyset
 }
 
 get_image()
@@ -78,9 +78,9 @@ ufs_do_setup()
     # Make sure we use -o noatime otherwise read operations will result in
     # shadow objects being created which can impact performance.
     #
-    mount -t unionfs -o noatime -o below ${base_root} ${build_root}/${stage_index}
-    if [ ! -d "${build_root}/${stage_index}/tmp" ] ; then
-        mkdir "${build_root}/${stage_index}/tmp"
+    mount -t unionfs -o noatime -o below ${base_root}/root ${build_root}/${stage_index}/root
+    if [ ! -d "${build_root}/${stage_index}/root/tmp" ] ; then
+        mkdir "${build_root}/${stage_index}/root/tmp"
     fi
 }
 
@@ -95,15 +95,15 @@ bootstrap()
     echo calling ufs_do_setup
     ufs_do_setup
 
-    stage_deps_dir=`mktemp -d "${build_root}/${stage_index}/tmp/deps.XXXXXXX"`
+    stage_deps_dir=`mktemp -d "${build_root}/${stage_index}/root/tmp/deps.XXXXXXX"`
     echo "Creating initial work directory in stage ${stage_index} environment"
-    stage_work_dir=`mktemp -d "${build_root}/${stage_index}/tmp/XXXXXXXX"`
+    stage_work_dir=`mktemp -d "${build_root}/${stage_index}/root/tmp/XXXXXXXX"`
     echo "Extracting build context..."
     tar -C "${stage_work_dir}" -zxf "${build_context}"
     chmod +x "${build_root}.${stage_index}.sh"
-    cp -p "${build_root}.${stage_index}.sh" "${build_root}/${stage_index}/prison-bootstrap.sh"
-    VARS="${build_root}/${stage_index}/prison_build_variables.sh"
-    stage_tmp_dir=`echo ${stage_work_dir} | sed s,${build_root}/${stage_index},,g`
+    cp -p "${build_root}.${stage_index}.sh" "${build_root}/${stage_index}/root/prison-bootstrap.sh"
+    VARS="${build_root}/${stage_index}/root/prison_build_variables.sh"
+    stage_tmp_dir=`echo ${stage_work_dir} | sed s,${build_root}/${stage_index}/root,,g`
 
     printf "stage_tmp_dir=${stage_tmp_dir}\nstage_tmp_dir=${stage_tmp_dir}\n \
       \nbuild_root=${build_root} \

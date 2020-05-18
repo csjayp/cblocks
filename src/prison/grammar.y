@@ -106,11 +106,16 @@ cmd_def:
 	}
 	OPEN_SQUARE_BRACKET list CLOSE_SQUARE_BRACKET
 	{
+		struct build_manifest *bmp;
 		char *cmd_string;
 
+		bmp = get_current_build_manifest();
 		vec_finalize(vec);
 		cmd_string = vec_join(vec, ' ');
-		printf("got CMD booyakasha: %s\n", cmd_string);
+		bmp->entry_point_args = strdup(cmd_string);
+		if (bmp->entry_point_args == NULL) {
+			err(1, "strdup: entrypoint failed");
+		}
 		free(cmd_string);
 		vec_free(vec);
 		vec = NULL;
