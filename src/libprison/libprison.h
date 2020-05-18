@@ -61,7 +61,8 @@ struct prison_build_context {
 	int					p_nstages;
 	int					p_nsteps;
 	char					p_term[128];
-	char					p_entry_point[128];
+	char					p_entry_point[1024];
+	char					p_entry_point_args[1024];
 	int					p_verbose;
 };
 
@@ -73,6 +74,7 @@ struct prison_response {
 struct prison_launch {
 	char					p_name[MAX_PRISON_NAME];
 	char					p_term[128];
+	char					p_entry_point_args[1024];
 };
 
 struct prison_console_connect {
@@ -146,6 +148,7 @@ struct build_stage {
 struct build_manifest {
 	TAILQ_HEAD(tailhead_stage, build_stage)	 stage_head;
 	char					*entry_point;
+	char					*entry_point_args;
 	char					*maintainr;
 };
 
@@ -156,5 +159,24 @@ struct build_context {
 	char					 build_root[MAXPATHLEN];
 	TAILQ_ENTRY(build_context)		bc_glue;
 };
+
+struct vec {
+        char                    **vec;
+        size_t                  vec_used;
+        size_t                  vec_alloc;
+        size_t                  vec_size;
+#define VEC_OVERFLOW    1
+#define VEC_ENOMEM      2
+        int                     vec_flag;
+};
+
+typedef struct vec vec_t;
+
+vec_t           *vec_init(size_t);
+void             vec_append(vec_t *, char *);
+int              vec_finalize(vec_t *);
+char            **vec_return(vec_t *);
+void             vec_free(vec_t *);
+char		*vec_join(vec_t *, char);
 
 #endif	/* BUILD_DOT_H_ */

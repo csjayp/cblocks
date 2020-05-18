@@ -28,7 +28,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "vec.h"
+#include "libprison.h"
 
 vec_t *
 vec_init(size_t vec_size)
@@ -74,6 +74,35 @@ vec_finalize(vec_t *vec)
 
 	vec->vec[vec->vec_used] = NULL;
 	return (vec->vec_flag);
+}
+
+char *
+vec_join(vec_t *vec, char delim)
+{
+	size_t totlen, slen;
+	char *bp, *cp;
+	int k;
+
+	for (totlen = 0, k = 0; k < vec->vec_used; k++) {
+		totlen += strlen(vec->vec[k]);
+	}
+	totlen += (vec->vec_used - 1);
+	bp = malloc(totlen + 1);
+	if (bp == NULL) {
+		return (NULL);
+	}
+	bzero(bp, totlen + 1);
+	cp = bp;
+	for (k = 0; k < vec->vec_used; k++) {
+		slen = strlen(vec->vec[k]);
+		bcopy(vec->vec[k], cp, slen);
+		cp += slen;
+		if (k < (vec->vec_used - 1)) {
+			*cp++ = delim;
+		}
+	}
+	*cp = '\0';
+	return (bp);
 }
 
 char **
