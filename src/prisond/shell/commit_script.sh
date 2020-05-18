@@ -19,12 +19,12 @@ commit_image()
 cleanup()
 {
     for i in `jot ${n_stages} 0`; do
-        umount "${build_root}/${i}/dev"
+        umount "${build_root}/${i}/root/dev"
     done
     for i in `jot ${n_stages} 0`; do
-        umount -f "${build_root}/${i}"
-        chflags -R noschg "${build_root}/${i}" 
-        rm -fr "${build_root}/${i}"
+        umount -f "${build_root}/${i}/root"
+        chflags -R noschg "${build_root}/${i}/root" 
+        rm -fr "${build_root}/${i}/root"
     done
     rm -fr ${build_root}.*
     rm -fr "${build_root}"

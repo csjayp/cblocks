@@ -164,7 +164,7 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 			}
 			header = 1;
 		}
-		fprintf(fp, "echo \"Step %d/%d : %s\"\n",
+		fprintf(fp, "echo \"-- Step %d/%d : %s\"\n",
 		    ++taken, steps, bsp->step_string);
 		switch (bsp->step_op) {
 		case STEP_ADD:
@@ -267,8 +267,10 @@ static int
 build_commit_image(struct build_context *bcp)
 {
 	char commit_cmd[128], **argv, s_index[32], nstages[32];
+	FILE *fp;
 	struct build_stage *bsp;
 	int status, k, last;
+	char path[1024];
 	vec_t *vec;
 	pid_t pid;
 
@@ -280,6 +282,28 @@ build_commit_image(struct build_context *bcp)
 		}
 		last = bsp->bs_index;
 		break;
+	}
+	/*
+	 * Write out entry point and enty point args (CMD) for the final stage
+	 */
+	snprintf(path, sizeof(path), "%s/%d/ENTRYPOINT.sh",
+	    bcp->build_root, last);
+	fp = fopen(path, "w+");
+	if (fp == NULL) {
+		err(1, "fopen(%s) failed", path);
+	}
+	fprintf(fp, "ENTRYPOINT_CMD=\"%s\"", bcp->pbc.p_entry_point);
+	fclose(fp);
+	if (bcp->pbc.p_entry_point_args[0] != '\0') {
+		snprintf(path, sizeof(path), "%s/%d/ARGS.sh",
+		    bcp->build_root, last);
+		fp = fopen(path, "w+");
+		if (fp == NULL) {
+			err(1, "fopen(%s) failed", path);
+		}
+		fprintf(fp, "ENTRYPOINT_ARGS=\"%s\"",
+		    bcp->pbc.p_entry_point_args);
+		fclose(fp);
 	}
 	pid = fork();
 	if (pid == -1) {
@@ -325,7 +349,7 @@ build_run_build_stages(struct build_context *bcp)
 		bstg = &bcp->stages[k];
 		printf("-- Executing stage (%d/%d)\n", k + 1, bcp->pbc.p_nstages);
 		snprintf(stage_root, sizeof(stage_root),
-		    "%s/%d", bcp->build_root, bstg->bs_index);
+		    "%s/%d/root", bcp->build_root, bstg->bs_index);
 		pid = fork();
 		if (pid == -1) {
 			err(1, "pid failed");
@@ -378,9 +402,14 @@ build_run_init_stages(struct build_context *bcp)
 	    bcp->pbc.p_tag);
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
-		printf("-- Processing stage %d\n", bstg->bs_index);
+		printf("-- Executing stage %d\n", bstg->bs_index);
 		snprintf(stage_root, sizeof(stage_root),
 		    "%s/%d", bcp->build_root, bstg->bs_index);
+		if (mkdir(stage_root, 0755) == -1) {
+			err(1, "mkdir(%s) failed", stage_root);
+		}
+		snprintf(stage_root, sizeof(stage_root),
+		    "%s/%d/root", bcp->build_root, bstg->bs_index);
 		if (mkdir(stage_root, 0755) == -1) {
 			err(1, "mkdir(%s) failed", stage_root);
 		}
@@ -453,6 +482,7 @@ do_build_launch(void *arg)
 	if (build_run_build_stages(bcp) != 0) {
 		return (-1);
 	}
+	printf("-- Stages complete. Committing container image\n");
 	if (build_commit_image(bcp) != 0) {
 		return (-1);
 	}

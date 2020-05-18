@@ -175,6 +175,10 @@ build_send_context(int sock, struct build_config *bcp)
 	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
 	strlcpy(pbc.p_prison_file, bcp->b_prison_file,
 	    sizeof(pbc.p_prison_file));
+	strlcpy(pbc.p_entry_point, bcp->b_bmp->entry_point,
+	    sizeof(pbc.p_entry_point));
+	strlcpy(pbc.p_entry_point_args, bcp->b_bmp->entry_point_args,
+	    sizeof(pbc.p_entry_point_args));
 	strlcpy(pbc.p_tag, bcp->b_tag, sizeof(pbc.p_tag));
 	build_init_stage_count(bcp, &pbc);
 	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
