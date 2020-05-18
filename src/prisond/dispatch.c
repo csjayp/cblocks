@@ -552,7 +552,7 @@ gen_sha256_instance_id(char *instance_name)
 
 	bzero(outbuf, sizeof(outbuf));
 	gettimeofday(&tv, NULL);
-	sprintf(inbuf, "%lu:%lu:%s", tv.tv_sec, tv.tv_usec, instance_name);
+	snprintf(inbuf, sizeof(inbuf), "%lu:%lu:%s", tv.tv_sec, tv.tv_usec, instance_name);
 	SHA256_Init(&sha256);
 	SHA256_Update(&sha256, inbuf, strlen(inbuf));
 	SHA256_Final(hash, &sha256);
