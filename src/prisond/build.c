@@ -206,8 +206,7 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 	    "%s/lib/stage_init.sh", gcfg.c_data_dir);
 	(void) snprintf(index, sizeof(index), "%d", stage->bs_index);
 	(void) snprintf(context_archive, sizeof(context_archive),
-	    "%s/spool/%s-%s.tar.gz", gcfg.c_data_dir, bcp->pbc.p_image_name,
-	    bcp->pbc.p_tag);
+	    "%s/instances/%s.tar.gz", gcfg.c_data_dir, bcp->instance);
 	pid = fork();
 	if (pid == -1) {
 		err(1, "fork failed");
@@ -222,6 +221,7 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 		vec_append(vec, gcfg.c_data_dir);
 		vec_append(vec, context_archive);
 		vec_append(vec, build_get_stage_deps(bcp, stage->bs_index));
+		vec_append(vec, bcp->instance);
 		if (stage->bs_name[0] != '\0') {
 			vec_append(vec, stage->bs_name);
 		}
@@ -286,22 +286,24 @@ build_commit_image(struct build_context *bcp)
 	/*
 	 * Write out entry point and enty point args (CMD) for the final stage
 	 */
-	snprintf(path, sizeof(path), "%s/%d/ENTRYPOINT.sh",
-	    bcp->build_root, last);
-	fp = fopen(path, "w+");
-	if (fp == NULL) {
-		err(1, "fopen(%s) failed", path);
-	}
-	fprintf(fp, "ENTRYPOINT_CMD=\"%s\"", bcp->pbc.p_entry_point);
-	fclose(fp);
-	if (bcp->pbc.p_entry_point_args[0] != '\0') {
-		snprintf(path, sizeof(path), "%s/%d/ARGS.sh",
+	if (bcp->pbc.p_entry_point[0] != '\0') {
+		snprintf(path, sizeof(path), "%s/%d/ENTRYPOINT",
 		    bcp->build_root, last);
 		fp = fopen(path, "w+");
 		if (fp == NULL) {
 			err(1, "fopen(%s) failed", path);
 		}
-		fprintf(fp, "ENTRYPOINT_ARGS=\"%s\"",
+		fprintf(fp, "%s", bcp->pbc.p_entry_point);
+		fclose(fp);
+	}
+	if (bcp->pbc.p_entry_point_args[0] != '\0') {
+		snprintf(path, sizeof(path), "%s/%d/ARGS",
+		    bcp->build_root, last);
+		fp = fopen(path, "w+");
+		if (fp == NULL) {
+			err(1, "fopen(%s) failed", path);
+		}
+		fprintf(fp, "%s",
 		    bcp->pbc.p_entry_point_args);
 		fclose(fp);
 	}
@@ -320,7 +322,7 @@ build_commit_image(struct build_context *bcp)
 	    gcfg.c_data_dir);
 	snprintf(nstages, sizeof(nstages), "%d", bcp->pbc.p_nstages);
 	snprintf(s_index, sizeof(s_index), "%d", last);
-	vec = vec_init(8);
+	vec = vec_init(16);
 	vec_append(vec, "/bin/sh");
 	vec_append(vec, commit_cmd);
 	vec_append(vec, bcp->build_root);
@@ -328,6 +330,7 @@ build_commit_image(struct build_context *bcp)
 	vec_append(vec, gcfg.c_data_dir);
 	vec_append(vec, bcp->pbc.p_image_name);
 	vec_append(vec, nstages);
+	vec_append(vec, bcp->instance);
 	vec_finalize(vec);
 	argv = vec_return(vec);
 	execve(*argv, argv, NULL);
@@ -337,7 +340,7 @@ build_commit_image(struct build_context *bcp)
 }
 
 static int
-build_run_build_stages(struct build_context *bcp)
+build_run_build_stage(struct build_context *bcp)
 {
 	char stage_root[MAXPATHLEN], **argv;
 	struct build_stage *bstg;
@@ -397,9 +400,9 @@ build_run_init_stages(struct build_context *bcp)
 	struct build_stage *bstg;
 	int k, r;
 
+	printf("DEBUG: %s\n", bcp->instance);
 	snprintf(bcp->build_root, sizeof(bcp->build_root),
-	    "%s/spool/%s-%s", gcfg.c_data_dir, bcp->pbc.p_image_name,
-	    bcp->pbc.p_tag);
+	    "%s/instances/%s", gcfg.c_data_dir, bcp->instance);
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
 		printf("-- Executing stage %d\n", bstg->bs_index);
@@ -424,15 +427,14 @@ build_run_init_stages(struct build_context *bcp)
 }
 
 static int
-dispatch_build_set_outfile(struct prison_build_context *pbp,
+dispatch_build_set_outfile(struct build_context *bcp,
     char *ebuf, size_t len)
 {
 	char path[512], build_root[512];
 	int fd;
 
 	(void) snprintf(path, sizeof(path),
-	    "%s/spool/%s-%s.tar.gz", gcfg.c_data_dir, pbp->p_image_name,
-	    pbp->p_tag);
+	    "%s/instances/%s.tar.gz", gcfg.c_data_dir, bcp->instance);
 	fd = open(path, O_RDWR | O_EXCL | O_CREAT, 0600);
 	if (fd == -1) {
 		snprintf(ebuf, len, "could not write to build spool: %s",
@@ -440,7 +442,7 @@ dispatch_build_set_outfile(struct prison_build_context *pbp,
 		return (-1);
 	}
 	(void) snprintf(build_root, sizeof(build_root),
-	    "%s/spool/%s-%s", gcfg.c_data_dir, pbp->p_image_name, pbp->p_tag);
+	    "%s/instances/%s", gcfg.c_data_dir, bcp->instance);
 	if (mkdir(build_root, 0755) == -1) {
 		snprintf(ebuf, len, "failed to initialize build env: %s",
 		    strerror(errno));
@@ -459,6 +461,7 @@ copy_build_context(struct build_context *from, struct build_context *to)
 	int k;
 
 	*to = *from;
+	to->instance = strdup(from->instance);
 	to->steps = calloc(from->pbc.p_nsteps, sizeof(*bsp));
 	for (k = 0; k < from->pbc.p_nsteps; k++) {
 		bsp = &from->steps[k];
@@ -474,15 +477,15 @@ copy_build_context(struct build_context *from, struct build_context *to)
 }
 
 int
-do_build_launch(void *arg)
+do_build_launch(void *arg, struct prison_instance *pi)
 {
 	struct build_context *bcp;
 
 	bcp = (struct build_context *)arg;
-	if (build_run_build_stages(bcp) != 0) {
+	if (build_run_build_stage(bcp) != 0) {
 		return (-1);
 	}
-	printf("-- Stages complete. Committing container image\n");
+	printf("-- Stages complete. Writing cell block image\n");
 	if (build_commit_image(bcp) != 0) {
 		return (-1);
 	}
@@ -532,7 +535,8 @@ dispatch_build_recieve(int sock)
 	sock_ipc_must_read(sock, bctx.steps,
 	    bctx.pbc.p_nsteps * sizeof(*bctx.steps));
 	printf("read steps\n");
-	fd = dispatch_build_set_outfile(&bctx.pbc, resp.p_errbuf,
+	bctx.instance = gen_sha256_instance_id(bctx.pbc.p_image_name);
+	fd = dispatch_build_set_outfile(&bctx, resp.p_errbuf,
 	    sizeof(resp.p_errbuf));
 	if (fd == -1) {
 		free(bctx.steps);
@@ -557,6 +561,7 @@ dispatch_build_recieve(int sock)
 	copy_build_context(&bctx, bctxp);
 	TAILQ_INSERT_HEAD(&bc_head, bctxp, bc_glue);
 	close(fd);
+	free(bctx.instance);
 	bzero(&resp, sizeof(resp));
 	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));

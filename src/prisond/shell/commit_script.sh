@@ -11,25 +11,15 @@ n_stages=$5
 
 commit_image()
 {
+    rm -fr "${build_root}/${build_index}/tmp"
+    mkdir "${build_root}/${build_index}/tmp"
     tar -C "${build_root}/${build_index}" --exclude="/tmp" \
       --exclude="/dev" \
       -cf "${data_dir}/images/${image_name}.tar.gz" .
-}
-
-cleanup()
-{
-    for i in `jot ${n_stages} 0`; do
-        umount "${build_root}/${i}/root/dev"
-    done
-    for i in `jot ${n_stages} 0`; do
-        umount -f "${build_root}/${i}/root"
-        chflags -R noschg "${build_root}/${i}/root" 
-        rm -fr "${build_root}/${i}/root"
-    done
-    rm -fr ${build_root}.*
-    rm -fr "${build_root}"
-    devfs rule -s 5000 delset
+    if [ -d "${data_dir}/images/${image_name}" ]; then
+        chflags -R noschg "${data_dir}/images/${image_name}"
+        rm -fr "${data_dir}/images/${image_name}"
+    fi
 }
 
 commit_image
-cleanup

@@ -9,9 +9,10 @@ base_container=$3
 data_dir=$4
 build_context=$5
 stage_deps=$6
+instance_name=$7
 stage_name=""
-if [ "$7" ]; then
-    stage_name=$7
+if [ "$8" ]; then
+    stage_name=$8
 fi
 
 stage_deps_dir=""

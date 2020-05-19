@@ -158,6 +158,7 @@ struct build_context {
 	struct build_stage			*stages;
 	char					 build_root[MAXPATHLEN];
 	TAILQ_ENTRY(build_context)		bc_glue;
+	char					*instance;
 };
 
 struct vec {

@@ -47,5 +47,6 @@ struct tty_buffer {
 char		*termbuf_to_contig(struct tty_buffer *);
 size_t	 	 termbuf_remove_oldest(struct tty_buffer *);
 void		 termbuf_append(struct tty_buffer *, u_char *, size_t);
+void		 termbuf_print_queue(termbuf_head_t *);
 
 #endif

@@ -184,6 +184,7 @@ main(int argc, char *argv [])
 			break;
 		}
 	}
+	signal(SIGPIPE, SIG_IGN);
 	for (scp = sub_command_list; scp->sc_name != NULL; scp++) {
 		if (strcmp(scp->sc_name, argv[0]) == 0) {
 			break;
