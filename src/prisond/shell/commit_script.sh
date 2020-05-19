@@ -16,6 +16,10 @@ commit_image()
     tar -C "${build_root}/${build_index}" --exclude="/tmp" \
       --exclude="/dev" \
       -cf "${data_dir}/images/${image_name}.tar.gz" .
+    if [ -d "${data_dir}/images/${image_name}" ]; then
+        chflags -R noschg "${data_dir}/images/${image_name}"
+        rm -fr "${data_dir}/images/${image_name}"
+    fi
 }
 
 commit_image

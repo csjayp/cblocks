@@ -82,8 +82,8 @@ stage	:
 	| cmd_def
 	;
 
-list_item:
-	STRING
+list_item:	/* empty */
+	| STRING
 	{
 		assert(vec != NULL);
 		vec_append(vec, $1);
@@ -431,6 +431,8 @@ build_manifest_init(void)
 	if (bmp == NULL) {
 		err(1, "calloc(build_manifest_init) failed");
 	}
+	bmp->entry_point = NULL;
+	bmp->entry_point_args = NULL;
 	TAILQ_INIT(&bmp->stage_head);
 	return (bmp);
 }

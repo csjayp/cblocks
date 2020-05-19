@@ -286,14 +286,16 @@ build_commit_image(struct build_context *bcp)
 	/*
 	 * Write out entry point and enty point args (CMD) for the final stage
 	 */
-	snprintf(path, sizeof(path), "%s/%d/ENTRYPOINT",
-	    bcp->build_root, last);
-	fp = fopen(path, "w+");
-	if (fp == NULL) {
-		err(1, "fopen(%s) failed", path);
+	if (bcp->pbc.p_entry_point[0] != '\0') {
+		snprintf(path, sizeof(path), "%s/%d/ENTRYPOINT",
+		    bcp->build_root, last);
+		fp = fopen(path, "w+");
+		if (fp == NULL) {
+			err(1, "fopen(%s) failed", path);
+		}
+		fprintf(fp, "%s", bcp->pbc.p_entry_point);
+		fclose(fp);
 	}
-	fprintf(fp, "%s", bcp->pbc.p_entry_point);
-	fclose(fp);
 	if (bcp->pbc.p_entry_point_args[0] != '\0') {
 		snprintf(path, sizeof(path), "%s/%d/ARGS",
 		    bcp->build_root, last);

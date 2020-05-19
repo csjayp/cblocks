@@ -83,6 +83,9 @@ vec_join(vec_t *vec, char delim)
 	char *bp, *cp;
 	int k;
 
+	if (vec->vec_used == 0) {
+		return (NULL);
+	}
 	for (totlen = 0, k = 0; k < vec->vec_used; k++) {
 		totlen += strlen(vec->vec[k]);
 	}

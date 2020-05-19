@@ -92,14 +92,7 @@ prison_remove(struct prison_instance *pi)
 		cmd = PRISON_IPC_CONSOLE_SESSION_DONE;
 		sock_ipc_must_write(pi->p_peer_sock, &cmd, sizeof(cmd));
 	}
-	(void) close(pi->p_peer_sock);
-	(void) close(pi->p_ttyfd);
-	termbuf_print_queue(&pi->p_ttybuf.t_head);
-	TAILQ_REMOVE(&pr_head, pi, p_glue);
-	cur = pi->p_ttybuf.t_tot_len;
-	while (cur > 0) {
-		cur = termbuf_remove_oldest(&pi->p_ttybuf);
-	}
+
 	vec = vec_init(16);
 	vec_append(vec, "/bin/sh");
 	sprintf(buf, "%s/lib/stage_launch_cleanup.sh", gcfg.c_data_dir);
@@ -130,6 +123,18 @@ prison_remove(struct prison_instance *pi)
 		break;
 	}
 	vec_free(vec);
+
+        printf("DEBUG: closing peer socket %d\n", pi->p_peer_sock);
+        (void) close(pi->p_peer_sock);
+        printf("DEBUG: closing TTY fd: %d\n", pi->p_ttyfd);
+        (void) close(pi->p_ttyfd);
+        termbuf_print_queue(&pi->p_ttybuf.t_head);
+        TAILQ_REMOVE(&pr_head, pi, p_glue);
+        cur = pi->p_ttybuf.t_tot_len;
+        while (cur > 0) {
+                cur = termbuf_remove_oldest(&pi->p_ttybuf);
+        }
+
 	free(pi);
 }
 
@@ -465,6 +470,7 @@ prison_create(const char *name, char *term, int (*prison_callback)(void *, struc
 		warn("pipe failed");
 		return (NULL);
 	}
+	printf("Creating prison %s\n", pi->p_name);
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
 	if (pi->p_pid == 0) {
 		printf("\n");
@@ -640,12 +646,15 @@ dispatch_work(void *arg)
 	ssize_t cc;
 	int done;
 
+	printf("%s: entered!\n", __func__);
 	signal(SIGCHLD, handle_reap_children);
 	p = (struct prison_peer *)arg;
+	printf("newly accepted socket: %d\n", p->p_sock);
 	done = 0;
 	while (!done) {
 		cc = sock_ipc_may_read(p->p_sock, &cmd, sizeof(cmd));
 		if (cc == 1) {
+			printf("%s: breaking for some reason!\n", __func__);
 			break;
 		}
 		switch (cmd) {
@@ -671,10 +680,12 @@ dispatch_work(void *arg)
 			 * NB: maybe best to send a response
 			 */
 			warnx("unknown command %u", cmd);
-			close(p->p_sock);
+			done = 1;
 			break;
 		}
 	}
+	printf("terminating!\n");
+	printf("Closing worker socket: %d\n", p->p_sock);
 	close(p->p_sock);
 	pthread_mutex_lock(&peer_mutex);
 	TAILQ_REMOVE(&p_head, p, p_glue);

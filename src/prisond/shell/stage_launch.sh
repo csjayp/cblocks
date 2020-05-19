@@ -7,6 +7,28 @@ data_root="$1"
 image_name="$2"
 instance_id="$3"
 entry_point_args="$4"
+devfs_mount="${data_root}/instances/${instance_id}/dev"
+
+config_devfs()
+{
+    V=`devfs rule showsets | grep "^5000"`
+    if [ ! $V ]; then
+        devfs -m ${devfs_mount} ruleset 5000
+        devfs rule -s 5000 add hide
+        devfs rule -s 5000 add path null unhide
+        devfs rule -s 5000 add path zero unhide
+        devfs rule -s 5000 add path random unhide
+        devfs rule -s 5000 add path urandom unhide
+        devfs rule -s 5000 add path stdin unhide
+        devfs rule -s 5000 add path stdout unhide
+        devfs rule -s 5000 add path stderr unhide
+        devfs rule -s 5000 add path 'bpf*' unhide
+        devfs -m ${devfs_mount} rule applyset
+        return
+    fi
+    devfs -m ${devfs_mount} ruleset 5000
+    devfs -m ${devfs_mount} rule applyset
+}
 
 emit_entrypoint()
 {
@@ -50,6 +72,7 @@ do_launch()
       "${data_root}/images/${image_name}/root" \
       "${instance_root}" 
     mount -t devfs devfs "${instance_root}/dev"
+    config_devfs
     ip4=`get_default_ip`
     instance_cmd=`emit_entrypoint`
     jail -c \

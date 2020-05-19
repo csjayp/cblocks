@@ -93,10 +93,13 @@ launch_container(int sock, struct launch_config *lcp)
 		vec_free(lcp->l_vec);
 	}
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
+	printf("wrote command %d\n", cmd);
 	strlcpy(pl.p_name, lcp->l_name, sizeof(pl.p_name));
 	strlcpy(pl.p_term, term, sizeof(pl.p_term));
 	sock_ipc_must_write(sock, &pl, sizeof(pl));
+	printf("wrote launch structure\n");
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
+	printf("read response!\n");
 	printf("got error code %d\n", resp.p_ecode);
 }
 
