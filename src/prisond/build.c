@@ -167,6 +167,10 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 		fprintf(fp, "echo \"-- Step %d/%d : %s\"\n",
 		    ++taken, steps, bsp->step_string);
 		switch (bsp->step_op) {
+		case STEP_ROOT_PIVOT:
+			fprintf(fp, "ln -s %s /cellblock-root-ptr\n",
+			    bsp->step_data.step_root_pivot.sr_dir);
+			break;
 		case STEP_ADD:
 			build_emit_add_instruction(bsp, fp);
 			break;

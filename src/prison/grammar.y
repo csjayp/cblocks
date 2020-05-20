@@ -341,6 +341,34 @@ op_spec:
 		b_step->step_op = STEP_COPY;
 		cur_build_step = b_step;
 	} copy_spec
+	| ROOTPIVOT
+	{
+		struct build_step *b_step;
+
+		b_step = calloc(1, sizeof(*b_step));
+		if (b_step == NULL) {
+			err(1, "calloc(build step) faild");
+		}
+		b_step->step_op = STEP_ROOT_PIVOT;
+		cur_build_step = b_step;
+	}
+	STRING
+	{
+		struct build_step *b_step;
+		struct build_stage *bsp;
+
+		b_step = cur_build_step;
+		bsp = cur_build_stage;
+		assert(b_step != NULL);
+		assert(bsp != NULL);
+		strlcpy(b_step->step_data.step_root_pivot.sr_dir,
+                    $3, sizeof(b_step->step_data.step_root_pivot.sr_dir));
+		cur_build_step->stage_index = stage_counter;
+		snprintf(b_step->step_string, sizeof(b_step->step_string),
+		    "ROOTPIVOT %s", $3);
+		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
+		cur_build_step = NULL;
+	}
 	| WORKDIR
 	{
 		struct build_step *b_step;
@@ -351,7 +379,6 @@ op_spec:
 		}
 		b_step->step_op = STEP_WORKDIR;
 		cur_build_step = b_step;
-
 	}
 	STRING
 	{
@@ -365,6 +392,8 @@ op_spec:
 		strlcpy(b_step->step_data.step_workdir.sw_dir,
 		    $3, sizeof(b_step->step_data.step_workdir.sw_dir));
 		cur_build_step->stage_index = stage_counter;
+		snprintf(b_step->step_string, sizeof(b_step->step_string),
+		    "WORKDIR %s", $3);
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}

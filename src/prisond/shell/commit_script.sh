@@ -11,9 +11,27 @@ n_stages=$5
 
 commit_image()
 {
-    rm -fr "${build_root}/${build_index}/tmp"
-    mkdir "${build_root}/${build_index}/tmp"
-    tar -C "${build_root}/${build_index}" --exclude="/tmp" \
+    if [ -h "${build_root}/${build_index}/root/cellblock-root-ptr" ]; then
+        dir=`readlink "${build_root}/${build_index}/root/cellblock-root-ptr"`
+        src="${build_root}/${build_index}/root/${dir}"
+        #
+        # If we have root pivoting step, make sure we copy the entry point
+        # and entry point args from the original root.
+        #
+        if [ -f "${build_root}/${build_index}/ENTRYPOINT" ]; then
+            cp "${build_root}/${build_index}/ENTRYPOINT" \
+                "${build_root}/${build_index}/root/${dir}"
+        fi
+        if [ -f "${build_root}/${build_index}/ARGS" ]; then
+            cp "${build_root}/${build_index}/ARGS" \
+                "${build_root}/${build_index}/root/${dir}"
+        fi
+    else
+        rm -fr "${build_root}/${build_index}/root/tmp/*"
+        src="${build_root}/${build_index}"
+    fi
+    ls -l "${src}"
+    tar -C "${src}" --exclude="/tmp" \
       --exclude="/dev" \
       -cf "${data_dir}/images/${image_name}.tar.gz" .
     if [ -d "${data_dir}/images/${image_name}" ]; then
