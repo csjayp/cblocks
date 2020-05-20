@@ -84,6 +84,10 @@ struct prison_console_connect {
 	char					p_term[64];
 };
 
+struct build_step_root_pivot {
+	char					sr_dir[MAXPATHLEN];
+};
+
 /*
  * Data structures to facilitate image builds, shared between the client
  * and daemon processs.
@@ -120,6 +124,7 @@ struct build_step {
 #define	STEP_RUN	3
 #define	STEP_WORKDIR	4
 #define	STEP_COPY_FROM	5
+#define	STEP_ROOT_PIVOT	6
 	TAILQ_ENTRY(build_step)	step_glue;
 	union {
 		/*
@@ -132,6 +137,7 @@ struct build_step {
 		struct build_step_add		 step_add;
 		struct build_step_workdir	 step_workdir;
 		struct build_step_copy_from	 step_copy_from;
+		struct build_step_root_pivot	 step_root_pivot;
 	} step_data;
 	char					 step_string[1024];
 };

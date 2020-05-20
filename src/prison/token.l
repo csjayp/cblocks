@@ -54,6 +54,7 @@ ADD		return (ADD);
 COPY		return (COPY);
 WORKDIR		return (WORKDIR);
 ENTRYPOINT	return (ENTRYPOINT);
+ROOTPIVOT	return (ROOTPIVOT);
 CMD		return (CMD);
 {integer}       {
                         yylval.num = atoi(yytext);
