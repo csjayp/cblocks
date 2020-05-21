@@ -8,6 +8,8 @@ build_index=$2
 data_dir=$3
 image_name=$4
 n_stages=$5
+instance="$6"
+fim_spec_mode="$7"
 
 commit_image()
 {
@@ -30,7 +32,11 @@ commit_image()
         rm -fr "${build_root}/${build_index}/root/tmp/*"
         src="${build_root}/${build_index}"
     fi
-    ls -l "${src}"
+    if [ "${fim_spec_mode}" = "ON" ]; then
+        echo "-- Generating cryptographic checksums for container image files"
+        cd "${src}"
+        mtree -c -K sha256 -p . > FIM.spec
+    fi
     tar -C "${src}" --exclude="/tmp" \
       --exclude="/dev" \
       -cf "${data_dir}/images/${image_name}.tar.gz" .

@@ -56,6 +56,7 @@ struct build_config {
 	char			*b_tag;
 	struct build_manifest	*b_bmp;
 	int			 b_verbose;
+	int			 b_fim_spec;
 };
 
 static struct option build_options[] = {
@@ -65,6 +66,7 @@ static struct option build_options[] = {
 	{ "no-exec",		no_argument, 0, 'N' },
 	{ "help",		no_argument, 0, 'h' },
 	{ "verbose",		no_argument, 0, 'v' },
+	{ "file-integrity",	no_argument, 0, 'F' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -105,7 +107,8 @@ build_usage(void)
 	    " -f, --prison-file-path=PATH   Path to Prisonfile (relative to build path)\n"
 	    " -t, --tag=NAME                Tag to use for the image build\n"
 	    " -N, --no-exec                 Do everything but submit the build context\n"
-	    " -v, --verbose                 Increase verbosity of build\n");
+	    " -v, --verbose                 Increase verbosity of build\n"
+	    " -F, --file-integrity          Create file integrity spec\n");
 	exit(1);
 }
 
@@ -170,6 +173,7 @@ build_send_context(int sock, struct build_config *bcp)
 	bzero(&pbc, sizeof(pbc));
 	cmd = PRISON_IPC_SEND_BUILD_CTX;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
+	pbc.p_build_fim_spec = bcp->b_fim_spec;
 	pbc.p_context_size = sb.st_size;
 	pbc.p_verbose = bcp->b_verbose;
 	strlcpy(pbc.p_term, term, sizeof(pbc.p_term));
@@ -326,12 +330,15 @@ build_main(int argc, char *argv [], int cltlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "Nhf:n:t:v", build_options,
+		c = getopt_long(argc, argv, "FNhf:n:t:v", build_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'F':
+			bc.b_fim_spec = 1;
+			break;
 		case 'v':
 			bc.b_verbose++;
 			break;

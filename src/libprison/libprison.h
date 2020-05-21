@@ -64,6 +64,7 @@ struct prison_build_context {
 	char					p_entry_point[1024];
 	char					p_entry_point_args[1024];
 	int					p_verbose;
+	int					p_build_fim_spec;
 };
 
 struct prison_response {
