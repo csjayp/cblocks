@@ -44,6 +44,12 @@ ssize_t		sock_ipc_from_to(int, int, off_t);
 
 #define	MAX_PRISON_NAME	512
 
+enum {
+        PRISON_TYPE_NONE,
+        PRISON_TYPE_BUILD,
+        PRISON_TYPE_REGULAR
+};
+
 #define	PRISON_IPC_LAUNCH_PRISON	1
 #define	PRISON_IPC_CONSOLE_CONNECT	2
 #define	PRISON_IPC_CONSOLE_DATA		3
@@ -52,6 +58,15 @@ ssize_t		sock_ipc_from_to(int, int, off_t);
 #define	PRISON_IPC_LAUNCH_BUILD		6
 #define	PRISON_IPC_CONSOLE_TO_CLIENT	7
 #define	PRISON_IPC_CONSOLE_SESSION_DONE	8
+#define	PRISON_IPC_GET_INSTANCES	9
+
+struct instance_ent {
+	char				p_instance_name[512];
+	char				p_image_name[512];
+	pid_t				p_pid;
+	char				p_tty_line[64];
+	time_t				p_start_time;
+};
 
 struct prison_build_context {
 	char					p_image_name[1024];
@@ -69,7 +84,7 @@ struct prison_build_context {
 
 struct prison_response {
 	int					p_ecode;
-	char					p_errbuf[512];
+	char					p_errbuf[1024];
 };
 
 struct prison_launch {
@@ -80,6 +95,7 @@ struct prison_launch {
 
 struct prison_console_connect {
 	char					p_name[MAX_PRISON_NAME];
+	char					p_instance[MAX_PRISON_NAME];
 	struct winsize				p_winsize;
 	struct termios				p_termios;
 	char					p_term[64];

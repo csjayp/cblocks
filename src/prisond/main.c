@@ -42,14 +42,14 @@
 #include <err.h>
 #include <pthread.h>
 
-#include <libprison.h>
-
 #include "termbuf.h"
 #include "main.h"
 #include "sock_ipc.h"
 #include "dispatch.h"
 
 #include "config.h"
+
+#include <libprison.h>
 
 static char *data_sub_dirs[] = {
 	"spool",

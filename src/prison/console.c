@@ -262,6 +262,7 @@ console_connect_console(int sock, struct console_config *ccp)
 	struct prison_response resp;
 	uint32_t cmd;
 
+	bzero(&pcc, sizeof(pcc));
 	cmd = PRISON_IPC_CONSOLE_CONNECT;
 	if (tcgetattr(STDIN_FILENO, &pcc.p_termios) == -1) {
 		err(1, "tcgetattr(STDIN_FILENO) failed");
@@ -269,6 +270,7 @@ console_connect_console(int sock, struct console_config *ccp)
 	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &pcc.p_winsize) == -1) {
 		err(1, "ioctl(TIOCGWINSZ): failed");
 	}
+	strlcpy(pcc.p_instance, ccp->c_name, sizeof(pcc.p_instance));
 	strlcpy(pcc.p_name, ccp->c_name, sizeof(pcc.p_name));
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	sock_ipc_must_write(sock, &pcc, sizeof(pcc));

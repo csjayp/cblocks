@@ -43,10 +43,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <libprison.h>
-
 #include "main.h"
 #include "parser.h"
+
+#include <libprison.h>
 
 struct build_config {
 	char			*b_name;
@@ -151,6 +151,8 @@ build_send_stages(int sock, struct build_config *bcp)
 static int
 build_send_context(int sock, struct build_config *bcp)
 {
+	struct prison_console_connect pcc;
+	char prison_instance[512];
 	struct prison_build_context pbc;
 	struct prison_response resp;
 	struct stat sb;
@@ -200,8 +202,13 @@ build_send_context(int sock, struct build_config *bcp)
 		err(1, "failed to cleanup build context");
 	}
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
+        snprintf(prison_instance, sizeof(prison_instance), "%s", resp.p_errbuf);
 	printf("Transfer complete. read status code %d (success) from daemon\n",
 	    resp.p_ecode);
+	if (resp.p_ecode != 0) {
+		errx(1, "failed to transfer build context");
+	}
+	printf("Launching build as instance %s\n", prison_instance);
 	cmd = PRISON_IPC_LAUNCH_BUILD;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
@@ -209,12 +216,6 @@ build_send_context(int sock, struct build_config *bcp)
 	if (resp.p_ecode != 0) {
 		errx(1, "failed to launch build");
 	}
-
-	struct prison_console_connect pcc;
-	char prison_name[64];
-
-	snprintf(prison_name, sizeof(prison_name), "%s:%s",
-	    pbc.p_image_name, pbc.p_tag);
 	cmd = PRISON_IPC_CONSOLE_CONNECT;
 	if (tcgetattr(STDIN_FILENO, &pcc.p_termios) == -1) {
 		err(1, "tcgetattr(STDIN_FILENO) failed");
@@ -222,13 +223,13 @@ build_send_context(int sock, struct build_config *bcp)
 	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &pcc.p_winsize) == -1) {
 		err(1, "ioctl(TIOCGWINSZ): failed");
 	}
-	strlcpy(pcc.p_name, prison_name, sizeof(pcc.p_name));
+	strlcpy(pcc.p_instance, prison_instance, sizeof(pcc.p_name));
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	sock_ipc_must_write(sock, &pcc, sizeof(pcc));
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
 	if (resp.p_ecode != 0) {
 		(void) printf("failed to attach console to %s: %s\n",
-		    prison_name, resp.p_errbuf);
+		    prison_instance, resp.p_errbuf);
 		return (-1);
 	}
 	printf("got error code %d\n", resp.p_ecode);

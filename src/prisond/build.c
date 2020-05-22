@@ -46,13 +46,13 @@
 #include <signal.h>
 #include <string.h>
 
-#include <libprison.h>
-
 #include "termbuf.h"
 #include "main.h"
 #include "dispatch.h"
 #include "sock_ipc.h"
 #include "config.h"
+
+#include <libprison.h>
 
 TAILQ_HEAD( , build_context) bc_head;
 
@@ -574,6 +574,8 @@ dispatch_build_recieve(int sock)
 	free(bctx.instance);
 	bzero(&resp, sizeof(resp));
 	resp.p_ecode = 0;
+	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
+	    "%s", bctxp->instance);
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	return (1);
 }
