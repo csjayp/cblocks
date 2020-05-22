@@ -65,7 +65,7 @@ static char *archive_extensions[] = {
 
 %token FROM AS COPY ADD RUN ENTRYPOINT STRING WORKDIR
 %token OPEN_SQUARE_BRACKET CLOSE_SQUARE_BRACKET COPY_FROM
-%token INTEGER COMMA CMD
+%token INTEGER COMMA CMD ROOTPIVOT
 
 %type <num> INTEGER
 %type <c_string> STRING

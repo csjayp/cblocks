@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-set -e 
+#set -e 
 set -x
 
 data_root="$1"
@@ -75,8 +75,9 @@ do_launch()
     config_devfs
     ip4=`get_default_ip`
     instance_cmd=`emit_entrypoint`
+    instance_hostname=`printf "%10.10s" ${instance_id}`
     jail -c \
-      "host.hostname=${instance_id}" \
+      "host.hostname=${instance_hostname}" \
       "ip4.addr=${ip4}" \
       "name=${instance_id}" \
       "osrelease=12.1-RELEASE" \

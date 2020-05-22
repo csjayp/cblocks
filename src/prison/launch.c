@@ -99,8 +99,10 @@ launch_container(int sock, struct launch_config *lcp)
 	sock_ipc_must_write(sock, &pl, sizeof(pl));
 	printf("wrote launch structure\n");
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
-	printf("read response!\n");
-	printf("got error code %d\n", resp.p_ecode);
+	if (resp.p_ecode == 0) {
+		printf("cellblock: container launched: instance: %s\n",
+		    resp.p_errbuf);
+	}
 }
 
 int

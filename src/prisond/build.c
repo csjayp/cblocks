@@ -46,13 +46,13 @@
 #include <signal.h>
 #include <string.h>
 
-#include <libprison.h>
-
 #include "termbuf.h"
 #include "main.h"
 #include "dispatch.h"
 #include "sock_ipc.h"
 #include "config.h"
+
+#include <libprison.h>
 
 TAILQ_HEAD( , build_context) bc_head;
 
@@ -273,6 +273,7 @@ build_commit_image(struct build_context *bcp)
 	char commit_cmd[128], **argv, s_index[32], nstages[32];
 	FILE *fp;
 	struct build_stage *bsp;
+	char *do_fim;
 	int status, k, last;
 	char path[1024];
 	vec_t *vec;
@@ -326,6 +327,7 @@ build_commit_image(struct build_context *bcp)
 	    gcfg.c_data_dir);
 	snprintf(nstages, sizeof(nstages), "%d", bcp->pbc.p_nstages);
 	snprintf(s_index, sizeof(s_index), "%d", last);
+	do_fim = "OFF";
 	vec = vec_init(16);
 	vec_append(vec, "/bin/sh");
 	vec_append(vec, commit_cmd);
@@ -335,6 +337,10 @@ build_commit_image(struct build_context *bcp)
 	vec_append(vec, bcp->pbc.p_image_name);
 	vec_append(vec, nstages);
 	vec_append(vec, bcp->instance);
+	if (bcp->pbc.p_build_fim_spec) {
+		do_fim = "ON";
+	}
+	vec_append(vec, do_fim);
 	vec_finalize(vec);
 	argv = vec_return(vec);
 	execve(*argv, argv, NULL);
@@ -568,6 +574,8 @@ dispatch_build_recieve(int sock)
 	free(bctx.instance);
 	bzero(&resp, sizeof(resp));
 	resp.p_ecode = 0;
+	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
+	    "%s", bctxp->instance);
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	return (1);
 }

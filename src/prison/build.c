@@ -43,10 +43,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <libprison.h>
-
 #include "main.h"
 #include "parser.h"
+
+#include <libprison.h>
 
 struct build_config {
 	char			*b_name;
@@ -56,6 +56,7 @@ struct build_config {
 	char			*b_tag;
 	struct build_manifest	*b_bmp;
 	int			 b_verbose;
+	int			 b_fim_spec;
 };
 
 static struct option build_options[] = {
@@ -65,6 +66,7 @@ static struct option build_options[] = {
 	{ "no-exec",		no_argument, 0, 'N' },
 	{ "help",		no_argument, 0, 'h' },
 	{ "verbose",		no_argument, 0, 'v' },
+	{ "file-integrity",	no_argument, 0, 'F' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -105,7 +107,8 @@ build_usage(void)
 	    " -f, --prison-file-path=PATH   Path to Prisonfile (relative to build path)\n"
 	    " -t, --tag=NAME                Tag to use for the image build\n"
 	    " -N, --no-exec                 Do everything but submit the build context\n"
-	    " -v, --verbose                 Increase verbosity of build\n");
+	    " -v, --verbose                 Increase verbosity of build\n"
+	    " -F, --file-integrity          Create file integrity spec\n");
 	exit(1);
 }
 
@@ -148,6 +151,8 @@ build_send_stages(int sock, struct build_config *bcp)
 static int
 build_send_context(int sock, struct build_config *bcp)
 {
+	struct prison_console_connect pcc;
+	char prison_instance[512];
 	struct prison_build_context pbc;
 	struct prison_response resp;
 	struct stat sb;
@@ -170,6 +175,7 @@ build_send_context(int sock, struct build_config *bcp)
 	bzero(&pbc, sizeof(pbc));
 	cmd = PRISON_IPC_SEND_BUILD_CTX;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
+	pbc.p_build_fim_spec = bcp->b_fim_spec;
 	pbc.p_context_size = sb.st_size;
 	pbc.p_verbose = bcp->b_verbose;
 	strlcpy(pbc.p_term, term, sizeof(pbc.p_term));
@@ -196,8 +202,13 @@ build_send_context(int sock, struct build_config *bcp)
 		err(1, "failed to cleanup build context");
 	}
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
+        snprintf(prison_instance, sizeof(prison_instance), "%s", resp.p_errbuf);
 	printf("Transfer complete. read status code %d (success) from daemon\n",
 	    resp.p_ecode);
+	if (resp.p_ecode != 0) {
+		errx(1, "failed to transfer build context");
+	}
+	printf("Launching build as instance %s\n", prison_instance);
 	cmd = PRISON_IPC_LAUNCH_BUILD;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
@@ -205,12 +216,6 @@ build_send_context(int sock, struct build_config *bcp)
 	if (resp.p_ecode != 0) {
 		errx(1, "failed to launch build");
 	}
-
-	struct prison_console_connect pcc;
-	char prison_name[64];
-
-	snprintf(prison_name, sizeof(prison_name), "%s:%s",
-	    pbc.p_image_name, pbc.p_tag);
 	cmd = PRISON_IPC_CONSOLE_CONNECT;
 	if (tcgetattr(STDIN_FILENO, &pcc.p_termios) == -1) {
 		err(1, "tcgetattr(STDIN_FILENO) failed");
@@ -218,13 +223,13 @@ build_send_context(int sock, struct build_config *bcp)
 	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &pcc.p_winsize) == -1) {
 		err(1, "ioctl(TIOCGWINSZ): failed");
 	}
-	strlcpy(pcc.p_name, prison_name, sizeof(pcc.p_name));
+	strlcpy(pcc.p_instance, prison_instance, sizeof(pcc.p_name));
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	sock_ipc_must_write(sock, &pcc, sizeof(pcc));
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
 	if (resp.p_ecode != 0) {
 		(void) printf("failed to attach console to %s: %s\n",
-		    prison_name, resp.p_errbuf);
+		    prison_instance, resp.p_errbuf);
 		return (-1);
 	}
 	printf("got error code %d\n", resp.p_ecode);
@@ -326,12 +331,15 @@ build_main(int argc, char *argv [], int cltlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "Nhf:n:t:v", build_options,
+		c = getopt_long(argc, argv, "FNhf:n:t:v", build_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'F':
+			bc.b_fim_spec = 1;
+			break;
 		case 'v':
 			bc.b_verbose++;
 			break;
