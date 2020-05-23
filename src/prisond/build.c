@@ -164,9 +164,14 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 			}
 			header = 1;
 		}
-		fprintf(fp, "echo \"-- Step %d/%d : %s\"\n",
+		fprintf(fp, "echo '-- Step %d/%d : %s'\n",
 		    ++taken, steps, bsp->step_string);
 		switch (bsp->step_op) {
+		case STEP_ENV:
+			fprintf(fp, "export %s=\"%s\"\n",
+			    bsp->step_data.step_env.se_key,
+			    bsp->step_data.step_env.se_value);
+			break;
 		case STEP_ROOT_PIVOT:
 			fprintf(fp, "ln -s %s /cellblock-root-ptr\n",
 			    bsp->step_data.step_root_pivot.sr_dir);
@@ -495,7 +500,7 @@ do_build_launch(void *arg, struct prison_instance *pi)
 	if (build_run_build_stage(bcp) != 0) {
 		return (-1);
 	}
-	printf("-- Stages complete. Writing cell block image\n");
+	printf("-- Stages complete. Writing container image...\n");
 	if (build_commit_image(bcp) != 0) {
 		return (-1);
 	}

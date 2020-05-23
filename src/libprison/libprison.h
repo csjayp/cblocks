@@ -128,6 +128,11 @@ struct build_step_copy_from {
 	char					sc_dest[MAXPATHLEN];
 };
 
+struct build_step_env {
+	char					se_key[MAXPATHLEN];
+	char					se_value[MAXPATHLEN];
+};
+
 struct build_step_copy {
 	char					sc_source[MAXPATHLEN];
 	char					sc_dest[MAXPATHLEN];
@@ -142,6 +147,7 @@ struct build_step {
 #define	STEP_WORKDIR	4
 #define	STEP_COPY_FROM	5
 #define	STEP_ROOT_PIVOT	6
+#define	STEP_ENV	7
 	TAILQ_ENTRY(build_step)	step_glue;
 	union {
 		/*
@@ -155,6 +161,7 @@ struct build_step {
 		struct build_step_workdir	 step_workdir;
 		struct build_step_copy_from	 step_copy_from;
 		struct build_step_root_pivot	 step_root_pivot;
+		struct build_step_env		 step_env;
 	} step_data;
 	char					 step_string[1024];
 };
