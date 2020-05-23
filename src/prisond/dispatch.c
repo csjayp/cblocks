@@ -188,7 +188,6 @@ prison_remove(struct prison_instance *pi)
 	vec_free(vec);
         (void) close(pi->p_peer_sock);
         (void) close(pi->p_ttyfd);
-        termbuf_print_queue(&pi->p_ttybuf.t_head);
         TAILQ_REMOVE(&pr_head, pi, p_glue);
         cur = pi->p_ttybuf.t_tot_len;
         while (cur > 0) {

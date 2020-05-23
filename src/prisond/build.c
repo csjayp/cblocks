@@ -70,6 +70,13 @@ build_lookup_queued_context(struct prison_build_context *pbc)
 	return (NULL);
 }
 
+void
+print_bold_prefix(void)
+{
+
+	printf("\033[1m--\033[0m ");
+}
+
 static int
 build_emit_add_instruction(struct build_step *bsp, FILE *fp)
 {
@@ -164,7 +171,8 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 			}
 			header = 1;
 		}
-		fprintf(fp, "echo '-- Step %d/%d : %s'\n",
+		fprintf(fp, "echo -n \033[1m--\033[0m\n");
+		fprintf(fp, "echo ' Step %d/%d : %s'\n",
 		    ++taken, steps, bsp->step_string);
 		switch (bsp->step_op) {
 		case STEP_ENV:
@@ -365,7 +373,8 @@ build_run_build_stage(struct build_context *bcp)
 
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
-		printf("-- Executing stage (%d/%d)\n", k + 1, bcp->pbc.p_nstages);
+		print_bold_prefix();
+		printf("Executing stage (%d/%d)\n", k + 1, bcp->pbc.p_nstages);
 		snprintf(stage_root, sizeof(stage_root),
 		    "%s/%d/root", bcp->build_root, bstg->bs_index);
 		pid = fork();
@@ -403,7 +412,8 @@ build_run_build_stage(struct build_context *bcp)
 	bstg = &bcp->stages[k - 1];
 	bstg->bs_is_last = 1;
 	if (status != 0) {
-		printf("-- Stage build failed: %d code\n", status);
+		print_bold_prefix();
+		printf("Stage build failed: %d code\n", status);
 	}
 	return (status);
 }
@@ -420,7 +430,8 @@ build_run_init_stages(struct build_context *bcp)
 	    "%s/instances/%s", gcfg.c_data_dir, bcp->instance);
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
-		printf("-- Executing stage %d\n", bstg->bs_index);
+		print_bold_prefix();
+		printf("Executing stage %d\n", bstg->bs_index);
 		snprintf(stage_root, sizeof(stage_root),
 		    "%s/%d", bcp->build_root, bstg->bs_index);
 		if (mkdir(stage_root, 0755) == -1) {
@@ -434,7 +445,8 @@ build_run_init_stages(struct build_context *bcp)
 		build_emit_shell_script(bcp, bstg->bs_index);
 		r = build_init_stage(bcp, bstg);
 		if (r != 0) {
-			printf("-- Stage failed with %d code. Exiting", r);
+			print_bold_prefix();
+			printf("Stage failed with %d code. Exiting", r);
 			break;
 		}
 	}
@@ -500,7 +512,8 @@ do_build_launch(void *arg, struct prison_instance *pi)
 	if (build_run_build_stage(bcp) != 0) {
 		return (-1);
 	}
-	printf("-- Stages complete. Writing container image...\n");
+	print_bold_prefix();
+	printf("Build Stage(s) complete. Writing container image...\n");
 	if (build_commit_image(bcp) != 0) {
 		return (-1);
 	}
