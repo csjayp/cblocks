@@ -235,7 +235,7 @@ copy_spec:
 		    sizeof(b_step->step_data.step_copy.sc_dest));
 		cur_build_step->stage_index = stage_counter;
 		snprintf(b_step->step_string, sizeof(b_step->step_string),
-		    "COPY $1 $2");
+		    "COPY %s %s", $1, $2);
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
