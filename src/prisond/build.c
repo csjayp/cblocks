@@ -336,7 +336,7 @@ build_commit_image(struct build_context *bcp)
 		}
 		return (status);
 	}
-	snprintf(commit_cmd, sizeof(commit_cmd), "%s/lib/commit_script.sh",
+	snprintf(commit_cmd, sizeof(commit_cmd), "%s/lib/stage_commit.sh",
 	    gcfg.c_data_dir);
 	snprintf(nstages, sizeof(nstages), "%d", bcp->pbc.p_nstages);
 	snprintf(s_index, sizeof(s_index), "%d", last);
@@ -365,12 +365,13 @@ build_commit_image(struct build_context *bcp)
 static int
 build_run_build_stage(struct build_context *bcp)
 {
-	char stage_root[MAXPATHLEN], **argv;
+	char stage_root[MAXPATHLEN], **argv, builder[1024];
 	struct build_stage *bstg;
 	int k, status, ret;
 	vec_t *vec;
 	pid_t pid;
 
+        sprintf(builder, "%s/lib/stage_build.sh", gcfg.c_data_dir);
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
 		print_bold_prefix();
@@ -384,15 +385,10 @@ build_run_build_stage(struct build_context *bcp)
 		if (pid == 0) {
 			vec = vec_init(32);
 			vec_append(vec, "/bin/sh");
-			vec_append(vec, "prison-bootstrap.sh");
+			vec_append(vec, builder);
+			vec_append(vec, stage_root);
 			vec_finalize(vec);
 			argv = vec_return(vec);
-			if (chdir(stage_root) == -1) {
-				err(1, "chdir failed");
-			}
-			if (chroot(".") == -1) {
-				err(1, "chroot failed");
-			}
 			execve(*argv, argv, NULL);
 			err(1, "execve failed");
 		}
@@ -425,13 +421,10 @@ build_run_init_stages(struct build_context *bcp)
 	struct build_stage *bstg;
 	int k, r;
 
-	printf("DEBUG: %s\n", bcp->instance);
 	snprintf(bcp->build_root, sizeof(bcp->build_root),
 	    "%s/instances/%s", gcfg.c_data_dir, bcp->instance);
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
-		print_bold_prefix();
-		printf("Executing stage %d\n", bstg->bs_index);
 		snprintf(stage_root, sizeof(stage_root),
 		    "%s/%d", bcp->build_root, bstg->bs_index);
 		if (mkdir(stage_root, 0755) == -1) {

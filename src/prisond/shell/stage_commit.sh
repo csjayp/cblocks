@@ -1,7 +1,6 @@
 #!/bin/sh
 #
 set -e
-set -x
 
 build_root=$1
 build_index=$2

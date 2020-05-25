@@ -473,7 +473,6 @@ stage_def:
 		bmp = get_current_build_manifest();
 		bsp = cur_build_stage;
 		bsp->bs_index = stage_counter++;
-		printf("Inserted Stage: %s %p\n", bsp->bs_base_container, bsp);
 		TAILQ_INSERT_HEAD(&bmp->stage_head, bsp, stage_glue);
 		cur_build_stage = NULL;
 	}

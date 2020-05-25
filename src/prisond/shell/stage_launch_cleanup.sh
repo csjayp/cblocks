@@ -1,7 +1,6 @@
 #!/bin/sh
 #
 set -e
-set -x
 
 data_root="$1"
 instance="$2"
@@ -23,8 +22,8 @@ cleanup()
         done
         ;;
     2)
-        umount "${data_root}/instances/${instance}/dev"
-        umount "${data_root}/instances/${instance}"
+        umount "${data_root}/instances/${instance}/root/dev"
+        umount "${data_root}/instances/${instance}/root"
         ;;
     esac
 }

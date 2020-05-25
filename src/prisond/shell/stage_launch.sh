@@ -1,18 +1,18 @@
 #!/bin/sh
 #
-#set -e 
 set -x
+#set -e 
 
 data_root="$1"
 image_name="$2"
 instance_id="$3"
 entry_point_args="$4"
-devfs_mount="${data_root}/instances/${instance_id}/dev"
+devfs_mount="${data_root}/instances/${instance_id}/root/dev"
 
 config_devfs()
 {
     V=`devfs rule showsets | grep "^5000"`
-    if [ ! $V ]; then
+    if [ ! "$V" ]; then
         devfs -m ${devfs_mount} ruleset 5000
         devfs rule -s 5000 add hide
         devfs rule -s 5000 add path null unhide
@@ -22,12 +22,11 @@ config_devfs()
         devfs rule -s 5000 add path stdin unhide
         devfs rule -s 5000 add path stdout unhide
         devfs rule -s 5000 add path stderr unhide
-        devfs rule -s 5000 add path 'bpf*' unhide
         devfs -m ${devfs_mount} rule applyset
-        return
+    else
+       devfs -m ${devfs_mount} ruleset 5000
+       devfs -m ${devfs_mount} rule applyset
     fi
-    devfs -m ${devfs_mount} ruleset 5000
-    devfs -m ${devfs_mount} rule applyset
 }
 
 emit_entrypoint()
@@ -66,12 +65,13 @@ do_launch()
             exit 1
         fi
     fi
-    instance_root="${data_root}/instances/${instance_id}"
+    instance_root="${data_root}/instances/${instance_id}/root"
     mkdir -p "${instance_root}"
     mount -t unionfs -o noatime -o below \
       "${data_root}/images/${image_name}/root" \
       "${instance_root}" 
     mount -t devfs devfs "${instance_root}/dev"
+    echo fooo
     config_devfs
     ip4=`get_default_ip`
     instance_cmd=`emit_entrypoint`
