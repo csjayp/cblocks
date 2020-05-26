@@ -33,6 +33,7 @@
 #include <sys/ttycom.h>
 
 #include <stdio.h>
+#include <ctype.h>
 #include <paths.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -64,6 +65,30 @@ static int reap_children;
 
 pthread_mutex_t peer_mutex;
 pthread_mutex_t prison_mutex;
+
+int
+prison_create_pid_file(struct prison_instance *p)
+{
+	char pid_path[1024], pid_buf[32];
+	mode_t mode;
+	int flags;
+
+	mode = S_IRUSR | S_IWUSR;
+	flags = O_WRONLY | O_EXCL | O_EXLOCK | O_CREAT;
+	snprintf(pid_path, sizeof(pid_path), "%s/locks/%s.pid",
+	    gcfg.c_data_dir, p->p_instance_tag);
+	snprintf(pid_buf, sizeof(pid_buf), "%d", p->p_pid);
+	p->p_pid_file = open(pid_path, flags, mode);
+	if (p->p_pid_file == -1) {
+		warn("open(%s)", pid_path);
+		return (-1);
+	}
+	if (write(p->p_pid_file, pid_buf, strlen(pid_buf)) == -1) {
+		warn("write pid file failed");
+		return (-1);
+	}
+	return (0);
+}
 
 size_t
 prison_instance_get_count(void)
@@ -188,13 +213,12 @@ prison_remove(struct prison_instance *pi)
 	vec_free(vec);
         (void) close(pi->p_peer_sock);
         (void) close(pi->p_ttyfd);
-        termbuf_print_queue(&pi->p_ttybuf.t_head);
         TAILQ_REMOVE(&pr_head, pi, p_glue);
         cur = pi->p_ttybuf.t_tot_len;
         while (cur > 0) {
                 cur = termbuf_remove_oldest(&pi->p_ttybuf);
         }
-
+	close(pi->p_pid_file);
 	free(pi);
 }
 
@@ -235,6 +259,8 @@ prison_reap_children(void)
 		}
 		pi->p_state |= STATE_DEAD;
 		printf("collected exit status from proc %d\n", pi->p_pid);
+		printf("dumping TTY buffer:\n");
+		termbuf_print_queue(&pi->p_ttybuf.t_head);
 		prison_remove(pi);
 	}
 	pthread_mutex_unlock(&prison_mutex);
@@ -275,7 +301,6 @@ tty_io_queue_loop(void *arg)
 	ssize_t cc;
 	size_t len;
 
-	printf("tty_io_queue_loop: dispatched\n");
 	while (1) {
 		prison_reap_children();
 		maxfd = tty_initialize_fdset(&rfds);
@@ -306,8 +331,6 @@ tty_io_queue_loop(void *arg)
 			if (cc == -1) {
 				err(1, "%s: read failed:", __func__);
 			}
-			// debugging option here
-			//write(1, buf, cc);
 			termbuf_append(&pi->p_ttybuf, buf, cc);
 			if (pi->p_state != STATE_CONNECTED) {
 				continue;
@@ -425,6 +448,29 @@ prison_lookup_instance(const char *instance)
 	return (NULL);
 }
 
+static char *
+trim_tty_buffer(char *input, size_t len, size_t *newlen)
+{
+	uintptr_t old, new;
+	char  *ep;
+
+	new = 0;
+	ep = input + len - 1;
+	old = (uintptr_t) ep;
+	while (ep > input) {
+		if (isspace(*ep) || *ep == '\0') {
+			ep--;
+			continue;
+		}
+		new = (uintptr_t) ep;
+		ep++;
+		*ep = '\0';
+		break;
+	}
+	*newlen = len - (old - new);
+	return (input);
+}
+
 int
 dispatch_connect_console(int sock)
 {
@@ -464,11 +510,13 @@ dispatch_connect_console(int sock)
 	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	if (tty_block) {
+		char *trimmed;
+
 		cmd = PRISON_IPC_CONSOLE_TO_CLIENT;
 		sock_ipc_must_write(sock, &cmd, sizeof(cmd));
-		len = tty_buflen;
+		trimmed = trim_tty_buffer(tty_block, tty_buflen, &len);
 		sock_ipc_must_write(sock, &len, sizeof(len));
-		sock_ipc_must_write(sock, tty_block, tty_buflen);
+		sock_ipc_must_write(sock, trimmed, len);
 		free(tty_block);
 	}
 	if (tcsetattr(ttyfd, TCSANOW, &pcc.p_termios) == -1) {
@@ -487,7 +535,6 @@ dispatch_connect_console(int sock)
 	 */
 	if (pi->p_pipe[1] != 0) {
 		char b;
-		printf("signaling to build process\n");
 		write(pi->p_pipe[1], &b, 1);
 	}
 	tty_console_session(pcc.p_instance, sock, ttyfd);
@@ -500,7 +547,9 @@ prison_create(const char *name, char *term, int (*prison_callback)(void *, struc
     void *arg)
 {
 	struct prison_instance *pi;
+	ssize_t cc;
 	int ret;
+	char b;
 
 	pi = calloc(1, sizeof(*pi));
 	if (pi == NULL) {
@@ -513,12 +562,8 @@ prison_create(const char *name, char *term, int (*prison_callback)(void *, struc
 	}
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
 	if (pi->p_pid == 0) {
-		printf("\n");
-		ssize_t cc;
-		char b;
 		close(pi->p_pipe[1]);
 		while (1) {
-			printf("waiting for console synchronization\n");
 			cc = read(pi->p_pipe[0], &b, 1);
 			if (cc == -1 && errno == EINTR)
 				continue;
@@ -527,14 +572,13 @@ prison_create(const char *name, char *term, int (*prison_callback)(void *, struc
 			break;
 			assert(cc == 1);
 		}
-		printf("wokeup, continuing...\n");
 		if (setenv("TERM", term, 1) != 0) {
 			err(1, "setenv failed");
 		}
 		ret = (prison_callback)(arg, pi);
 		_exit(ret);
 	}
-	printf("DEBUG: TTY name %s\n", pi->p_ttyname);
+	prison_create_pid_file(pi);
 	close(pi->p_pipe[0]);
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
@@ -656,10 +700,10 @@ dispatch_launch_prison(int sock)
 	if (pi->p_pid == 0) {
 		argv = vec_return(cmd_vec);
 		env = vec_return(env_vec);
-		putchar('\n');
 		execve(*argv, argv, env);
 		err(1, "execve failed");
 	}
+	prison_create_pid_file(pi);
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
 	pthread_mutex_lock(&prison_mutex);
@@ -690,6 +734,10 @@ dispatch_work(void *arg)
 			break;
 		}
 		switch (cmd) {
+		case PRISON_IPC_GENERIC_COMMAND:
+			cc = dispatch_generic_command(p->p_sock);
+			done = 1;
+			break;
 		case PRISON_IPC_GET_INSTANCES:
 			cc = dispatch_get_instances(p->p_sock);
 			break;

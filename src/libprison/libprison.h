@@ -59,6 +59,7 @@ enum {
 #define	PRISON_IPC_CONSOLE_TO_CLIENT	7
 #define	PRISON_IPC_CONSOLE_SESSION_DONE	8
 #define	PRISON_IPC_GET_INSTANCES	9
+#define	PRISON_IPC_GENERIC_COMMAND	10
 
 struct instance_ent {
 	char				p_instance_name[512];
@@ -66,6 +67,11 @@ struct instance_ent {
 	pid_t				p_pid;
 	char				p_tty_line[64];
 	time_t				p_start_time;
+};
+
+struct prison_generic_command {
+	char					p_cmdname[512];
+	size_t					p_mlen;
 };
 
 struct prison_build_context {
@@ -128,6 +134,11 @@ struct build_step_copy_from {
 	char					sc_dest[MAXPATHLEN];
 };
 
+struct build_step_env {
+	char					se_key[MAXPATHLEN];
+	char					se_value[MAXPATHLEN];
+};
+
 struct build_step_copy {
 	char					sc_source[MAXPATHLEN];
 	char					sc_dest[MAXPATHLEN];
@@ -142,6 +153,7 @@ struct build_step {
 #define	STEP_WORKDIR	4
 #define	STEP_COPY_FROM	5
 #define	STEP_ROOT_PIVOT	6
+#define	STEP_ENV	7
 	TAILQ_ENTRY(build_step)	step_glue;
 	union {
 		/*
@@ -155,6 +167,7 @@ struct build_step {
 		struct build_step_workdir	 step_workdir;
 		struct build_step_copy_from	 step_copy_from;
 		struct build_step_root_pivot	 step_root_pivot;
+		struct build_step_env		 step_env;
 	} step_data;
 	char					 step_string[1024];
 };
@@ -188,19 +201,22 @@ struct vec {
         char                    **vec;
         size_t                  vec_used;
         size_t                  vec_alloc;
-        size_t                  vec_size;
 #define VEC_OVERFLOW    1
 #define VEC_ENOMEM      2
         int                     vec_flag;
+	char			*vec_marshalled;
+	size_t			vec_marshalled_len;
 };
 
 typedef struct vec vec_t;
 
-vec_t           *vec_init(size_t);
-void             vec_append(vec_t *, char *);
-int              vec_finalize(vec_t *);
-char            **vec_return(vec_t *);
-void             vec_free(vec_t *);
-char		*vec_join(vec_t *, char);
+vec_t *		vec_init(size_t);
+void		vec_append(vec_t *, char *);
+int		vec_finalize(vec_t *);
+char **		vec_return(vec_t *);
+void		vec_free(vec_t *);
+char *		vec_join(vec_t *, char);
+char **		vec_unmarshal(vec_t *, char *, size_t);
+char *		vec_marshal(vec_t *);
 
 #endif	/* BUILD_DOT_H_ */

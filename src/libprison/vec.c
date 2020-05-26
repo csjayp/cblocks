@@ -30,6 +30,91 @@
 
 #include "libprison.h"
 
+char *
+vec_marshal(vec_t *vec)
+{
+	size_t totlen, slen, count, k;
+	char *const *copy;
+	char *bp;
+
+	copy = vec_return(vec);
+	count = 0;
+	totlen = 0;
+	/*
+	 * Iterate through array/vector to count the number of strings, but also
+	 * to keep track of the size for each string.
+	 */
+	while ((bp = *copy++)) {
+		totlen += strlen(bp);
+		count++;
+	}
+	totlen += count;	/* \0 delimeter for each string */
+	totlen += 1;		/* \0 terminating \0 */
+	vec->vec_marshalled = malloc(totlen);
+	if (vec->vec_marshalled == NULL) {
+		return (NULL);
+	}
+	copy = vec_return(vec);
+	vec->vec_marshalled_len = totlen;
+	bp = vec->vec_marshalled;
+	for (k = 0; k < count; k++) {
+		slen = strlen(copy[k]);
+		bcopy(copy[k], bp, slen);
+		bp += slen;
+		*bp++ = '\0';
+	}
+	*bp = '\0';
+	return (vec->vec_marshalled);
+}
+
+char **
+vec_unmarshal(vec_t *vec, char *marshalled, size_t len)
+{
+	size_t count, slen;
+	char *bp, *ent;
+	int k, j, h;
+
+	if (marshalled == NULL) {
+		return (NULL);
+	}
+	count = 0;
+	for (k = 0; k < len; k++) {
+		if (marshalled[k] == '\0') {
+			count++;
+		}
+	}
+	count--;
+	vec->vec = calloc(count + 1, sizeof(char *));
+	if (vec->vec == NULL) {
+		return (NULL);
+	}
+	bp = marshalled;
+	for (j = 0, k = 0; k < count; k++) {
+		slen = strlen(bp);
+		if (slen == 0) {
+			bp += 1;
+			continue;
+		}
+		ent = strdup(bp);
+		if (ent == NULL) {
+			for (h = 0; h < j; h++) {
+				ent = vec->vec[h];
+				free(ent);
+			}
+			free(vec->vec);
+			return (NULL);
+		}
+		vec->vec[j++] = ent;
+		bp += slen;
+		bp++;
+	}
+	vec->vec_used = j;
+	vec->vec_alloc = j;
+	vec->vec_flag = 0;
+	vec->vec[j] = NULL;
+	return (vec->vec);
+}
+
 vec_t *
 vec_init(size_t vec_size)
 {
@@ -42,6 +127,10 @@ vec_init(size_t vec_size)
 	vec->vec_alloc = vec_size;
 	vec->vec_used = 0;
 	vec->vec_flag = 0;
+	if (vec_size == 0) {
+		vec->vec = NULL;
+		return (vec);
+	}
 	vec->vec = calloc(vec->vec_alloc, sizeof(char *));
 	if (vec->vec == NULL) {
 		return (NULL);

@@ -44,6 +44,7 @@ struct prison_instance {
         char                            *p_instance_tag;
         time_t                          p_launch_time;
 	char				p_image_name[256];
+	int				p_pid_file;
 };
 
 size_t		prison_instance_get_count(void);
@@ -52,6 +53,7 @@ struct instance_ent *
 
 void		*prison_handle_request(void *);
 int	dispatch_get_instances(int);
+int	dispatch_generic_command(int);
 
 void	*tty_io_queue_loop(void *);
 int	 dispatch_build_recieve(int);

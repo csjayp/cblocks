@@ -237,7 +237,6 @@ console_tty_console_session(int sock)
 	int s;
 	void *ptr;
 
-	printf("listening on sock %d\n", sock);
 	console_tty_set_raw_mode(STDIN_FILENO);
 	signal(SIGWINCH, console_handle_window_resize);
 	s = sock;

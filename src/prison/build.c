@@ -171,7 +171,6 @@ build_send_context(int sock, struct build_config *bcp)
 	if (term == NULL) {
 		errx(1, "Can not determine TERM type\n");
 	}
-	printf("Sending build context (%zu) bytes total\n", sb.st_size);
 	bzero(&pbc, sizeof(pbc));
 	cmd = PRISON_IPC_SEND_BUILD_CTX;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
@@ -203,12 +202,9 @@ build_send_context(int sock, struct build_config *bcp)
 	}
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
         snprintf(prison_instance, sizeof(prison_instance), "%s", resp.p_errbuf);
-	printf("Transfer complete. read status code %d (success) from daemon\n",
-	    resp.p_ecode);
 	if (resp.p_ecode != 0) {
 		errx(1, "failed to transfer build context");
 	}
-	printf("Launching build as instance %s\n", prison_instance);
 	cmd = PRISON_IPC_LAUNCH_BUILD;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
@@ -232,7 +228,6 @@ build_send_context(int sock, struct build_config *bcp)
 		    prison_instance, resp.p_errbuf);
 		return (-1);
 	}
-	printf("got error code %d\n", resp.p_ecode);
 	console_tty_set_raw_mode(STDIN_FILENO);
 	console_tty_console_session(sock);
 	return (0);
@@ -244,7 +239,6 @@ build_generate_context(struct build_config *bcp)
 	char *argv[10], *build_context_path, *template, dst[256];
 	int ret, status, pid;
 
-	printf("Constructing build context...");
 	fflush(stdout);
 	template = strdup("/tmp/prison-bcontext.XXXXXXXXX");
 	build_context_path = mktemp(template);
@@ -281,23 +275,12 @@ build_generate_context(struct build_config *bcp)
 	if (rename(build_context_path, dst) == -1) {
 		err(1, "could not rename build context");
 	}
-	printf("DONE\n");
 	free(template);
 	bcp->b_context_path = strdup(dst);
 	if (bcp->b_context_path == NULL) {
 		err(1, "strdup failed");
 	}
 	return (status);
-}
-
-static void
-build_process_stages(struct build_manifest *bmp)
-{
-	struct build_stage *bsp;
-
-	TAILQ_FOREACH(bsp, &bmp->stage_head, stage_glue) {
-		printf("-- FROM %s %p\n", bsp->bs_base_container, bsp);
-	}
 }
 
 static void
@@ -373,16 +356,13 @@ build_main(int argc, char *argv [], int cltlsock)
 		fprintf(stderr, "ERROR: no build path specified\n");
 		build_usage();
 	}
-	(void) fprintf(stdout, "building Prison at %s\n", bc.b_path);
 	before = time(NULL);
 	build_set_default_tag(&bc);
 	bmp = build_manifest_load(&bc);
-	build_process_stages(bmp);
 	if (noexec) {
 		return (0);
 	}
 	build_generate_context(&bc);
-	printf("sending context...\n");
 	build_send_context(cltlsock, &bc);
 	after = time(NULL);
 	printf("build occured in %ld seconds\n", after - before);

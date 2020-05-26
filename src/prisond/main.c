@@ -54,6 +54,7 @@
 static char *data_sub_dirs[] = {
 	"spool",
 	"lib",
+	"locks",
 	"images",
 	"instances",
 	NULL,

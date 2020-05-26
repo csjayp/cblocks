@@ -40,7 +40,7 @@ int line;
 %option nounput
 %option caseless
 
-tokenchar       [^[:blank:];,<>"\n]
+tokenchar       [^[:blank:];,\$<>"\n]
 tokenstring     {tokenchar}+
 integer         [0-9]+
 
@@ -52,8 +52,10 @@ AS		return (AS);
 RUN		return (RUN);
 ADD		return (ADD);
 COPY		return (COPY);
+ENV		return (ENV);
 WORKDIR		return (WORKDIR);
 ENTRYPOINT	return (ENTRYPOINT);
+\=		return (EQ);
 ROOTPIVOT	return (ROOTPIVOT);
 CMD		return (CMD);
 {integer}       {
@@ -120,7 +122,7 @@ void
 yyerror(const char *str)
 {
 
-	errx(1, "syntax error near %s:%d: '%s' (%s)", yyfile, yylineno, yytext, str);
+	errx(1, "syntax error near %s:%d: '%s' (%s)", yyfile, line, yytext, str);
 }
 
 int

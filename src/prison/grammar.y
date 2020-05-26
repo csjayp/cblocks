@@ -64,7 +64,7 @@ static char *archive_extensions[] = {
 }
 
 %token FROM AS COPY ADD RUN ENTRYPOINT STRING WORKDIR
-%token OPEN_SQUARE_BRACKET CLOSE_SQUARE_BRACKET COPY_FROM
+%token OPEN_SQUARE_BRACKET CLOSE_SQUARE_BRACKET COPY_FROM ENV EQ
 %token INTEGER COMMA CMD ROOTPIVOT
 
 %type <num> INTEGER
@@ -235,7 +235,7 @@ copy_spec:
 		    sizeof(b_step->step_data.step_copy.sc_dest));
 		cur_build_step->stage_index = stage_counter;
 		snprintf(b_step->step_string, sizeof(b_step->step_string),
-		    "COPY $1 $2");
+		    "COPY %s %s", $1, $2);
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
@@ -369,6 +369,35 @@ op_spec:
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
 		cur_build_step = NULL;
 	}
+	| ENV
+	{
+		struct build_step *b_step;
+
+		b_step = calloc(1, sizeof(*b_step));
+		if (b_step == NULL) {
+			err(1, "calloc(build step) faild");
+		}
+		b_step->step_op = STEP_ENV;
+		cur_build_step = b_step;
+	} STRING EQ STRING
+	{
+		struct build_step *b_step;
+		struct build_stage *bsp;
+
+                b_step = cur_build_step;
+                bsp = cur_build_stage;
+                assert(b_step != NULL);
+                assert(bsp != NULL);
+                strlcpy(b_step->step_data.step_env.se_key,
+		    $3, sizeof(b_step->step_data.step_env.se_key));
+		strlcpy(b_step->step_data.step_env.se_value,
+		    $5, sizeof(b_step->step_data.step_env.se_value));
+		cur_build_step->stage_index = stage_counter;
+		snprintf(b_step->step_string, sizeof(b_step->step_string),
+		    "ENV %s=%s", $3, $5);
+		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
+		cur_build_step = NULL;
+	}
 	| WORKDIR
 	{
 		struct build_step *b_step;
@@ -444,7 +473,6 @@ stage_def:
 		bmp = get_current_build_manifest();
 		bsp = cur_build_stage;
 		bsp->bs_index = stage_counter++;
-		printf("Inserted Stage: %s %p\n", bsp->bs_base_container, bsp);
 		TAILQ_INSERT_HEAD(&bmp->stage_head, bsp, stage_glue);
 		cur_build_stage = NULL;
 	}

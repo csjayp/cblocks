@@ -70,6 +70,13 @@ build_lookup_queued_context(struct prison_build_context *pbc)
 	return (NULL);
 }
 
+void
+print_bold_prefix(void)
+{
+
+	printf("\033[1m--\033[0m ");
+}
+
 static int
 build_emit_add_instruction(struct build_step *bsp, FILE *fp)
 {
@@ -164,9 +171,15 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 			}
 			header = 1;
 		}
-		fprintf(fp, "echo \"-- Step %d/%d : %s\"\n",
+		fprintf(fp, "echo -n \033[1m--\033[0m\n");
+		fprintf(fp, "echo ' Step %d/%d : %s'\n",
 		    ++taken, steps, bsp->step_string);
 		switch (bsp->step_op) {
+		case STEP_ENV:
+			fprintf(fp, "export %s=\"%s\"\n",
+			    bsp->step_data.step_env.se_key,
+			    bsp->step_data.step_env.se_value);
+			break;
 		case STEP_ROOT_PIVOT:
 			fprintf(fp, "ln -s %s /cellblock-root-ptr\n",
 			    bsp->step_data.step_root_pivot.sr_dir);
@@ -323,7 +336,7 @@ build_commit_image(struct build_context *bcp)
 		}
 		return (status);
 	}
-	snprintf(commit_cmd, sizeof(commit_cmd), "%s/lib/commit_script.sh",
+	snprintf(commit_cmd, sizeof(commit_cmd), "%s/lib/stage_commit.sh",
 	    gcfg.c_data_dir);
 	snprintf(nstages, sizeof(nstages), "%d", bcp->pbc.p_nstages);
 	snprintf(s_index, sizeof(s_index), "%d", last);
@@ -352,15 +365,17 @@ build_commit_image(struct build_context *bcp)
 static int
 build_run_build_stage(struct build_context *bcp)
 {
-	char stage_root[MAXPATHLEN], **argv;
+	char stage_root[MAXPATHLEN], **argv, builder[1024];
 	struct build_stage *bstg;
 	int k, status, ret;
 	vec_t *vec;
 	pid_t pid;
 
+        sprintf(builder, "%s/lib/stage_build.sh", gcfg.c_data_dir);
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
-		printf("-- Executing stage (%d/%d)\n", k + 1, bcp->pbc.p_nstages);
+		print_bold_prefix();
+		printf("Executing stage (%d/%d)\n", k + 1, bcp->pbc.p_nstages);
 		snprintf(stage_root, sizeof(stage_root),
 		    "%s/%d/root", bcp->build_root, bstg->bs_index);
 		pid = fork();
@@ -370,15 +385,10 @@ build_run_build_stage(struct build_context *bcp)
 		if (pid == 0) {
 			vec = vec_init(32);
 			vec_append(vec, "/bin/sh");
-			vec_append(vec, "prison-bootstrap.sh");
+			vec_append(vec, builder);
+			vec_append(vec, stage_root);
 			vec_finalize(vec);
 			argv = vec_return(vec);
-			if (chdir(stage_root) == -1) {
-				err(1, "chdir failed");
-			}
-			if (chroot(".") == -1) {
-				err(1, "chroot failed");
-			}
 			execve(*argv, argv, NULL);
 			err(1, "execve failed");
 		}
@@ -398,7 +408,8 @@ build_run_build_stage(struct build_context *bcp)
 	bstg = &bcp->stages[k - 1];
 	bstg->bs_is_last = 1;
 	if (status != 0) {
-		printf("-- Stage build failed: %d code\n", status);
+		print_bold_prefix();
+		printf("Stage build failed: %d code\n", WEXITSTATUS(status));
 	}
 	return (status);
 }
@@ -410,12 +421,10 @@ build_run_init_stages(struct build_context *bcp)
 	struct build_stage *bstg;
 	int k, r;
 
-	printf("DEBUG: %s\n", bcp->instance);
 	snprintf(bcp->build_root, sizeof(bcp->build_root),
 	    "%s/instances/%s", gcfg.c_data_dir, bcp->instance);
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
-		printf("-- Executing stage %d\n", bstg->bs_index);
 		snprintf(stage_root, sizeof(stage_root),
 		    "%s/%d", bcp->build_root, bstg->bs_index);
 		if (mkdir(stage_root, 0755) == -1) {
@@ -429,7 +438,8 @@ build_run_init_stages(struct build_context *bcp)
 		build_emit_shell_script(bcp, bstg->bs_index);
 		r = build_init_stage(bcp, bstg);
 		if (r != 0) {
-			printf("-- Stage failed with %d code. Exiting", r);
+			print_bold_prefix();
+			printf("Stage failed with %d code. Exiting", r);
 			break;
 		}
 	}
@@ -495,7 +505,8 @@ do_build_launch(void *arg, struct prison_instance *pi)
 	if (build_run_build_stage(bcp) != 0) {
 		return (-1);
 	}
-	printf("-- Stages complete. Writing cell block image\n");
+	print_bold_prefix();
+	printf("Build Stage(s) complete. Writing container image...\n");
 	if (build_commit_image(bcp) != 0) {
 		return (-1);
 	}
@@ -549,6 +560,7 @@ dispatch_build_recieve(int sock)
 	fd = dispatch_build_set_outfile(&bctx, resp.p_errbuf,
 	    sizeof(resp.p_errbuf));
 	if (fd == -1) {
+		warn("dispatch_build_set_outfile: failed");
 		free(bctx.steps);
 		free(bctx.stages);
 		resp.p_ecode = -1;
