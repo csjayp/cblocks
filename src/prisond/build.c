@@ -409,7 +409,7 @@ build_run_build_stage(struct build_context *bcp)
 	bstg->bs_is_last = 1;
 	if (status != 0) {
 		print_bold_prefix();
-		printf("Stage build failed: %d code\n", status);
+		printf("Stage build failed: %d code\n", WEXITSTATUS(status));
 	}
 	return (status);
 }
@@ -560,6 +560,7 @@ dispatch_build_recieve(int sock)
 	fd = dispatch_build_set_outfile(&bctx, resp.p_errbuf,
 	    sizeof(resp.p_errbuf));
 	if (fd == -1) {
+		warn("dispatch_build_set_outfile: failed");
 		free(bctx.steps);
 		free(bctx.stages);
 		resp.p_ecode = -1;

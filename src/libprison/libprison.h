@@ -59,6 +59,7 @@ enum {
 #define	PRISON_IPC_CONSOLE_TO_CLIENT	7
 #define	PRISON_IPC_CONSOLE_SESSION_DONE	8
 #define	PRISON_IPC_GET_INSTANCES	9
+#define	PRISON_IPC_GENERIC_COMMAND	10
 
 struct instance_ent {
 	char				p_instance_name[512];
@@ -66,6 +67,11 @@ struct instance_ent {
 	pid_t				p_pid;
 	char				p_tty_line[64];
 	time_t				p_start_time;
+};
+
+struct prison_generic_command {
+	char					p_cmdname[512];
+	size_t					p_mlen;
 };
 
 struct prison_build_context {
@@ -195,19 +201,22 @@ struct vec {
         char                    **vec;
         size_t                  vec_used;
         size_t                  vec_alloc;
-        size_t                  vec_size;
 #define VEC_OVERFLOW    1
 #define VEC_ENOMEM      2
         int                     vec_flag;
+	char			*vec_marshalled;
+	size_t			vec_marshalled_len;
 };
 
 typedef struct vec vec_t;
 
-vec_t           *vec_init(size_t);
-void             vec_append(vec_t *, char *);
-int              vec_finalize(vec_t *);
-char            **vec_return(vec_t *);
-void             vec_free(vec_t *);
-char		*vec_join(vec_t *, char);
+vec_t *		vec_init(size_t);
+void		vec_append(vec_t *, char *);
+int		vec_finalize(vec_t *);
+char **		vec_return(vec_t *);
+void		vec_free(vec_t *);
+char *		vec_join(vec_t *, char);
+char **		vec_unmarshal(vec_t *, char *, size_t);
+char *		vec_marshal(vec_t *);
 
 #endif	/* BUILD_DOT_H_ */

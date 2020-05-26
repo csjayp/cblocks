@@ -66,6 +66,30 @@ static int reap_children;
 pthread_mutex_t peer_mutex;
 pthread_mutex_t prison_mutex;
 
+int
+prison_create_pid_file(struct prison_instance *p)
+{
+	char pid_path[1024], pid_buf[32];
+	mode_t mode;
+	int flags;
+
+	mode = S_IRUSR | S_IWUSR;
+	flags = O_WRONLY | O_EXCL | O_EXLOCK | O_CREAT;
+	snprintf(pid_path, sizeof(pid_path), "%s/locks/%s.pid",
+	    gcfg.c_data_dir, p->p_instance_tag);
+	snprintf(pid_buf, sizeof(pid_buf), "%d", p->p_pid);
+	p->p_pid_file = open(pid_path, flags, mode);
+	if (p->p_pid_file == -1) {
+		warn("open(%s)", pid_path);
+		return (-1);
+	}
+	if (write(p->p_pid_file, pid_buf, strlen(pid_buf)) == -1) {
+		warn("write pid file failed");
+		return (-1);
+	}
+	return (0);
+}
+
 size_t
 prison_instance_get_count(void)
 {
@@ -194,6 +218,7 @@ prison_remove(struct prison_instance *pi)
         while (cur > 0) {
                 cur = termbuf_remove_oldest(&pi->p_ttybuf);
         }
+	close(pi->p_pid_file);
 	free(pi);
 }
 
@@ -553,6 +578,7 @@ prison_create(const char *name, char *term, int (*prison_callback)(void *, struc
 		ret = (prison_callback)(arg, pi);
 		_exit(ret);
 	}
+	prison_create_pid_file(pi);
 	close(pi->p_pipe[0]);
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
@@ -674,10 +700,10 @@ dispatch_launch_prison(int sock)
 	if (pi->p_pid == 0) {
 		argv = vec_return(cmd_vec);
 		env = vec_return(env_vec);
-		//putchar('\n');
 		execve(*argv, argv, env);
 		err(1, "execve failed");
 	}
+	prison_create_pid_file(pi);
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
 	pthread_mutex_lock(&prison_mutex);
@@ -708,6 +734,10 @@ dispatch_work(void *arg)
 			break;
 		}
 		switch (cmd) {
+		case PRISON_IPC_GENERIC_COMMAND:
+			cc = dispatch_generic_command(p->p_sock);
+			done = 1;
+			break;
 		case PRISON_IPC_GET_INSTANCES:
 			cc = dispatch_get_instances(p->p_sock);
 			break;

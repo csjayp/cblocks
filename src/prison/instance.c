@@ -42,12 +42,14 @@
 struct instance_config {
 	int		 i_long;
 	int		 i_quiet;
+	int		 i_do_prune;
 };
 
 static struct option instance_options[] = {
 	{ "long",		no_argument, 0, 'l' },
 	{ "help",		no_argument, 0, 'h' },
 	{ "quiet",		no_argument, 0, 'q' },
+	{ "prune",		no_argument, 0, 'p' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -56,6 +58,7 @@ instance_usage(void)
 {
 	(void) fprintf(stderr,
 	    " -h, --help                  Print help\n"
+	    " -p, --prune                 Remove stopped/dead instances\n"
 	    " -l, --long                  Print full instance names\n"
 	    " -q, --quiet                 Do not print column headers\n");
 	exit(1);
@@ -93,6 +96,36 @@ instance_get(struct instance_config *icp, int ctlsock)
 		    cur->p_start_time);
 	}
 }
+
+static void
+instance_prune(struct instance_config *icp, int ctlsock)
+{
+	struct prison_generic_command arg;
+	char buf[1024];
+	uint32_t cmd;
+	ssize_t cc;
+
+	cmd = PRISON_IPC_GENERIC_COMMAND;
+	bzero(&arg, sizeof(arg));
+	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
+	sprintf(arg.p_cmdname, "instance_prune");
+	sock_ipc_must_write(ctlsock, &arg, sizeof(arg));
+	while (1) {
+		cc = read(ctlsock, buf, sizeof(buf));
+		if (cc == -1 && errno == EINTR) {
+			continue;
+		}
+		if (cc == 0) {
+			break;
+		}
+		if (cc == -1) {
+			err(1, "read failed");
+
+		}
+		write(STDOUT_FILENO, buf, cc);
+	}
+}
+
 int
 instance_main(int argc, char *argv [], int ctlsock)
 {
@@ -109,6 +142,9 @@ instance_main(int argc, char *argv [], int ctlsock)
 			break;
 		}
 		switch (c) {
+		case 'p':
+			ic.i_do_prune = 1;
+			break;
 		case 'q':
 			ic.i_quiet = 1;
 			break;
@@ -125,6 +161,10 @@ instance_main(int argc, char *argv [], int ctlsock)
 	}
 	argc -= optind;
 	argv += optind;
+	if (ic.i_do_prune) {
+		instance_prune(&ic, ctlsock);
+		exit(0);
+	}
 	instance_get(&ic, ctlsock);
 	return (0);
 }
