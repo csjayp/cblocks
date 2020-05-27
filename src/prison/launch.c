@@ -103,22 +103,17 @@ launch_container(int sock, struct launch_config *lcp)
 		free(args);
 		vec_free(lcp->l_vec);
 	}
-	printf("wriing command\n");
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
-	printf("wrote command %d\n", cmd);
 	strlcpy(pl.p_name, lcp->l_name, sizeof(pl.p_name));
 	strlcpy(pl.p_term, term, sizeof(pl.p_term));
 	strlcpy(pl.p_volumes, lcp->l_volumes, sizeof(pl.p_volumes));
 	strlcpy(pl.p_network, lcp->l_network, sizeof(pl.p_network));
-	printf("writing args\n");
 	sock_ipc_must_write(sock, &pl, sizeof(pl));
-	printf("wrote launch structure\n");
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
 	if (resp.p_ecode == 0) {
 		printf("cellblock: container launched: instance: %s\n",
 		    resp.p_errbuf);
 	}
-	printf("resp.p_ecode: %d\n", resp.p_ecode);
 }
 
 int
@@ -127,7 +122,6 @@ launch_main(int argc, char *argv [], int ctlsock)
 	struct launch_config lc;
 	int option_index, c;
 	struct sbuf *sb;
-
 
 	bzero(&lc, sizeof(lc));
 	sb = sbuf_new_auto();

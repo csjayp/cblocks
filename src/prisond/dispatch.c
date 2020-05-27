@@ -721,7 +721,6 @@ dispatch_launch_prison(int sock)
 		execve(*argv, argv, env);
 		err(1, "execve failed");
 	}
-	printf("%s: forked pricess %d\n", __func__, pi->p_pid);
 	prison_create_pid_file(pi);
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
@@ -748,10 +747,8 @@ dispatch_work(void *arg)
 	printf("newly accepted socket: %d\n", p->p_sock);
 	done = 0;
 	while (!done) {
-		printf("reading command\n");
 		cc = sock_ipc_may_read(p->p_sock, &cmd, sizeof(cmd));
 		if (cc == 1) {
-			printf("got EOF or some other error\n");
 			break;
 		}
 		switch (cmd) {
