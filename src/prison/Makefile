@@ -1,7 +1,7 @@
 CC	?= cc
 CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I $(PREFIX)/include
 TARGETS	= prison
-LIBS	= -lprison
+LIBS	= -lprison -lpthread -lsbuf
 OBJ	= build.o console.o launch.o y.tab.o lex.yy.o main.o sock_ipc.o instance.o
 PREFIX	?= /usr/local
 all:	$(TARGETS)

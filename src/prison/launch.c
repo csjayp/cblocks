@@ -25,6 +25,7 @@
  * SUCH DAMAGE.
  */
 #include <sys/types.h>
+#include <sys/sbuf.h>
 #include <sys/ioctl.h>
 #include <sys/ttycom.h>
 
@@ -47,11 +48,17 @@ struct launch_config {
 	char		*l_name;
 	char		*l_terminal;
 	vec_t		*l_vec;
+	char		*l_volumes;
+	char		*l_network;
 };
 
 static struct option launch_options[] = {
 	{ "name",		required_argument, 0, 'n' },
 	{ "terminal",		required_argument, 0, 't' },
+	{ "network",		required_argument, 0, 'N' },
+	{ "volume",		required_argument, 0, 'V' },
+	{ "fdescfs",		no_argument, 0, 'F' },
+	{ "procfs",		no_argument, 0, 'p' },
 	{ "help",		no_argument, 0, 'h' },
 	{ 0, 0, 0, 0 }
 };
@@ -62,7 +69,11 @@ launch_usage(void)
 	(void) fprintf(stderr,
 	    " -h, --help                  Print help\n"
 	    " -n, --name=NAME             Name of container image to launch\n"
-	    " -t, --terminal=TERM         Terminal type to use (TERM)\n");
+	    " -t, --terminal=TERM         Terminal type to use (TERM)\n"
+	    " -N, --network=NETWORK       Attach container to specified network\n"
+	    " -V, --volume=VOLUMESPEC     Mount volume into the container\n"
+	    " -F, --fdescfs               Mount file-descriptor file system\n"
+	    " -p, --procfs                Mount process file system\n");
 	exit(1);
 }
 
@@ -92,10 +103,14 @@ launch_container(int sock, struct launch_config *lcp)
 		free(args);
 		vec_free(lcp->l_vec);
 	}
+	printf("wriing command\n");
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	printf("wrote command %d\n", cmd);
 	strlcpy(pl.p_name, lcp->l_name, sizeof(pl.p_name));
 	strlcpy(pl.p_term, term, sizeof(pl.p_term));
+	strlcpy(pl.p_volumes, lcp->l_volumes, sizeof(pl.p_volumes));
+	strlcpy(pl.p_network, lcp->l_network, sizeof(pl.p_network));
+	printf("writing args\n");
 	sock_ipc_must_write(sock, &pl, sizeof(pl));
 	printf("wrote launch structure\n");
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
@@ -103,6 +118,7 @@ launch_container(int sock, struct launch_config *lcp)
 		printf("cellblock: container launched: instance: %s\n",
 		    resp.p_errbuf);
 	}
+	printf("resp.p_ecode: %d\n", resp.p_ecode);
 }
 
 int
@@ -110,17 +126,38 @@ launch_main(int argc, char *argv [], int ctlsock)
 {
 	struct launch_config lc;
 	int option_index, c;
+	struct sbuf *sb;
+
 
 	bzero(&lc, sizeof(lc));
+	sb = sbuf_new_auto();
+	sbuf_cat(sb, "devfs");
+	sbuf_cat(sb, ",");
+	lc.l_network = strdup("default");
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "n:t:", launch_options,
+		c = getopt_long(argc, argv, "N:Fpn:t:V:", launch_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'N':
+			lc.l_network = optarg;
+			break;
+		case 'F':
+			sbuf_cat(sb, "fdescfs");
+			sbuf_cat(sb, ",");
+			break;
+		case 'p':
+			sbuf_cat(sb, "procfs");
+			sbuf_cat(sb, ",");
+			break;
+		case 'V':
+			sbuf_cat(sb, optarg);
+			sbuf_cat(sb, ",");
+			break;
 		case 'h':
 			launch_usage();
 			exit(1);
@@ -139,6 +176,8 @@ launch_main(int argc, char *argv [], int ctlsock)
 		fprintf(stderr, "must supply container name\n");
 		launch_usage();
 	}
+	sbuf_finish(sb);
+	lc.l_volumes = sbuf_data(sb);
 	argc -= optind;
 	argv += optind;
 	/*

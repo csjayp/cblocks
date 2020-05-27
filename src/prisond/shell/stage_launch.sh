@@ -6,8 +6,59 @@ set -x
 data_root="$1"
 image_name="$2"
 instance_id="$3"
-entry_point_args="$4"
+mount_spec="$4"
+entry_point_args="$5"
 devfs_mount="${data_root}/instances/${instance_id}/root/dev"
+
+emit_mount_specification()
+{   
+    _all_fields=$1
+    _root="${data_root}/instances/${instance_id}/root"
+
+    echo "$1" | grep '[;&<>|]'
+    if [ $? -eq 0 ]; then
+        return 1
+    fi
+    for spec in `echo "${_all_fields}" | sed "s/,/ /g"`; do
+        case $spec in
+        devfs)
+            ;;
+        procfs)
+            echo mount -t procfs procfs ${_root}/proc\;
+            ;;
+        fdescfs)
+            echo mount -t fdescfs fdescfs ${_root}/dev/fd\;
+            ;;
+        *:*:*:*)
+            for field in `jot 4`; do
+                case $field in
+                1)
+                    fs_type=`echo "$spec" | cut -f $field -d:`
+                    ;;
+                2)
+                    fs_host=`echo "$spec" | cut -f $field -d:`
+                    ;;
+                3)
+                    container_mount=`echo "$spec" | cut -f $field -d:`
+                    ;;
+                4)
+                    perms=`echo "$spec" | cut -f $field -d:`
+                    ;;
+                esac
+            done
+            echo -n "mount -t $fs_type "
+            if [ "$perms" = "RO" ] || [ "$perms" = "ro" ]; then
+                echo -n "-o ro "
+            fi
+            echo $fs_host ${_root}/$container_mount\;
+            ;;
+        *)
+            echo invalid specification
+            return 1
+            ;;
+        esac
+    done
+}
 
 config_devfs()
 {
@@ -70,8 +121,8 @@ do_launch()
     mount -t unionfs -o noatime -o below \
       "${data_root}/images/${image_name}/root" \
       "${instance_root}" 
+    eval `emit_mount_specification $mount_spec`
     mount -t devfs devfs "${instance_root}/dev"
-    echo fooo
     config_devfs
     ip4=`get_default_ip`
     instance_cmd=`emit_entrypoint`

@@ -66,6 +66,23 @@ static int reap_children;
 pthread_mutex_t peer_mutex;
 pthread_mutex_t prison_mutex;
 
+#if 0
+static void
+tty_set_noecho(int fd)
+{
+	struct termios term;
+
+	if (tcgetattr(fd, &term) == -1) {
+		err(1, "tcgetattr: failed");
+	}
+	term.c_lflag &= ~(ECHO | ECHOE | ECHOK | ECHONL);
+	term.c_oflag &= ~(ONLCR);
+	if (tcsetattr(fd, TCSANOW, &term) == -1) {
+		err(1, "tcsetattr: failed");
+	}
+}
+#endif
+
 int
 prison_create_pid_file(struct prison_instance *p)
 {
@@ -211,13 +228,13 @@ prison_remove(struct prison_instance *pi)
 		break;
 	}
 	vec_free(vec);
-        (void) close(pi->p_peer_sock);
-        (void) close(pi->p_ttyfd);
-        TAILQ_REMOVE(&pr_head, pi, p_glue);
-        cur = pi->p_ttybuf.t_tot_len;
-        while (cur > 0) {
-                cur = termbuf_remove_oldest(&pi->p_ttybuf);
-        }
+	assert(pi->p_ttyfd != 0);
+	(void) close(pi->p_ttyfd);
+	TAILQ_REMOVE(&pr_head, pi, p_glue);
+	cur = pi->p_ttybuf.t_tot_len;
+	while (cur > 0) {
+		cur = termbuf_remove_oldest(&pi->p_ttybuf);
+	}
 	close(pi->p_pid_file);
 	free(pi);
 }
@@ -692,6 +709,7 @@ dispatch_launch_prison(int sock)
 	pi->p_instance_tag = gen_sha256_instance_id(pl.p_name);
 	pi->p_launch_time = time(NULL);
 	vec_append(cmd_vec, pi->p_instance_tag);
+	vec_append(cmd_vec, pl.p_volumes);
 	if (pl.p_entry_point_args[0] != '\0') {
 		vec_append(cmd_vec, pl.p_entry_point_args);
 	}
@@ -703,6 +721,7 @@ dispatch_launch_prison(int sock)
 		execve(*argv, argv, env);
 		err(1, "execve failed");
 	}
+	printf("%s: forked pricess %d\n", __func__, pi->p_pid);
 	prison_create_pid_file(pi);
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
@@ -729,8 +748,10 @@ dispatch_work(void *arg)
 	printf("newly accepted socket: %d\n", p->p_sock);
 	done = 0;
 	while (!done) {
+		printf("reading command\n");
 		cc = sock_ipc_may_read(p->p_sock, &cmd, sizeof(cmd));
 		if (cc == 1) {
+			printf("got EOF or some other error\n");
 			break;
 		}
 		switch (cmd) {
@@ -753,10 +774,7 @@ dispatch_work(void *arg)
 			break;
 		case PRISON_IPC_LAUNCH_PRISON:
 			cc = dispatch_launch_prison(p->p_sock);
-			if (cc == 0) {
-				done = 1;
-				continue;
-			}
+			done = 1;
 			break;
 		default:
 			/*
