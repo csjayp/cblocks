@@ -1,10 +1,17 @@
 #!/bin/sh
 #
-set -e
+set -x
 
 data_root="$1"
 instance="$2"
 type=$3
+
+umount_reverse_order()
+{
+    for fs in `mount -p | awk '{ print $2 }' | grep -F "${instance}" | tail -r`; do
+        umount $fs
+    done
+}
 
 cleanup()
 {
@@ -22,8 +29,7 @@ cleanup()
         done
         ;;
     2)
-        umount "${data_root}/instances/${instance}/root/dev"
-        umount "${data_root}/instances/${instance}/root"
+        umount_reverse_order
         ;;
     esac
 }

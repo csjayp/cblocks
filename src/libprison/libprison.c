@@ -59,12 +59,6 @@ sock_ipc_may_read(int fd, void *buf, size_t n)
 			if (errno == EINTR || errno == EAGAIN) {
 				continue;
 			}
-			/*
-			 * NB: we need to handle this further up the chain.
-			 */
-			if (errno == EBADF) {
-				return (1);
-			}
 			err(1, "%s: read failed", __func__);
 		case 0:
 			return (1);
