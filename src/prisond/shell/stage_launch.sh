@@ -21,6 +21,9 @@ emit_mount_specification()
     fi
     for spec in `echo "${_all_fields}" | sed "s/,/ /g"`; do
         case $spec in
+        tmpfs)
+            echo mount -t tmpfs tmpfs ${_root}/tmp\;
+            ;;
         devfs)
             ;;
         procfs)
@@ -106,11 +109,11 @@ get_default_ip()
 do_launch()
 {
     if [ ! -d "${data_root}/images/${image_name}" ]; then
-        if [ -f "${data_root}/images/${image_name}.tar.gz" ]; then
+        if [ -f "${data_root}/images/${image_name}.tar.zst" ]; then
             echo "Extracting image"
             mkdir "${data_root}/images/${image_name}"
             tar -C "${data_root}/images/${image_name}" -zxf \
-              "${data_root}/images/${image_name}.tar.gz"
+              "${data_root}/images/${image_name}.tar.zst"
         else
             echo "[FATAL]: no such image ${image_name} downloaded"
             exit 1

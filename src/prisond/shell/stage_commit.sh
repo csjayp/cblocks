@@ -38,7 +38,8 @@ commit_image()
     fi
     tar -C "${src}" --exclude="/tmp" \
       --exclude="/dev" \
-      -cf "${data_dir}/images/${image_name}.tar.gz" .
+      -cf "${data_dir}/images/${image_name}.tar" .
+    zstd -T0 -f "${data_dir}/images/${image_name}.tar"
     if [ -d "${data_dir}/images/${image_name}" ]; then
         chflags -R noschg "${data_dir}/images/${image_name}"
         rm -fr "${data_dir}/images/${image_name}"

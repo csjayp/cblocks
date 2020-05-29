@@ -44,6 +44,27 @@
 #include <string.h>
 #include <err.h>
 
+void
+sock_ipc_from_sock_to_tty(int sock)
+{
+	char buf[2048];
+	ssize_t cc;
+
+	while (1) {
+		cc = read(sock, buf, sizeof(buf));
+		if (cc == -1 && errno == EINTR) {
+			continue;
+		}
+		if (cc == -1) {
+			err(1, "read failed");
+		}
+		if (cc == 0) {
+			break;
+		}
+		write(STDOUT_FILENO, buf, cc);
+	}
+}
+
 int
 sock_ipc_may_read(int fd, void *buf, size_t n)
 {

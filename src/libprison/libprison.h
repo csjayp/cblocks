@@ -41,6 +41,7 @@ int		sock_ipc_may_read(int, void *, size_t);
 ssize_t		sock_ipc_must_read(int, void *, size_t);
 ssize_t		sock_ipc_must_write(int, void *, size_t);
 ssize_t		sock_ipc_from_to(int, int, off_t);
+void		sock_ipc_from_sock_to_tty(int);
 
 #define	MAX_PRISON_NAME	512
 
@@ -60,6 +61,7 @@ enum {
 #define	PRISON_IPC_CONSOLE_SESSION_DONE	8
 #define	PRISON_IPC_GET_INSTANCES	9
 #define	PRISON_IPC_GENERIC_COMMAND	10
+#define	PRISON_IPC_NETWORK_CTL		11
 
 struct instance_ent {
 	char				p_instance_name[512];
@@ -220,5 +222,6 @@ void		vec_free(vec_t *);
 char *		vec_join(vec_t *, char);
 char **		vec_unmarshal(vec_t *, char *, size_t);
 char *		vec_marshal(vec_t *);
+int		vec_merge(vec_t *, vec_t *);
 
 #endif	/* BUILD_DOT_H_ */

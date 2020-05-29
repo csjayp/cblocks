@@ -39,117 +39,110 @@
 
 #include "main.h"
 
-struct instance_config {
-	int		 i_long;
-	int		 i_quiet;
-	int		 i_do_prune;
+struct network_config {
+	char		*n_name;
+	char		*n_netif;
+	char		*n_type;
+	int		 n_create;
 };
 
-static struct option instance_options[] = {
-	{ "long",		no_argument, 0, 'l' },
+static struct option network_options[] = {
+	{ "create",		no_argument, 0, 'c' },
+	{ "name",		required_argument, 0, 'n' },
+	{ "interface",		required_argument, 0, 'i' },
+	{ "type",		required_argument, 0, 't' },
 	{ "help",		no_argument, 0, 'h' },
-	{ "quiet",		no_argument, 0, 'q' },
-	{ "prune",		no_argument, 0, 'p' },
 	{ 0, 0, 0, 0 }
 };
 
 static void
-instance_usage(void)
+network_usage(void)
 {
 	(void) fprintf(stderr,
-	    " -h, --help                  Print help\n"
-	    " -p, --prune                 Remove stopped/dead instances\n"
-	    " -l, --long                  Print full instance names\n"
-	    " -q, --quiet                 Do not print column headers\n");
+	    " -c, --create            Create new network\n"
+	    " -n, --name=NAME         Name for network configuration\n"
+	    " -i, --interface=NETIF   Network interface for inbound/outbound traffic\n"
+	    " -t, --type=TYPE         Type, either 'nat' or 'bridge'\n"
+	    " -h, --help              Print help\n");
 	exit(1);
 }
 
-static void
-instance_get(struct instance_config *icp, int ctlsock)
-{
-	struct instance_ent *ent, *cur;
-	uint32_t cmd, k;
-	size_t count;
-
-	cmd = PRISON_IPC_GET_INSTANCES;
-	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
-	sock_ipc_must_read(ctlsock, &count, sizeof(count));
-	if (count == 0) {
-		return;
-	}
-	ent = malloc(count * sizeof(struct instance_ent));
-	if (ent == NULL) {
-		err(1, "malloc for instance list failed");
-	}
-	sock_ipc_must_read(ctlsock, ent, count * sizeof(struct instance_ent));
-	if (!icp->i_quiet) {
-		printf("%-10.10s  %-15.15s %-12.12s %-7.7s %-11.11s\n",
-		    "INSTANCE", "IMAGE", "TTY", "PID", "START@");
-	}
-	for (k = 0; k < count; k++) {
-		cur = &ent[k];
-		printf("%-10.10s  %-15.15s %-12.12s %-7d %-11ld\n",
-		    cur->p_instance_name,
-		    cur->p_image_name,
-		    cur->p_tty_line,
-		    cur->p_pid,
-		    cur->p_start_time);
-	}
-}
-
-static void
-instance_prune(struct instance_config *icp, int ctlsock)
+static int
+network_create(int ctlsock, struct network_config *nc)
 {
 	struct prison_generic_command arg;
+	char *payload;
 	uint32_t cmd;
+	vec_t *vec;
 
+	if (nc->n_netif == NULL) {
+		errx(1, "Must specify root network interface --interface");
+	}
+	if (nc->n_name == NULL) {
+		errx(1, "Must specify name for this network --name");
+	}
+	vec = vec_init(32);
 	cmd = PRISON_IPC_GENERIC_COMMAND;
-	bzero(&arg, sizeof(arg));
+	snprintf(arg.p_cmdname, sizeof(arg.p_cmdname),
+	    "network-create");
+	vec_append(vec, "-t");
+	vec_append(vec, nc->n_type);
+	vec_append(vec, "-n");
+	vec_append(vec, nc->n_name);
+	vec_append(vec, "-i");
+	vec_append(vec, nc->n_netif);
+	vec_finalize(vec);
+	payload = vec_marshal(vec);
+	if (payload == NULL) {
+		err(1, "failed to marshal data");
+	}
+	arg.p_mlen = vec->vec_marshalled_len;
 	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
-	sprintf(arg.p_cmdname, "instance_prune");
 	sock_ipc_must_write(ctlsock, &arg, sizeof(arg));
+	sock_ipc_must_write(ctlsock, payload, arg.p_mlen);
 	sock_ipc_from_sock_to_tty(ctlsock);
+	return (0);
 }
 
 int
-instance_main(int argc, char *argv [], int ctlsock)
+network_main(int argc, char *argv [], int ctlsock)
 {
-	struct instance_config ic;
+	struct network_config nc;
 	int option_index, c;
 
-	bzero(&ic, sizeof(ic));
+	bzero(&nc, sizeof(nc));
 	reset_getopt_state();
+	nc.n_type = "bridge";
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "qhl", instance_options,
+		c = getopt_long(argc, argv, "cn:i:t:h", network_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
-		case 'p':
-			ic.i_do_prune = 1;
+		case 'c':
+			nc.n_create = 1;
 			break;
-		case 'q':
-			ic.i_quiet = 1;
+		case 'n':
+			nc.n_name = optarg;
+			break;
+		case 'i':
+			nc.n_netif = optarg;
+			break;
+		case 't':
+			nc.n_type = optarg;
 			break;
 		case 'h':
-			instance_usage();
+			network_usage();
 			exit(1);
-		case 'l':
-			ic.i_long = 1;
-			break;
 		default:
-			instance_usage();
+			network_usage();
 			/* NOT REACHED */
 		}
 	}
-	argc -= optind;
-	argv += optind;
-	if (ic.i_do_prune) {
-		instance_prune(&ic, ctlsock);
-		exit(0);
+	if (nc.n_create) {
+		network_create(ctlsock, &nc);
 	}
-	instance_get(&ic, ctlsock);
 	return (0);
 }
