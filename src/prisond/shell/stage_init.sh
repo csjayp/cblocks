@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-set -e 
+set -x
 
 build_root=$1
 stage_index=$2
@@ -36,18 +36,6 @@ bind_devfs()
     devfs -m "${build_root}/${stage_index}/root/dev" rule applyset
 }
 
-get_image()
-{
-    image_extensions="txz tgz tar.xz tar.gz"
-    for ext in $image_extensions; do
-        if [ -f "${data_dir}/images/${base_container}.${ext}" ]; then
-            echo "${data_dir}/images/${base_container}.${ext}"
-            return
-        fi
-    done
-    echo ""
-}
-
 ufs_do_setup()
 {
     base_root="${data_dir}/images/${base_container}"
@@ -56,16 +44,14 @@ ufs_do_setup()
         #
         # Check to see if we have an ephemeral build stage
         if [ ! -h "${build_root}/images/${base_container}" ]; then
-            echo "Not instantiaed, looking for image file ${base_container}"
-            image=`get_image`
-            if [ ! $image ]; then
-                    echo "Image ${base_container} has not been downloaded"
-                    exit 1
-            else
-                echo "Extracting base into into ${data_dir}/images/${base_container}..."
-                mkdir "${data_dir}/images/${base_container}"
-                tar -C "${data_dir}/images/${base_container}" -zxf $image
+            if [ ! -f "${data_dir}/images/${base_container}.tar.zst" ]; then
+                exit 1
             fi
+            echo "Extracting base into into ${data_dir}/images/${base_container}..."
+            mkdir "${data_dir}/images/${base_container}"
+            unzstd "${data_dir}/images/${base_container}.tar.zst"
+            tar -C "${data_dir}/images/${base_container}" -zxf \
+                "${data_dir}/images/${base_container}.tar.zst"
         else
             echo "Ephemeral image found from previous stage"
             base_root="${build_root}/images/${base_container}"

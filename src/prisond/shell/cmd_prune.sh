@@ -20,4 +20,12 @@ do_instance_purge()
     done
 }
 
+while getopts "R:t:i:n:" opt; do
+    case $opt in
+        R)
+            data_dir="$OPTARG"
+            ;;  
+    esac
+done
+
 do_instance_purge

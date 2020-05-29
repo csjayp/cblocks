@@ -165,6 +165,20 @@ vec_finalize(vec_t *vec)
 	return (vec->vec_flag);
 }
 
+int
+vec_merge(vec_t *from, vec_t *to)
+{
+	int k;
+
+	if ((from->vec_used + to->vec_used) > to->vec_alloc) {
+		return (VEC_OVERFLOW);
+	}
+	for (k = 0; k < from->vec_used; k++) {
+		vec_append(to, from->vec[k]);
+	}
+	return (0);
+}
+
 char *
 vec_join(vec_t *vec, char delim)
 {

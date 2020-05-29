@@ -59,6 +59,7 @@ static struct option launch_options[] = {
 	{ "volume",		required_argument, 0, 'V' },
 	{ "fdescfs",		no_argument, 0, 'F' },
 	{ "procfs",		no_argument, 0, 'p' },
+	{ "tmpfs",		no_argument, 0, 'T' },
 	{ "help",		no_argument, 0, 'h' },
 	{ 0, 0, 0, 0 }
 };
@@ -73,6 +74,7 @@ launch_usage(void)
 	    " -N, --network=NETWORK       Attach container to specified network\n"
 	    " -V, --volume=VOLUMESPEC     Mount volume into the container\n"
 	    " -F, --fdescfs               Mount file-descriptor file system\n"
+	    " -T, --tmpfs                 Mount in-memory ephemeral tmpfs\n"
 	    " -p, --procfs                Mount process file system\n");
 	exit(1);
 }
@@ -131,12 +133,16 @@ launch_main(int argc, char *argv [], int ctlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "N:Fpn:t:V:", launch_options,
+		c = getopt_long(argc, argv, "N:Fpn:t:V:T", launch_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'T':
+			sbuf_cat(sb, "tmpfs");
+			sbuf_cat(sb, ",");
+			break;
 		case 'N':
 			lc.l_network = optarg;
 			break;

@@ -52,6 +52,7 @@ struct command_ent {
 
 static struct command_ent command_list[] = {
 	{ "instance_prune",	"cmd_prune.sh" },
+	{ "network-create",	"network_create.sh" },
 	{ NULL,			NULL }
 };
 
@@ -65,14 +66,14 @@ lookup_script(char *command)
 			return (p->script_name);
 		}
 	}
-	return NULL;
+	return (NULL);
 }
 
 int
 dispatch_generic_command(int sock)
 {
 	struct prison_generic_command arg;
-	char *marshalled, **copy, *script;
+	char *marshalled,*script;
 	int pipefds[2], error;
 	vec_t *vec;
 	pid_t pid;
@@ -86,7 +87,12 @@ dispatch_generic_command(int sock)
 	sock_ipc_must_read(sock, &arg, sizeof(arg));
 	printf("got command %s\n", arg.p_cmdname);
 	if (arg.p_mlen != 0) {
+		marshalled = malloc(arg.p_mlen);
+		if (marshalled == NULL) {
+			return (1);
+		}
 		sock_ipc_must_read(sock, marshalled, arg.p_mlen);
+		printf("read marshalled data\n");
 		vec_unmarshal(vec, marshalled, arg.p_mlen);
 		vec_finalize(vec);
 	}
@@ -111,14 +117,18 @@ dispatch_generic_command(int sock)
 
 		close(pipefds[0]);
 		sprintf(script_path, "%s/lib/%s", gcfg.c_data_dir, script);
-		cmd_vec = vec_init(16);
+		cmd_vec = vec_init(64);
 		vec_append(cmd_vec, "/bin/sh");
 		vec_append(cmd_vec, script_path);
+		vec_append(cmd_vec, "-R");
 		vec_append(cmd_vec, gcfg.c_data_dir);
+		if (vec_merge(vec, cmd_vec) != 0) {
+			err(1, "error argv vectors: HINT: increase cmd_vec");
+		}
 		vec_finalize(cmd_vec);
-		dup2(sock, STDOUT_FILENO);
-		dup2(sock, STDERR_FILENO);
 		argv = vec_return(cmd_vec);
+		dup2(sock, STDERR_FILENO);
+		dup2(sock, STDOUT_FILENO);
 		execve(*argv, argv, NULL);
 		e = errno;
 		write(pipefds[1], &e, sizeof(e));
@@ -155,7 +165,6 @@ dispatch_generic_command(int sock)
 			return (1);
 		}
 	}
-	copy = vec_return(vec);
 	vec_free(vec);
 	return (1);
 }

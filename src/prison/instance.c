@@ -101,29 +101,14 @@ static void
 instance_prune(struct instance_config *icp, int ctlsock)
 {
 	struct prison_generic_command arg;
-	char buf[1024];
 	uint32_t cmd;
-	ssize_t cc;
 
 	cmd = PRISON_IPC_GENERIC_COMMAND;
 	bzero(&arg, sizeof(arg));
 	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
 	sprintf(arg.p_cmdname, "instance_prune");
 	sock_ipc_must_write(ctlsock, &arg, sizeof(arg));
-	while (1) {
-		cc = read(ctlsock, buf, sizeof(buf));
-		if (cc == -1 && errno == EINTR) {
-			continue;
-		}
-		if (cc == 0) {
-			break;
-		}
-		if (cc == -1) {
-			err(1, "read failed");
-
-		}
-		write(STDOUT_FILENO, buf, cc);
-	}
+	sock_ipc_from_sock_to_tty(ctlsock);
 }
 
 int

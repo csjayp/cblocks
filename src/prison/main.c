@@ -61,6 +61,7 @@ static struct sub_command sub_command_list[] = {
 	{ "console",	console_main, "Attach to a container console" },
 	{ "build",	build_main, "Build a new container image" },
 	{ "instance",	instance_main, "Get information about running instances" },
+	{ "network",    network_main, "Configure networking parameters" },
 	{ NULL,		NULL, NULL }
 };
 

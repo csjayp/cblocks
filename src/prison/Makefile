@@ -2,7 +2,7 @@ CC	?= cc
 CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I $(PREFIX)/include
 TARGETS	= prison
 LIBS	= -lprison -lpthread -lsbuf
-OBJ	= build.o console.o launch.o y.tab.o lex.yy.o main.o sock_ipc.o instance.o
+OBJ	= build.o console.o launch.o y.tab.o lex.yy.o main.o sock_ipc.o instance.o network.o
 PREFIX	?= /usr/local
 all:	$(TARGETS)
 
@@ -26,4 +26,4 @@ clean:
 	rm -fr *.o prison *.out  y.tab.c y.tab.h y.output lex.yy.c
 
 install:
-	cp $(TARGETS) $(PREFIX)/bin/cellblock
+	cp $(TARGETS) $(PREFIX)/bin/cblock
