@@ -6,10 +6,19 @@ data_root="$1"
 instance="$2"
 type=$3
 
+kill_jail()
+{
+    pattern=`echo $instance | awk '{ printf("%.10s", $1) }'`
+    jail_id=`jls | grep -F "$pattern" | awk '{ print $1 }'`
+    if [ "$jail_id" ]; then
+        jail -r $jail_id
+    fi
+}
+
 umount_reverse_order()
 {
     for fs in `mount -p | awk '{ print $2 }' | grep -F "${instance}" | tail -r`; do
-        umount $fs
+        umount -f "$fs"
     done
 }
 
@@ -35,3 +44,4 @@ cleanup()
 }
 
 cleanup
+kill_jail

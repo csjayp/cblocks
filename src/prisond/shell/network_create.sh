@@ -10,7 +10,7 @@ get_lowest_bridge_unit()
     iflist=`ifconfig -l`
     NOMATCH="TRUE"
     for unit in `jot 1024 0`; do
-        ifconfig "bridge${unit}" create 2>/dev/null
+        ifconfig "bridge${unit}" create up 2>/dev/null
         if [ "$?" -ne 0 ]; then
             continue
         fi 

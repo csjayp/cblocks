@@ -710,6 +710,11 @@ dispatch_launch_prison(int sock)
 	pi->p_launch_time = time(NULL);
 	vec_append(cmd_vec, pi->p_instance_tag);
 	vec_append(cmd_vec, pl.p_volumes);
+	if (pl.p_network[0] != '\0') {
+		vec_append(cmd_vec, pl.p_network);
+	} else {
+		vec_append(cmd_vec, "default");
+	}
 	if (pl.p_entry_point_args[0] != '\0') {
 		vec_append(cmd_vec, pl.p_entry_point_args);
 	}
