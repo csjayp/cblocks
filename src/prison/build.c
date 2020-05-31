@@ -200,36 +200,15 @@ build_send_context(int sock, struct build_config *bcp)
 	if (unlink(bcp->b_context_path) == -1) {
 		err(1, "failed to cleanup build context");
 	}
+
+	sock_ipc_from_sock_to_tty(sock);
+#if 0
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
         snprintf(prison_instance, sizeof(prison_instance), "%s", resp.p_errbuf);
 	if (resp.p_ecode != 0) {
 		errx(1, "failed to transfer build context");
 	}
-	cmd = PRISON_IPC_LAUNCH_BUILD;
-	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
-	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
-	sock_ipc_must_read(sock, &resp, sizeof(resp));
-	if (resp.p_ecode != 0) {
-		errx(1, "failed to launch build");
-	}
-	cmd = PRISON_IPC_CONSOLE_CONNECT;
-	if (tcgetattr(STDIN_FILENO, &pcc.p_termios) == -1) {
-		err(1, "tcgetattr(STDIN_FILENO) failed");
-	}
-	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &pcc.p_winsize) == -1) {
-		err(1, "ioctl(TIOCGWINSZ): failed");
-	}
-	strlcpy(pcc.p_instance, prison_instance, sizeof(pcc.p_name));
-	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
-	sock_ipc_must_write(sock, &pcc, sizeof(pcc));
-	sock_ipc_must_read(sock, &resp, sizeof(resp));
-	if (resp.p_ecode != 0) {
-		(void) printf("failed to attach console to %s: %s\n",
-		    prison_instance, resp.p_errbuf);
-		return (-1);
-	}
-	console_tty_set_raw_mode(STDIN_FILENO);
-	console_tty_console_session(sock);
+#endif
 	return (0);
 }
 

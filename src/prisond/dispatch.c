@@ -180,13 +180,60 @@ handle_reap_children(int sig)
 }
 
 void
+prison_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
+{
+        char buf[128], **argv;
+        int status, ret;
+        vec_t *vec, *vec_env;
+
+        pid_t pid = fork();
+        if (pid == -1) {
+                err(1, "prison_remove: failed to execute cleanup handlers");
+        }
+        if (pid == 0) {
+		vec_env = vec_init(8);
+		sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
+		vec_append(vec_env, buf);
+		vec_finalize(vec_env);
+
+		vec = vec_init(16);
+		vec_append(vec, "/bin/sh");
+		if (verbose > 0) {
+			vec_append(vec, "-x");
+		}
+		sprintf(buf, "%s/lib/stage_launch_cleanup.sh", gcfg.c_data_dir);
+		vec_append(vec, buf);
+		vec_append(vec, gcfg.c_data_dir);
+		vec_append(vec, instance);
+		sprintf(buf, "%s", type);
+		vec_append(vec, buf);
+		vec_finalize(vec);
+                argv = vec_return(vec);
+		if (dup_sock >= 0) {
+			dup2(dup_sock, STDOUT_FILENO);
+			dup2(dup_sock, STDERR_FILENO);
+		}
+                execve(*argv, argv, vec_return(vec_env));
+                err(1, "prison_remove: execve failed");
+        }
+        while (1) {
+                ret = waitpid(pid, &status, 0);
+                if (ret == -1 && errno == EINTR) {
+                        continue;
+                }
+                if (ret == -1) {
+                        err(1, "waitpid failed");
+                }
+                break;
+        }
+}
+
+void
 prison_remove(struct prison_instance *pi)
 {
 	uint32_t cmd;
 	size_t cur;
-	vec_t *vec;
-	char buf[128];
-	int status, ret;
+
 	/*
 	 * Tell the remote side to dis-connect.
 	 *
@@ -197,37 +244,7 @@ prison_remove(struct prison_instance *pi)
 		cmd = PRISON_IPC_CONSOLE_SESSION_DONE;
 		sock_ipc_must_write(pi->p_peer_sock, &cmd, sizeof(cmd));
 	}
-
-	vec = vec_init(16);
-	vec_append(vec, "/bin/sh");
-	sprintf(buf, "%s/lib/stage_launch_cleanup.sh", gcfg.c_data_dir);
-	vec_append(vec, buf);
-	vec_append(vec, gcfg.c_data_dir);
-	vec_append(vec, pi->p_instance_tag);
-	sprintf(buf, "%d", pi->p_type);
-	vec_append(vec, buf);
-	vec_finalize(vec);
-	pid_t pid = fork();
-	if (pid == -1) {
-		err(1, "prison_remove: failed to execute cleanup handlers");
-	}
-	if (pid == 0) {
-		char **argv;
-		argv = vec_return(vec);
-		execve(*argv, argv, NULL);
-		err(1, "prison_remove: execve failed");
-	}
-	while (1) {
-		ret = waitpid(pid, &status, 0);
-		if (ret == -1 && errno == EINTR) {
-			continue;
-		}
-		if (ret == -1) {
-			err(1, "waitpid failed");
-		}
-		break;
-	}
-	vec_free(vec);
+	prison_fork_cleanup(pi->p_instance_tag, "regular", -1, 0);
 	assert(pi->p_ttyfd != 0);
 	(void) close(pi->p_ttyfd);
 	TAILQ_REMOVE(&pr_head, pi, p_glue);
@@ -654,8 +671,9 @@ char *
 gen_sha256_instance_id(char *instance_name)
 {
 	u_char hash[SHA256_DIGEST_LENGTH];
-	char inbuf[128];
+	char inbuf[128], *ret;
 	char outbuf[128+1];
+	char buf[32];
 	SHA256_CTX sha256;
 
 	bzero(inbuf, sizeof(inbuf));
@@ -665,7 +683,9 @@ gen_sha256_instance_id(char *instance_name)
 	SHA256_Update(&sha256, inbuf, strlen(inbuf));
 	SHA256_Final(hash, &sha256);
 	gen_sha256_string(&hash[0], outbuf);
-	return (strdup(outbuf));
+	sprintf(buf, "%.10s", outbuf);
+	ret = strdup(buf);
+	return (ret);
 }
 
 int
@@ -769,6 +789,7 @@ dispatch_work(void *arg)
 			break;
 		case PRISON_IPC_SEND_BUILD_CTX:
 			cc = dispatch_build_recieve(p->p_sock);
+			done = 1;
 			break;
 		case PRISON_IPC_CONSOLE_CONNECT:
 			cc = dispatch_connect_console(p->p_sock);

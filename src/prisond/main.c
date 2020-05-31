@@ -69,6 +69,8 @@ static struct option long_options[] = {
 	{ "tty-buffer-size",	required_argument, 0, 'T' },
 	{ "data-directory",	required_argument, 0, 'd' },
 	{ "help",		no_argument, 0, 'h' },
+	{ "ufs",		no_argument, 0, 'u' },
+	{ "zfs",		no_argument, 0, 'z' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -84,6 +86,8 @@ usage(void)
 	    " -p, --listen-port=PORT      Listen on port\n"
 	    " -T, --tty-buffer-size=SIZE  Store at most SIZE bytes in console\n"
 	    " -d, --data-directory        Where the prisond data/spools/images are stored\n"
+	    " -u, --ufs                   UFS as the underlying file system\n"
+	    " -z, --zfs                   ZFS as the underlying file system\n"
 	);
 	exit(1);
 }
@@ -128,7 +132,7 @@ main(int argc, char *argv [], char *env[])
 	gcfg.c_tty_buf_size = 5 * 4096;
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "d:T:46U:s:p:h", long_options,
+		c = getopt_long(argc, argv, "d:T:46U:s:p:huz", long_options,
 		    &option_index);
 		if (c == -1) {
 			break;
@@ -156,6 +160,12 @@ main(int argc, char *argv [], char *env[])
 			break;
 		case 'p':
 			gcfg.c_port = optarg;
+			break;
+		case 'u':
+			gcfg.c_underlying_fs = "ufs";
+			break;
+		case 'z':
+			gcfg.c_underlying_fs = "zfs";
 			break;
 		default:
 			usage();

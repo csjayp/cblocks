@@ -199,6 +199,8 @@ struct build_context {
 	char					 build_root[MAXPATHLEN];
 	TAILQ_ENTRY(build_context)		bc_glue;
 	char					*instance;
+	int					peer_sock;
+	FILE					*peer_sock_fp;
 };
 
 struct vec {

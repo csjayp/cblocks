@@ -1,7 +1,6 @@
 #!/bin/sh
 #
-set -x
-#set -e 
+set -e 
 
 data_root="$1"
 image_name="$2"

@@ -40,6 +40,7 @@ struct global_params {
 	char		**global_env;
 	size_t		 c_tty_buf_size;
 	char		*c_data_dir;
+	char		*c_underlying_fs;
 };
 
 struct global_params gcfg;

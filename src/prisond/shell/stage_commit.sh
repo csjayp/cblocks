@@ -36,10 +36,11 @@ commit_image()
         cd "${src}"
         mtree -c -K sha256 -p . > FIM.spec
     fi
-    tar -C "${src}" --exclude="/tmp" \
+    lockf -k "${data_dir}/images/${image_name}.tar.zst" \
+      tar -C "${src}" --exclude="/tmp" \
+      --zstd \
       --exclude="/dev" \
-      -cf "${data_dir}/images/${image_name}.tar" .
-    zstd -T0 -f "${data_dir}/images/${image_name}.tar"
+      -cf "${data_dir}/images/${image_name}.tar.zst" .
     if [ -d "${data_dir}/images/${image_name}" ]; then
         chflags -R noschg "${data_dir}/images/${image_name}"
         rm -fr "${data_dir}/images/${image_name}"
