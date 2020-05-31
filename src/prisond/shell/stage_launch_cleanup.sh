@@ -43,7 +43,7 @@ cleanup()
         case $CBLOCK_FS in
         zfs)
             build_root_vol=`path_to_vol "${data_root}/instances/${instance}"`
-	    # Recursively remove the ZFS datasets (snapshots and file systems)
+            # Recursively remove the ZFS datasets (snapshots and file systems)
             zfs destroy -r "${build_root_vol}"
             ;;
         esac
