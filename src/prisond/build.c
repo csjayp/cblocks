@@ -514,8 +514,8 @@ do_build_launch(void *arg, struct prison_instance *pi)
 int
 dispatch_build_recieve(int sock)
 {
-	struct build_context bctx;
 	struct prison_response resp;
+	struct build_context bctx;
 	ssize_t cc;
 	int fd;
 
@@ -574,24 +574,27 @@ dispatch_build_recieve(int sock)
 	close(fd);
 	bctx.peer_sock_fp = fdopen(sock, "w");
 	if (bctx.peer_sock_fp == NULL) {
+		free(bctx.instance);
 		warn("%s: failed to get file handle for sock", __func__);
 		return (1);
 	}
 	bctx.peer_sock = sock;
 	print_bold_prefix(bctx.peer_sock_fp);
 	fprintf(bctx.peer_sock_fp,
-	    "Bootstrapping build stages : (1-%d)\n", bctx.pbc.p_nstages); 
+	    "Bootstrapping build stages 1 through %d\n", bctx.pbc.p_nstages); 
 	fflush(bctx.peer_sock_fp);
-        if (build_run_build_stage(&bctx) != 0) {
-                return (-1);
-        }
-        print_bold_prefix(bctx.peer_sock_fp);
-        fprintf(bctx.peer_sock_fp,
+	if (build_run_build_stage(&bctx) != 0) {
+		free(bctx.instance);
+		return (-1);
+	}
+	print_bold_prefix(bctx.peer_sock_fp);
+	fprintf(bctx.peer_sock_fp,
 	    "Build Stage(s) complete. Writing container image...\n");
 	fflush(bctx.peer_sock_fp);
-        if (build_commit_image(&bctx) != 0) {
-                return (-1);
-        }
+	if (build_commit_image(&bctx) != 0) {
+		free(bctx.instance);
+		return (-1);
+	}
 	print_bold_prefix(bctx.peer_sock_fp);
 	fprintf(bctx.peer_sock_fp,
 	    "Cleaning up ephemeral images and build artifacts\n");
