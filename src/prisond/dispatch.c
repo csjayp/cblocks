@@ -703,6 +703,9 @@ dispatch_launch_prison(int sock)
 	 */
 	sprintf(buf, "TERM=%s", pl.p_term);
 	vec_append(env_vec, buf);
+	vec_append(env_vec, "USER=root");
+	vec_append(env_vec, "HOME=/root");
+	vec_append(env_vec, DEFAULT_PATH);
 	vec_finalize(env_vec);
 	sprintf(buf, "%s/lib/stage_launch.sh", gcfg.c_data_dir);
 	vec_append(cmd_vec, "/bin/sh");
@@ -780,7 +783,6 @@ dispatch_work(void *arg)
 			break;
 		case PRISON_IPC_LAUNCH_PRISON:
 			cc = dispatch_launch_prison(p->p_sock);
-			done = 1;
 			break;
 		default:
 			/*

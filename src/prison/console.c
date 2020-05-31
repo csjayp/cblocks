@@ -308,7 +308,6 @@ console_main(int argc, char *argv [], int cltlsock)
 			break;
 		}
 	}
-	signal(SIGPIPE, SIG_IGN);
 	console_connect_console(cltlsock, &cc);
 	return (0);
 }
