@@ -396,26 +396,23 @@ build_run_build_stage(struct build_context *bcp)
         sprintf(builder, "%s/lib/stage_build.sh", gcfg.c_data_dir);
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
-
-                snprintf(stage_root, sizeof(stage_root),
-                    "%s/%d", bcp->build_root, bstg->bs_index);
-                if (mkdir(stage_root, 0755) == -1) {
-                        err(1, "mkdir(%s) stage root", stage_root);
-                }
-                snprintf(stage_root, sizeof(stage_root),
-                    "%s/%d/root", bcp->build_root, bstg->bs_index);
-                if (mkdir(stage_root, 0755) == -1) {
-                        err(1, "mkdir(%s) stage root mount failed", stage_root);
-                }
-                build_emit_shell_script(bcp, bstg->bs_index);
-                r = build_init_stage(bcp, bstg);
-                if (r != 0) {
-                        print_bold_prefix(bcp->peer_sock_fp);
-                        printf("Stage failed with %d code. Exiting", r);
-                        break;
-                }
-
-
+		snprintf(stage_root, sizeof(stage_root),
+		    "%s/%d", bcp->build_root, bstg->bs_index);
+		if (mkdir(stage_root, 0755) == -1) {
+			err(1, "mkdir(%s) stage root", stage_root);
+		}
+		snprintf(stage_root, sizeof(stage_root),
+		    "%s/%d/root", bcp->build_root, bstg->bs_index);
+		if (mkdir(stage_root, 0755) == -1) {
+			err(1, "mkdir(%s) stage root mount failed", stage_root);
+		}
+		build_emit_shell_script(bcp, bstg->bs_index);
+		r = build_init_stage(bcp, bstg);
+		if (r != 0) {
+			print_bold_prefix(bcp->peer_sock_fp);
+			printf("Stage failed with %d code. Exiting", r);
+			break;
+		}
 		print_bold_prefix(bcp->peer_sock_fp);
 		fprintf(bcp->peer_sock_fp,
 		    "Executing stage (%d/%d)\n", k + 1, bcp->pbc.p_nstages);
@@ -468,41 +465,6 @@ build_run_build_stage(struct build_context *bcp)
 		fflush(bcp->peer_sock_fp);
 	}
 	return (status);
-}
-
-static int
-build_run_init_stages(struct build_context *bcp)
-{
-#if 0
-	char stage_root[MAXPATHLEN];
-	struct build_stage *bstg;
-	int k, r;
-
-	snprintf(bcp->build_root, sizeof(bcp->build_root),
-	    "%s/instances/%s", gcfg.c_data_dir, bcp->instance);
-	for (k = 0; k < bcp->pbc.p_nstages; k++) {
-		bstg = &bcp->stages[k];
-		snprintf(stage_root, sizeof(stage_root),
-		    "%s/%d", bcp->build_root, bstg->bs_index);
-		if (mkdir(stage_root, 0755) == -1) {
-			err(1, "mkdir(%s) failed", stage_root);
-		}
-		snprintf(stage_root, sizeof(stage_root),
-		    "%s/%d/root", bcp->build_root, bstg->bs_index);
-		if (mkdir(stage_root, 0755) == -1) {
-			err(1, "mkdir(%s) failed", stage_root);
-		}
-		build_emit_shell_script(bcp, bstg->bs_index);
-		r = build_init_stage(bcp, bstg);
-		if (r != 0) {
-			print_bold_prefix(bcp->peer_sock_fp);
-			printf("Stage failed with %d code. Exiting", r);
-			break;
-		}
-	}
-	return (r);
-#endif
-	return (0);
 }
 
 static int
@@ -620,11 +582,6 @@ dispatch_build_recieve(int sock)
 	fprintf(bctx.peer_sock_fp,
 	    "Bootstrapping build stages : (1-%d)\n", bctx.pbc.p_nstages); 
 	fflush(bctx.peer_sock_fp);
-	if (build_run_init_stages(&bctx) != 0) {
-		resp.p_ecode = 1;
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
-		return (1);
-	}
         if (build_run_build_stage(&bctx) != 0) {
                 return (-1);
         }

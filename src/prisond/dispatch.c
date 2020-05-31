@@ -66,23 +66,6 @@ static int reap_children;
 pthread_mutex_t peer_mutex;
 pthread_mutex_t prison_mutex;
 
-#if 0
-static void
-tty_set_noecho(int fd)
-{
-	struct termios term;
-
-	if (tcgetattr(fd, &term) == -1) {
-		err(1, "tcgetattr: failed");
-	}
-	term.c_lflag &= ~(ECHO | ECHOE | ECHOK | ECHONL);
-	term.c_oflag &= ~(ONLCR);
-	if (tcsetattr(fd, TCSANOW, &term) == -1) {
-		err(1, "tcsetattr: failed");
-	}
-}
-#endif
-
 int
 prison_create_pid_file(struct prison_instance *p)
 {
