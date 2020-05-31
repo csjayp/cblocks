@@ -388,7 +388,7 @@ build_run_build_stage(struct build_context *bcp)
 	char stage_root[MAXPATHLEN], **argv, builder[1024];
 	struct build_stage *bstg;
 	vec_t *vec, *vec_env;
-	int status, k, r;
+	int status, k;
 	pid_t pid;
 
 	(void) snprintf(bcp->build_root, sizeof(bcp->build_root),
@@ -407,10 +407,14 @@ build_run_build_stage(struct build_context *bcp)
 			err(1, "mkdir(%s) stage root mount failed", stage_root);
 		}
 		build_emit_shell_script(bcp, bstg->bs_index);
-		r = build_init_stage(bcp, bstg);
-		if (r != 0) {
+		status = build_init_stage(bcp, bstg);
+		if (status != 0) {
 			print_bold_prefix(bcp->peer_sock_fp);
-			printf("Stage failed with %d code. Exiting", r);
+			fprintf(bcp->peer_sock_fp,
+			    "Stage index %d failed with %d code. Exiting\n",
+                            bstg->bs_index,
+			    WEXITSTATUS(status));
+			fflush(bcp->peer_sock_fp);
 			break;
 		}
 		print_bold_prefix(bcp->peer_sock_fp);
@@ -456,13 +460,9 @@ build_run_build_stage(struct build_context *bcp)
 		}
 		waitpid_ignore_intr(pid, &status);
 	}
-	bstg = &bcp->stages[k - 1];
-	bstg->bs_is_last = 1;
-	if (status != 0) {
-		print_bold_prefix(bcp->peer_sock_fp);
-		fprintf(bcp->peer_sock_fp,
-		    "Stage build failed: %d code\n", WEXITSTATUS(status));
-		fflush(bcp->peer_sock_fp);
+	if (status == 0) {
+		bstg = &bcp->stages[k - 1];
+		bstg->bs_is_last = 1;
 	}
 	return (status);
 }

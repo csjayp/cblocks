@@ -57,6 +57,7 @@ static char *data_sub_dirs[] = {
 	"locks",
 	"images",
 	"instances",
+	"unions",
 	NULL,
 };
 
@@ -71,6 +72,7 @@ static struct option long_options[] = {
 	{ "help",		no_argument, 0, 'h' },
 	{ "ufs",		no_argument, 0, 'u' },
 	{ "zfs",		no_argument, 0, 'z' },
+	{ "fuse-unionfs",	no_argument, 0, 'N' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -88,6 +90,7 @@ usage(void)
 	    " -d, --data-directory        Where the prisond data/spools/images are stored\n"
 	    " -u, --ufs                   UFS as the underlying file system\n"
 	    " -z, --zfs                   ZFS as the underlying file system\n"
+	    " -N, --fuse-unionfs          FUSE unionfs as the underlying file system\n"
 	);
 	exit(1);
 }
@@ -132,7 +135,7 @@ main(int argc, char *argv [], char *env[])
 	gcfg.c_tty_buf_size = 5 * 4096;
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "d:T:46U:s:p:huz", long_options,
+		c = getopt_long(argc, argv, "d:T:46U:s:p:huzN", long_options,
 		    &option_index);
 		if (c == -1) {
 			break;
@@ -167,6 +170,9 @@ main(int argc, char *argv [], char *env[])
 		case 'z':
 			gcfg.c_underlying_fs = "zfs";
 			break;
+		case 'N':
+			gcfg.c_underlying_fs = "fuse-unionfs";
+			break;
 		default:
 			usage();
 			/* NOT REACHED */
@@ -176,7 +182,10 @@ main(int argc, char *argv [], char *env[])
 		errx(1, "-4, -6 and --unix-sock are incompatable");
 	}
 	if (gcfg.c_underlying_fs == NULL) {
-		errx(1, "must specify either --ufs or --zfs");
+		errx(1, "must specify underlying file system:\n"
+		    "    --ufs\n"
+		    "    --fuse-unionfs\n"
+                    "    --zfs");
 	}
 	initialize_data_directory();
 	signal(SIGPIPE, SIG_IGN);

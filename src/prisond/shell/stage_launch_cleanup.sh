@@ -35,6 +35,10 @@ cleanup()
         for d in $stage_list; do
             umount "${d}/root/dev"
             case $CBLOCK_FS in
+            fuse-unionfs)
+                umount -f "${d}/root"
+                rm -fr "${data_root}/unions/${instance}/*"
+                ;;
             ufs)
                 umount -f "${d}/root"
                 ;;
