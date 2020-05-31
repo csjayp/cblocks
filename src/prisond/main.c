@@ -175,6 +175,9 @@ main(int argc, char *argv [], char *env[])
 	if (gcfg.c_family != PF_UNSPEC && gcfg.c_name) {
 		errx(1, "-4, -6 and --unix-sock are incompatable");
 	}
+	if (gcfg.c_underlying_fs == NULL) {
+		errx(1, "must specify either --ufs or --zfs");
+	}
 	initialize_data_directory();
 	signal(SIGPIPE, SIG_IGN);
 	if (gcfg.c_name) {
