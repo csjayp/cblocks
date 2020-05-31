@@ -1,8 +1,5 @@
 #!/bin/sh
 #
-#set -e 
-set -x
-
 data_root="$1"
 image_name="$2"
 instance_id="$3"

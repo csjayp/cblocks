@@ -709,6 +709,9 @@ dispatch_launch_prison(int sock)
 	vec_finalize(env_vec);
 	sprintf(buf, "%s/lib/stage_launch.sh", gcfg.c_data_dir);
 	vec_append(cmd_vec, "/bin/sh");
+	if (pl.p_verbose > 0) {
+		vec_append(cmd_vec, "-x");
+	}
 	vec_append(cmd_vec, buf);
 	vec_append(cmd_vec, gcfg.c_data_dir);
 	vec_append(cmd_vec, pl.p_name);

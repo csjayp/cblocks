@@ -51,6 +51,7 @@ struct launch_config {
 	char		*l_volumes;
 	char		*l_network;
 	int		 l_attach;
+	int		 l_verbose;
 };
 
 static struct option launch_options[] = {
@@ -63,6 +64,7 @@ static struct option launch_options[] = {
 	{ "tmpfs",		no_argument, 0, 'T' },
 	{ "help",		no_argument, 0, 'h' },
 	{ "no-attach",		no_argument, 0, 'A' },
+	{ "verbose",		no_argument, 0, 'v' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -79,6 +81,7 @@ launch_usage(void)
 	    " -T, --tmpfs                Mount in-memory ephemeral tmpfs\n"
 	    " -p, --procfs               Mount process file system\n"
 	    " -A, --no-attach            Do not attach to container console\n"
+	    " -v, --verbose              Launch container with verbosity enabled\n"
 	);
 	exit(1);
 }
@@ -111,6 +114,7 @@ launch_container(int sock, struct launch_config *lcp)
 		vec_free(lcp->l_vec);
 	}
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
+	pl.p_verbose = lcp->l_verbose;
 	strlcpy(pl.p_name, lcp->l_name, sizeof(pl.p_name));
 	strlcpy(pl.p_term, term, sizeof(pl.p_term));
 	strlcpy(pl.p_volumes, lcp->l_volumes, sizeof(pl.p_volumes));
@@ -146,6 +150,7 @@ launch_main(int argc, char *argv [], int ctlsock)
 	sbuf_cat(sb, ",");
 	lc.l_network = strdup("default");
 	lc.l_attach = 1;
+	lc.l_verbose = 0;
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
@@ -155,6 +160,9 @@ launch_main(int argc, char *argv [], int ctlsock)
 			break;
 		}
 		switch (c) {
+		case 'v':
+			lc.l_verbose = 1;
+			break;
 		case 'A':
 			lc.l_attach = 0;
 			break;
