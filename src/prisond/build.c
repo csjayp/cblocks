@@ -257,7 +257,7 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 	dup2(bcp->peer_sock, STDERR_FILENO);
 
 	vec_env = vec_init(16);
-	vec_append(vec_env, "PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin");
+	vec_append(vec_env, DEFAULT_PATH);
 	char buf[128];
 	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
 	vec_append(vec_env, buf);
@@ -436,7 +436,7 @@ build_run_build_stage(struct build_context *bcp)
 			vec_env = vec_init(8);
 			vec_append(vec_env, buf);
 			vec_append(vec_env, "USER=root");
-			vec_append(vec_env, "PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin");
+			vec_append(vec_env, DEFAULT_PATH);
 			vec_append(vec_env, "TERM=xterm");
 			vec_append(vec_env, "BLOCKSIZE=K");
 			vec_append(vec_env, "SHELL=/bin/sh");
