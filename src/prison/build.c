@@ -151,10 +151,7 @@ build_send_stages(int sock, struct build_config *bcp)
 static int
 build_send_context(int sock, struct build_config *bcp)
 {
-	struct prison_console_connect pcc;
-	char prison_instance[512];
 	struct prison_build_context pbc;
-	struct prison_response resp;
 	struct stat sb;
 	char *term;
 	u_int cmd;
@@ -200,15 +197,7 @@ build_send_context(int sock, struct build_config *bcp)
 	if (unlink(bcp->b_context_path) == -1) {
 		err(1, "failed to cleanup build context");
 	}
-
 	sock_ipc_from_sock_to_tty(sock);
-#if 0
-	sock_ipc_must_read(sock, &resp, sizeof(resp));
-        snprintf(prison_instance, sizeof(prison_instance), "%s", resp.p_errbuf);
-	if (resp.p_ecode != 0) {
-		errx(1, "failed to transfer build context");
-	}
-#endif
 	return (0);
 }
 
