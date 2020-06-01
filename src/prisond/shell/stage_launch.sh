@@ -10,12 +10,15 @@ devfs_mount="${data_root}/instances/${instance_id}/root/dev"
 
 network_is_bridge()
 {
-    b=`ifconfig "$network" | grep groups | awk '{ print $2 }'`
-    if [ "$b" = "bridge" ]; then
-        echo TRUE
-    else
-        echo FALSE
-    fi
+    for netif in `ifconfig -l`; do
+        if [ "$netif" = "$network" ]; then
+            b=`ifconfig "$network" | grep groups | awk '{ print $2 }'`
+            if [ "$b" = "bridge" ]; then
+                echo TRUE
+            fi
+        fi
+    done
+    echo FALSE
 }
 
 get_jail_interface()
@@ -106,6 +109,13 @@ config_devfs()
     devfs -m ${devfs_mount} rule applyset
     devfs -m ${devfs_mount} ruleset 2 
     devfs -m ${devfs_mount} rule applyset
+    case $CBLOCK_FS in
+    zfs)
+        # Expose /dev/zfs for snapshotting et al
+        devfs -m ${devfs_mount} ruleset 4
+        devfs -m ${devfs_mount} rule applyset
+        ;;
+    esac
     V=`devfs rule showsets | grep "^5000"`
     if [ ! "$V" ]; then
         devfs -m ${devfs_mount} ruleset 5000
@@ -165,7 +175,6 @@ do_launch()
     ip4=`get_default_ip`
     instance_cmd=`emit_entrypoint`
     instance_hostname=`printf "%10.10s" ${instance_id}`
-    echo "booya network $network"
     is_bridge=`network_is_bridge`
     if [ "$is_bridge" = "TRUE" ]; then
        netif=`get_jail_interface`
