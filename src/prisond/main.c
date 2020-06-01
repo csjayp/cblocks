@@ -79,6 +79,7 @@ static struct option long_options[] = {
 static void
 usage(void)
 {
+
 	(void) fprintf(stderr,
 	    "Options\n"
 	    " -4, --ipv4                  IPv4 sockets only\n"
@@ -122,10 +123,9 @@ initialize_data_directory(void)
 int
 main(int argc, char *argv [], char *env[])
 {
-	int option_index;
+	int option_index, c;
 	pthread_t thr;
 	char *r;
-	int c;
 
 	gcfg.c_data_dir = DEFAULT_DATA_DIR;
 	gcfg.global_env = env;

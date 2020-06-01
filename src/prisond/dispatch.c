@@ -111,8 +111,8 @@ prison_instance_get_count(void)
 struct instance_ent *
 prison_populate_instance_entries(size_t max_ents)
 {
-	struct prison_instance *p;
 	struct instance_ent *vec, *cur;
+	struct prison_instance *p;
 	int counter;
 
 	vec = calloc(max_ents, sizeof(*vec));
@@ -166,8 +166,8 @@ void
 prison_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
 {
         char buf[128], **argv;
-        int status, ret;
         vec_t *vec, *vec_env;
+        int status, ret;
 
         pid_t pid = fork();
         if (pid == -1) {
@@ -494,8 +494,8 @@ dispatch_connect_console(int sock)
 	struct prison_console_connect pcc;
 	struct prison_response resp;
 	struct prison_instance *pi;
+	char *tty_block, *trimmed;
 	ssize_t tty_buflen;
-	char *tty_block;
 	uint32_t cmd;
 	size_t len;
 	int ttyfd;
@@ -527,8 +527,6 @@ dispatch_connect_console(int sock)
 	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	if (tty_block) {
-		char *trimmed;
-
 		cmd = PRISON_IPC_CONSOLE_TO_CLIENT;
 		sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 		trimmed = trim_tty_buffer(tty_block, tty_buflen, &len);
@@ -542,100 +540,8 @@ dispatch_connect_console(int sock)
 	if (ioctl(ttyfd, TIOCSWINSZ, &pcc.p_winsize) == -1) {
 		err(1, "ioctl(TIOCSWINSZ): failed");
 	}
-	/*
-	 * If this console connection is the result of a container build, the
-	 * build process will be blocked waiting for the console connection.
-	 * write a single byte to the pipe to trigger the execution.
-	 *
-	 * NB: instead of checking the file descriptor, we should be using a
-	 * flag
-	 */
-	if (pi->p_pipe[1] != 0) {
-		char b;
-		write(pi->p_pipe[1], &b, 1);
-	}
 	tty_console_session(pcc.p_instance, sock, ttyfd);
 	prison_detach_console(pcc.p_instance);
-	return (1);
-}
-
-struct prison_instance *
-prison_create(const char *name, char *term, int (*prison_callback)(void *, struct prison_instance *),
-    void *arg)
-{
-	struct prison_instance *pi;
-	ssize_t cc;
-	int ret;
-	char b;
-
-	pi = calloc(1, sizeof(*pi));
-	if (pi == NULL) {
-		return (NULL);
-	}
-	pi->p_type = PRISON_TYPE_BUILD;
-	if (pipe(pi->p_pipe) == -1) {
-		warn("pipe failed");
-		return (NULL);
-	}
-	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
-	if (pi->p_pid == 0) {
-		close(pi->p_pipe[1]);
-		while (1) {
-			cc = read(pi->p_pipe[0], &b, 1);
-			if (cc == -1 && errno == EINTR)
-				continue;
-			if (cc == -1)
-				err(1, "%s: read failed", __func__);
-			break;
-			assert(cc == 1);
-		}
-		if (setenv("TERM", term, 1) != 0) {
-			err(1, "setenv failed");
-		}
-		ret = (prison_callback)(arg, pi);
-		_exit(ret);
-	}
-	prison_create_pid_file(pi);
-	close(pi->p_pipe[0]);
-	TAILQ_INIT(&pi->p_ttybuf.t_head);
-	pi->p_ttybuf.t_tot_len = 0;
-	return (pi);
-}
-
-int
-dispatch_build_launch(int sock)
-{
-	struct prison_build_context pbc;
-	struct prison_response resp;
-	struct prison_instance *pi;
-	struct build_context *bcp;
-	char prison_name[32];
-	ssize_t cc;
-
-	cc = sock_ipc_must_read(sock, &pbc, sizeof(pbc));
-	bcp = build_lookup_queued_context(&pbc);
-	if (bcp == NULL) {
-		resp.p_ecode = ENOENT;
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
-		return (-1);
-	}
-	snprintf(prison_name, sizeof(prison_name), "%s:%s",
-	    pbc.p_image_name, pbc.p_tag);
-	pi = prison_create(prison_name, pbc.p_term, do_build_launch, bcp);
-	if (pi == NULL) {
-		resp.p_ecode = -1;
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
-		return (-1);
-	}
-	pi->p_instance_tag = bcp->instance;
-	strlcpy(pi->p_image_name, pbc.p_image_name, sizeof(pi->p_image_name));
-	pi->p_launch_time = time(NULL);
-	pthread_mutex_lock(&prison_mutex);
-	TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
-	pthread_mutex_unlock(&prison_mutex);
-	resp.p_ecode = 0;
-	resp.p_errbuf[0] = '\0';
-	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	return (1);
 }
 
@@ -655,9 +561,9 @@ gen_sha256_instance_id(char *instance_name)
 {
 	u_char hash[SHA256_DIGEST_LENGTH];
 	char inbuf[128], *ret;
+	SHA256_CTX sha256;
 	char outbuf[128+1];
 	char buf[32];
-	SHA256_CTX sha256;
 
 	bzero(inbuf, sizeof(inbuf));
 	arc4random_buf(inbuf, sizeof(inbuf) - 1);
@@ -675,12 +581,12 @@ int
 dispatch_launch_prison(int sock)
 {
 	extern struct global_params gcfg;
+	char **env, **argv, buf[128];
 	struct prison_response resp;
 	struct prison_instance *pi;
-	char **env, **argv, buf[128];
+	vec_t *cmd_vec, *env_vec;
 	struct prison_launch pl;
 	ssize_t cc;
-	vec_t *cmd_vec, *env_vec;
 
 	cc = sock_ipc_must_read(sock, &pl, sizeof(pl));
 	if (cc == 0) {
@@ -772,9 +678,6 @@ dispatch_work(void *arg)
 			break;
 		case PRISON_IPC_GET_INSTANCES:
 			cc = dispatch_get_instances(p->p_sock);
-			break;
-		case PRISON_IPC_LAUNCH_BUILD:
-			cc = dispatch_build_launch(p->p_sock);
 			break;
 		case PRISON_IPC_SEND_BUILD_CTX:
 			cc = dispatch_build_recieve(p->p_sock);

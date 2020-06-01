@@ -56,6 +56,41 @@
 
 TAILQ_HEAD( , build_context) bc_head;
 
+struct copy_from_msg {
+	int		stage;
+	char		reqpath[MAXPATHLEN];
+};
+
+struct copy_from_dispatcher {
+	char	*instance;
+	int	sock;
+};
+
+void *
+build_dispatch_copy_from(void *arg)
+{
+	struct copy_from_dispatcher *cf;
+	struct copy_from_msg cp_msg;
+	ssize_t cc;
+
+	cf = (struct copy_from_dispatcher *) arg;
+	while (1) {
+		bzero(&cp_msg, sizeof(cp_msg));
+		cc = read(cf->sock, &cp_msg, sizeof(cp_msg));
+		switch (cc) {
+		case -1:
+			if (errno == EINTR) {
+				continue;
+			}
+			err(1, "read failed");
+			break;
+		case 0:
+			break;
+		}
+	}
+	return (NULL);
+}
+
 pid_t
 waitpid_ignore_intr(pid_t pid, int *status)
 {
@@ -294,7 +329,7 @@ static int
 build_commit_image(struct build_context *bcp)
 {
 	char commit_cmd[128], **argv, s_index[32], nstages[32];
-	char path[1024], *do_fim;
+	char path[1024], *do_fim, buf[64];
 	struct build_stage *bsp;
 	int status, k, last;
 	FILE *fp;
@@ -353,8 +388,7 @@ build_commit_image(struct build_context *bcp)
 	snprintf(s_index, sizeof(s_index), "%d", last);
 	do_fim = "OFF";
 	vec_env = vec_init(16);
-        char buf[128];
-        sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
+	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
 	vec_append(vec_env, buf);
 	vec_finalize(vec_env);
 
@@ -520,7 +554,6 @@ dispatch_build_recieve(int sock)
 	int fd;
 
 	bzero(&bctx, sizeof(bctx));
-	printf("executing build recieve\n");
 	cc = sock_ipc_must_read(sock, &bctx.pbc, sizeof(bctx.pbc));
 	if (cc == 0) {
 		printf("didn't get proper build context headers\n");
@@ -549,7 +582,6 @@ dispatch_build_recieve(int sock)
 	}
 	sock_ipc_must_read(sock, bctx.stages,
 	    bctx.pbc.p_nstages * sizeof(*bctx.stages));
-	printf("read stages\n");
 	sock_ipc_must_read(sock, bctx.steps,
 	    bctx.pbc.p_nsteps * sizeof(*bctx.steps));
 	bctx.instance = gen_sha256_instance_id(bctx.pbc.p_image_name);
