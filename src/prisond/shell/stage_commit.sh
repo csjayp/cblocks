@@ -32,7 +32,8 @@ commit_image()
         src="${build_root}/${build_index}"
     fi
     if [ "${fim_spec_mode}" = "ON" ]; then
-        echo "-- Generating cryptographic checksums for container image files"
+        printf "\033[1m--\033[0m %s\n" \
+          "Generating cryptographic checksums for container image files"
         cd "${src}"
         mtree -c -K sha256 -p . > FIM.spec
     fi

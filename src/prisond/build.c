@@ -146,7 +146,7 @@ build_emit_add_instruction(struct build_step *bsp, FILE *fp)
 		    sap->sa_dest, sap->sa_source);
 		break;
 	case ADD_TYPE_URL:
-		fprintf(fp, "fetch -o %s %s\n", sap->sa_dest, sap->sa_source);
+		fprintf(fp, "fetch -q -o %s %s\n", sap->sa_dest, sap->sa_source);
 		break;
 	default:
 		warnx("invalid ADD operand %d", sap->sa_op);

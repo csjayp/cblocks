@@ -31,7 +31,6 @@ cleanup()
     build)
         rm -fr "${data_root}/instances/${instance}/images"
         stage_list=`echo ${data_root}/instances/${instance}/[0-9]*`
-        echo "Removing stages"
         for d in $stage_list; do
             umount "${d}/root/dev"
             case $CBLOCK_FS in

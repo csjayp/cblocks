@@ -109,6 +109,8 @@ config_devfs()
     devfs -m ${devfs_mount} rule applyset
     devfs -m ${devfs_mount} ruleset 2 
     devfs -m ${devfs_mount} rule applyset
+    devfs -m ${devfs_mount} ruleset 3
+    devfs -m ${devfs_mount} rule applyset
     case $CBLOCK_FS in
     zfs)
         # Expose /dev/zfs for snapshotting et al
@@ -155,7 +157,7 @@ do_launch()
 {
     if [ ! -d "${data_root}/images/${image_name}" ]; then
         if [ -f "${data_root}/images/${image_name}.tar.zst" ]; then
-            echo "Extracting image"
+            printf "\033[1m--\033[0m %s\n" "Image located. Extracting"
             mkdir "${data_root}/images/${image_name}"
             tar -C "${data_root}/images/${image_name}" -zxf \
               "${data_root}/images/${image_name}.tar.zst"
@@ -169,9 +171,9 @@ do_launch()
     mount -t unionfs -o noatime -o below \
       "${data_root}/images/${image_name}/root" \
       "${instance_root}" 
-    eval `emit_mount_specification $mount_spec`
     mount -t devfs devfs "${instance_root}/dev"
     config_devfs
+    eval `emit_mount_specification $mount_spec`
     ip4=`get_default_ip`
     instance_cmd=`emit_entrypoint`
     instance_hostname=`printf "%10.10s" ${instance_id}`

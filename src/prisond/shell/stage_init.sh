@@ -39,7 +39,6 @@ bind_devfs()
 prepare_file_system()
 {
     base_root="${data_dir}/images/${base_container}"
-    # echo "Checking for the presence of base image ${base_container}"
     if [ ! -d "${base_root}" ]; then
         #
         # Check to see if we have an ephemeral build stage
@@ -59,7 +58,7 @@ prepare_file_system()
             tar -C "${data_dir}/images/${base_container}" -zxf \
                 "${data_dir}/images/${base_container}.tar.zst"
         else
-            echo "Ephemeral image found from previous stage"
+            printf "\033[1m--\033[0m %s\n" "Ephemeral image found from previous stage"
             case $CBLOCK_FS in
             ufs|fuse-unionfs)
                 base_root="${build_root}/images/${base_container}"
@@ -87,7 +86,6 @@ prepare_file_system()
             # NB: Do we need to unmount the active union before mounting
             # it as the base image for the subsquent stage?
             perms="RW"
-            echo "base image is a link/intermediate build from another stage"
         fi
         unionfs \
           -o noauto_cache \
