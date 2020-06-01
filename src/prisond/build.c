@@ -56,6 +56,58 @@
 
 TAILQ_HEAD( , build_context) bc_head;
 
+struct copy_from_msg {
+	int		stage;
+	char		reqpath[MAXPATHLEN];
+};
+
+struct copy_from_dispatcher {
+	char	*instance;
+	int	sock;
+};
+
+void *
+build_dispatch_copy_from(void *arg)
+{
+	struct copy_from_dispatcher *cf;
+	struct copy_from_msg cp_msg;
+	ssize_t cc;
+
+	cf = (struct copy_from_dispatcher *) arg;
+	while (1) {
+		bzero(&cp_msg, sizeof(cp_msg));
+		cc = read(cf->sock, &cp_msg, sizeof(cp_msg));
+		switch (cc) {
+		case -1:
+			if (errno == EINTR) {
+				continue;
+			}
+			err(1, "read failed");
+			break;
+		case 0:
+			break;
+		}
+	}
+	return (NULL);
+}
+
+pid_t
+waitpid_ignore_intr(pid_t pid, int *status)
+{
+	pid_t rpid;
+
+	while (1) {
+		rpid = waitpid(pid, status, 0);
+		if (rpid == -1 && errno == EINTR) {
+			continue;
+		} else if (pid == -1) {
+			err(1, "waitpid failed");
+		}
+		break;
+	}
+	return (rpid);
+}
+
 struct build_context *
 build_lookup_queued_context(struct prison_build_context *pbc)
 {
@@ -71,10 +123,10 @@ build_lookup_queued_context(struct prison_build_context *pbc)
 }
 
 void
-print_bold_prefix(void)
+print_bold_prefix(FILE *fp)
 {
 
-	printf("\033[1m--\033[0m ");
+	fprintf(fp, "\033[1m--\033[0m ");
 }
 
 static int
@@ -138,12 +190,12 @@ build_get_stage_deps(struct build_context *bcp, int stage_index)
 static int
 build_emit_shell_script(struct build_context *bcp, int stage_index)
 {
+	int steps, k, header, taken;
 	char script[MAXPATHLEN];
 	struct build_step *bsp;
-	int steps, k, header, taken;
 	FILE *fp;
 
-	snprintf(script, sizeof(script), "%s.%d.sh",
+	(void) snprintf(script, sizeof(script), "%s.%d.sh",
 	    bcp->build_root, stage_index);
 	fp = fopen(script, "w+");
 	if (fp == NULL) {
@@ -215,7 +267,7 @@ static int
 build_init_stage(struct build_context *bcp, struct build_stage *stage)
 {
 	char script[128], index[16], context_archive[128], **argv;
-	vec_t *vec;
+	vec_t *vec, *vec_env;
 	int status;
 	pid_t pid;
 
@@ -228,68 +280,60 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 	if (pid == -1) {
 		err(1, "fork failed");
 	}
-	if (pid == 0) {
-		vec = vec_init(32);
-		vec_append(vec, "/bin/sh");
-		vec_append(vec, script);
-		vec_append(vec, bcp->build_root);
-		vec_append(vec, index);
-		vec_append(vec, stage->bs_base_container);
-		vec_append(vec, gcfg.c_data_dir);
-		vec_append(vec, context_archive);
-		vec_append(vec, build_get_stage_deps(bcp, stage->bs_index));
-		vec_append(vec, bcp->instance);
-		if (stage->bs_name[0] != '\0') {
-			vec_append(vec, stage->bs_name);
-		}
-		if (vec_finalize(vec) != 0) {
-			errx(1, "failed to construct command line");
-		}
-		argv = vec_return(vec);
-		execve(*argv, argv, NULL);
-		vec_free(vec);
-		err(1, "execv failed");
+	if (pid != 0) {
+		waitpid_ignore_intr(pid, &status);
+		return (status);
 	}
-	while (1) {
-		pid = waitpid(pid, &status, 0);
-		if (pid == -1 && errno == EINTR) {
-			continue;
-		} else if (pid == -1) {
-			err(1, "waitpid failed");
-		}
-		break;
-	}
-	return (status);
-}
+	/*
+	 * Redirect any messages from the build container bootstrap
+	 * processes to the client.
+	 */
+	dup2(bcp->peer_sock, STDOUT_FILENO);
+	dup2(bcp->peer_sock, STDERR_FILENO);
 
-static int
-build_process_wait(pid_t pid)
-{
-	int ret, status;
+	vec_env = vec_init(16);
+	vec_append(vec_env, DEFAULT_PATH);
+	char buf[128];
+	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
+	vec_append(vec_env, buf);
+	vec_finalize(vec_env);
 
-	while (1) {
-		ret = waitpid(pid, &status, 0);
-		if (ret == -1 && errno == EINTR) {
-			continue;
-		}
-		if (ret == -1) {
-			err(1, "waitpid failed(%d)", pid);
-		}
-		break;
+	vec = vec_init(32);
+	vec_append(vec, "/bin/sh");
+	if (bcp->pbc.p_verbose > 0) {
+		vec_append(vec, "-x");
 	}
-	return (status);
+	vec_append(vec, script);
+	vec_append(vec, bcp->build_root);
+	vec_append(vec, index);
+	vec_append(vec, stage->bs_base_container);
+	vec_append(vec, gcfg.c_data_dir);
+	vec_append(vec, context_archive);
+	vec_append(vec, build_get_stage_deps(bcp, stage->bs_index));
+	vec_append(vec, bcp->instance);
+	if (stage->bs_name[0] != '\0') {
+		vec_append(vec, stage->bs_name);
+	}
+	if (vec_finalize(vec) != 0) {
+		errx(1, "failed to construct command line");
+	}
+	argv = vec_return(vec);
+	execve(*argv, argv, vec_return(vec_env));
+	vec_free(vec);
+	err(1, "execv failed");
+	/* NOTREACHED */
+	return (-1);
 }
 
 static int
 build_commit_image(struct build_context *bcp)
 {
 	char commit_cmd[128], **argv, s_index[32], nstages[32];
-	FILE *fp;
+	char path[1024], *do_fim, buf[64];
 	struct build_stage *bsp;
-	char *do_fim;
 	int status, k, last;
-	char path[1024];
-	vec_t *vec;
+	FILE *fp;
+	vec_t *vec, *vec_env;
 	pid_t pid;
 
 	last = -1;
@@ -330,19 +374,29 @@ build_commit_image(struct build_context *bcp)
 		err(1, "%s: fork failed", __func__);
 	}
 	if (pid != 0) {
-		status = build_process_wait(pid);
+		waitpid_ignore_intr(pid, &status);
 		if (status != 0) {
 			warnx("failed to commit image");
 		}
 		return (status);
 	}
+	dup2(bcp->peer_sock, STDOUT_FILENO);
+	dup2(bcp->peer_sock, STDERR_FILENO);
 	snprintf(commit_cmd, sizeof(commit_cmd), "%s/lib/stage_commit.sh",
 	    gcfg.c_data_dir);
 	snprintf(nstages, sizeof(nstages), "%d", bcp->pbc.p_nstages);
 	snprintf(s_index, sizeof(s_index), "%d", last);
 	do_fim = "OFF";
+	vec_env = vec_init(16);
+	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
+	vec_append(vec_env, buf);
+	vec_finalize(vec_env);
+
 	vec = vec_init(16);
 	vec_append(vec, "/bin/sh");
+	if (bcp->pbc.p_verbose > 0) {
+		vec_append(vec, "-x");
+	}
 	vec_append(vec, commit_cmd);
 	vec_append(vec, bcp->build_root);
 	vec_append(vec, s_index);
@@ -356,7 +410,7 @@ build_commit_image(struct build_context *bcp)
 	vec_append(vec, do_fim);
 	vec_finalize(vec);
 	argv = vec_return(vec);
-	execve(*argv, argv, NULL);
+	execve(*argv, argv, vec_return(vec_env));
 	err(1, "execve: image commit failed");
 	/* NOT REACHED */
 	return (1);
@@ -367,15 +421,40 @@ build_run_build_stage(struct build_context *bcp)
 {
 	char stage_root[MAXPATHLEN], **argv, builder[1024];
 	struct build_stage *bstg;
-	int k, status, ret;
-	vec_t *vec;
+	vec_t *vec, *vec_env;
+	int status, k;
 	pid_t pid;
 
+	(void) snprintf(bcp->build_root, sizeof(bcp->build_root),
+	    "%s/instances/%s", gcfg.c_data_dir, bcp->instance);
         sprintf(builder, "%s/lib/stage_build.sh", gcfg.c_data_dir);
 	for (k = 0; k < bcp->pbc.p_nstages; k++) {
 		bstg = &bcp->stages[k];
-		print_bold_prefix();
-		printf("Executing stage (%d/%d)\n", k + 1, bcp->pbc.p_nstages);
+		snprintf(stage_root, sizeof(stage_root),
+		    "%s/%d", bcp->build_root, bstg->bs_index);
+		if (mkdir(stage_root, 0755) == -1) {
+			err(1, "mkdir(%s) stage root", stage_root);
+		}
+		snprintf(stage_root, sizeof(stage_root),
+		    "%s/%d/root", bcp->build_root, bstg->bs_index);
+		if (mkdir(stage_root, 0755) == -1) {
+			err(1, "mkdir(%s) stage root mount failed", stage_root);
+		}
+		build_emit_shell_script(bcp, bstg->bs_index);
+		status = build_init_stage(bcp, bstg);
+		if (status != 0) {
+			print_bold_prefix(bcp->peer_sock_fp);
+			fprintf(bcp->peer_sock_fp,
+			    "Stage index %d failed with %d code. Exiting\n",
+                            bstg->bs_index,
+			    WEXITSTATUS(status));
+			fflush(bcp->peer_sock_fp);
+			break;
+		}
+		print_bold_prefix(bcp->peer_sock_fp);
+		fprintf(bcp->peer_sock_fp,
+		    "Executing stage (%d/%d)\n", k + 1, bcp->pbc.p_nstages);
+		fflush(bcp->peer_sock_fp);
 		snprintf(stage_root, sizeof(stage_root),
 		    "%s/%d/root", bcp->build_root, bstg->bs_index);
 		pid = fork();
@@ -383,67 +462,43 @@ build_run_build_stage(struct build_context *bcp)
 			err(1, "pid failed");
 		}
 		if (pid == 0) {
+			dup2(bcp->peer_sock, STDOUT_FILENO);
+			dup2(bcp->peer_sock, STDERR_FILENO);
+			/*
+			 * We need to setup a functional environment here,
+			 * especially for build containers. PATH is really
+			 * important.
+			 */
+			char buf[128];
+			sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
+			vec_env = vec_init(8);
+			vec_append(vec_env, buf);
+			vec_append(vec_env, "USER=root");
+			vec_append(vec_env, DEFAULT_PATH);
+			vec_append(vec_env, "TERM=xterm");
+			vec_append(vec_env, "BLOCKSIZE=K");
+			vec_append(vec_env, "SHELL=/bin/sh");
+			vec_finalize(vec_env);
+
 			vec = vec_init(32);
 			vec_append(vec, "/bin/sh");
+			if (bcp->pbc.p_verbose > 0) {
+				vec_append(vec, "-x");
+			}
 			vec_append(vec, builder);
 			vec_append(vec, stage_root);
 			vec_finalize(vec);
 			argv = vec_return(vec);
-			execve(*argv, argv, NULL);
+			execve(*argv, argv, vec_return(vec_env));
 			err(1, "execve failed");
 		}
-		while (1) {
-			ret = waitpid(pid, &status, 0);
-			if (ret == pid) {
-				break;
-			}
-			if (ret == -1 && errno == EINTR) {
-				continue;
-			}
-			if (ret == -1) {
-				err(1, "waitpid failed");
-			}
-		}
+		waitpid_ignore_intr(pid, &status);
 	}
-	bstg = &bcp->stages[k - 1];
-	bstg->bs_is_last = 1;
-	if (status != 0) {
-		print_bold_prefix();
-		printf("Stage build failed: %d code\n", WEXITSTATUS(status));
+	if (status == 0) {
+		bstg = &bcp->stages[k - 1];
+		bstg->bs_is_last = 1;
 	}
 	return (status);
-}
-
-static int
-build_run_init_stages(struct build_context *bcp)
-{
-	char stage_root[MAXPATHLEN];
-	struct build_stage *bstg;
-	int k, r;
-
-	snprintf(bcp->build_root, sizeof(bcp->build_root),
-	    "%s/instances/%s", gcfg.c_data_dir, bcp->instance);
-	for (k = 0; k < bcp->pbc.p_nstages; k++) {
-		bstg = &bcp->stages[k];
-		snprintf(stage_root, sizeof(stage_root),
-		    "%s/%d", bcp->build_root, bstg->bs_index);
-		if (mkdir(stage_root, 0755) == -1) {
-			err(1, "mkdir(%s) failed", stage_root);
-		}
-		snprintf(stage_root, sizeof(stage_root),
-		    "%s/%d/root", bcp->build_root, bstg->bs_index);
-		if (mkdir(stage_root, 0755) == -1) {
-			err(1, "mkdir(%s) failed", stage_root);
-		}
-		build_emit_shell_script(bcp, bstg->bs_index);
-		r = build_init_stage(bcp, bstg);
-		if (r != 0) {
-			print_bold_prefix();
-			printf("Stage failed with %d code. Exiting", r);
-			break;
-		}
-	}
-	return (r);
 }
 
 static int
@@ -473,29 +528,6 @@ dispatch_build_set_outfile(struct build_context *bcp,
 	return (fd);
 }
 
-static void
-copy_build_context(struct build_context *from, struct build_context *to)
-{
-	struct build_stage *bstp, *bstp2;
-	struct build_step *bsp, *bsp2;
-	int k;
-
-	*to = *from;
-	to->instance = strdup(from->instance);
-	to->steps = calloc(from->pbc.p_nsteps, sizeof(*bsp));
-	for (k = 0; k < from->pbc.p_nsteps; k++) {
-		bsp = &from->steps[k];
-		bsp2 = &to->steps[k];
-		*bsp2 = *bsp;
-	}
-	to->stages = calloc(from->pbc.p_nstages, sizeof(*bstp));
-	for (k = 0; k < from->pbc.p_nstages; k++) {
-		bstp = &from->stages[k];
-		bstp2 = &to->stages[k];
-		*bstp2 = *bstp;
-	}
-}
-
 int
 do_build_launch(void *arg, struct prison_instance *pi)
 {
@@ -505,7 +537,7 @@ do_build_launch(void *arg, struct prison_instance *pi)
 	if (build_run_build_stage(bcp) != 0) {
 		return (-1);
 	}
-	print_bold_prefix();
+	print_bold_prefix(NULL);
 	printf("Build Stage(s) complete. Writing container image...\n");
 	if (build_commit_image(bcp) != 0) {
 		return (-1);
@@ -516,19 +548,17 @@ do_build_launch(void *arg, struct prison_instance *pi)
 int
 dispatch_build_recieve(int sock)
 {
-	struct build_context bctx, *bctxp;
 	struct prison_response resp;
+	struct build_context bctx;
 	ssize_t cc;
 	int fd;
 
 	bzero(&bctx, sizeof(bctx));
-	printf("executing build recieve\n");
 	cc = sock_ipc_must_read(sock, &bctx.pbc, sizeof(bctx.pbc));
 	if (cc == 0) {
 		printf("didn't get proper build context headers\n");
 		return (0);
 	}
-	printf("got context\n");
 	if (bctx.pbc.p_nstages > MAX_BUILD_STAGES ||
 	    bctx.pbc.p_nsteps > MAX_BUILD_STEPS) {
 		resp.p_ecode = -1;
@@ -552,10 +582,8 @@ dispatch_build_recieve(int sock)
 	}
 	sock_ipc_must_read(sock, bctx.stages,
 	    bctx.pbc.p_nstages * sizeof(*bctx.stages));
-	printf("read stages\n");
 	sock_ipc_must_read(sock, bctx.steps,
 	    bctx.pbc.p_nsteps * sizeof(*bctx.steps));
-	printf("read steps\n");
 	bctx.instance = gen_sha256_instance_id(bctx.pbc.p_image_name);
 	fd = dispatch_build_set_outfile(&bctx, resp.p_errbuf,
 	    sizeof(resp.p_errbuf));
@@ -567,27 +595,43 @@ dispatch_build_recieve(int sock)
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
         }
-	printf("got fd %d\n", fd);
-	printf("reading sock from to\n");
 	if (sock_ipc_from_to(sock, fd, bctx.pbc.p_context_size) == -1) {
 		err(1, "sock_ipc_from_to failed");
 	}
-	printf("build_run_init_stages ...\n");
-	if (build_run_init_stages(&bctx) != 0) {
-		resp.p_ecode = 1;
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
-		close(fd);
+	/*
+	 * Copy this socket purely so we can dup it to stdout/stderr. Set this
+	 * to -1 afterwards to explictily discourage anyone from using it,
+	 * closing it etc.. later on the build process.
+	 */
+	close(fd);
+	bctx.peer_sock_fp = fdopen(sock, "w");
+	if (bctx.peer_sock_fp == NULL) {
+		free(bctx.instance);
+		warn("%s: failed to get file handle for sock", __func__);
 		return (1);
 	}
-	bctxp = calloc(1, sizeof(*bctxp));
-	copy_build_context(&bctx, bctxp);
-	TAILQ_INSERT_HEAD(&bc_head, bctxp, bc_glue);
-	close(fd);
+	bctx.peer_sock = sock;
+	print_bold_prefix(bctx.peer_sock_fp);
+	fprintf(bctx.peer_sock_fp,
+	    "Bootstrapping build stages 1 through %d\n", bctx.pbc.p_nstages); 
+	fflush(bctx.peer_sock_fp);
+	if (build_run_build_stage(&bctx) != 0) {
+		free(bctx.instance);
+		return (-1);
+	}
+	print_bold_prefix(bctx.peer_sock_fp);
+	fprintf(bctx.peer_sock_fp,
+	    "Build Stage(s) complete. Writing container image...\n");
+	fflush(bctx.peer_sock_fp);
+	if (build_commit_image(&bctx) != 0) {
+		free(bctx.instance);
+		return (-1);
+	}
+	print_bold_prefix(bctx.peer_sock_fp);
+	fprintf(bctx.peer_sock_fp,
+	    "Cleaning up ephemeral images and build artifacts\n");
+	fflush(bctx.peer_sock_fp);
+	prison_fork_cleanup(bctx.instance, "build", sock, bctx.pbc.p_verbose);
 	free(bctx.instance);
-	bzero(&resp, sizeof(resp));
-	resp.p_ecode = 0;
-	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
-	    "%s", bctxp->instance);
-	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	return (1);
 }

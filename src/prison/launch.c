@@ -50,6 +50,8 @@ struct launch_config {
 	vec_t		*l_vec;
 	char		*l_volumes;
 	char		*l_network;
+	int		 l_attach;
+	int		 l_verbose;
 };
 
 static struct option launch_options[] = {
@@ -61,6 +63,8 @@ static struct option launch_options[] = {
 	{ "procfs",		no_argument, 0, 'p' },
 	{ "tmpfs",		no_argument, 0, 'T' },
 	{ "help",		no_argument, 0, 'h' },
+	{ "no-attach",		no_argument, 0, 'A' },
+	{ "verbose",		no_argument, 0, 'v' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -68,14 +72,17 @@ static void
 launch_usage(void)
 {
 	(void) fprintf(stderr,
-	    " -h, --help                  Print help\n"
-	    " -n, --name=NAME             Name of container image to launch\n"
-	    " -t, --terminal=TERM         Terminal type to use (TERM)\n"
-	    " -N, --network=NETWORK       Attach container to specified network\n"
-	    " -V, --volume=VOLUMESPEC     Mount volume into the container\n"
-	    " -F, --fdescfs               Mount file-descriptor file system\n"
-	    " -T, --tmpfs                 Mount in-memory ephemeral tmpfs\n"
-	    " -p, --procfs                Mount process file system\n");
+	    " -h, --help                 Print help\n"
+	    " -n, --name=NAME            Name of container image to launch\n"
+	    " -t, --terminal=TERM        Terminal type to use (TERM)\n"
+	    " -N, --network=NETWORK      Attach container to specified network\n"
+	    " -V, --volume=VOLUMESPE     Mount volume into the container\n"
+	    " -F, --fdescfs              Mount file-descriptor file system\n"
+	    " -T, --tmpfs                Mount in-memory ephemeral tmpfs\n"
+	    " -p, --procfs               Mount process file system\n"
+	    " -A, --no-attach            Do not attach to container console\n"
+	    " -v, --verbose              Launch container with verbosity enabled\n"
+	);
 	exit(1);
 }
 
@@ -86,6 +93,7 @@ launch_container(int sock, struct launch_config *lcp)
 	struct prison_response resp;
 	char *term, *args;
 	uint32_t cmd;
+	vec_t *vec;
 
 	if (lcp->l_terminal != NULL) {
 		printf("setting term\n");
@@ -106,15 +114,26 @@ launch_container(int sock, struct launch_config *lcp)
 		vec_free(lcp->l_vec);
 	}
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
+	pl.p_verbose = lcp->l_verbose;
 	strlcpy(pl.p_name, lcp->l_name, sizeof(pl.p_name));
 	strlcpy(pl.p_term, term, sizeof(pl.p_term));
 	strlcpy(pl.p_volumes, lcp->l_volumes, sizeof(pl.p_volumes));
 	strlcpy(pl.p_network, lcp->l_network, sizeof(pl.p_network));
 	sock_ipc_must_write(sock, &pl, sizeof(pl));
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
-	if (resp.p_ecode == 0) {
-		printf("cellblock: container launched: instance: %s\n",
-		    resp.p_errbuf);
+	if (resp.p_ecode != 0) {
+		warnx("failed to spawn container");
+		return;
+	}
+	printf("cellblock: container launched: instance: %s\n", resp.p_errbuf);
+	if (lcp->l_attach) {
+		vec = vec_init(16);
+		vec_append(vec, "console");
+		vec_append(vec, "--name");
+		vec_append(vec, resp.p_errbuf);
+		vec_finalize(vec);
+		console_main(vec->vec_used, vec_return(vec), sock);
+		vec_free(vec);
 	}
 }
 
@@ -130,6 +149,8 @@ launch_main(int argc, char *argv [], int ctlsock)
 	sbuf_cat(sb, "devfs");
 	sbuf_cat(sb, ",");
 	lc.l_network = strdup("default");
+	lc.l_attach = 1;
+	lc.l_verbose = 0;
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
@@ -139,6 +160,12 @@ launch_main(int argc, char *argv [], int ctlsock)
 			break;
 		}
 		switch (c) {
+		case 'v':
+			lc.l_verbose = 1;
+			break;
+		case 'A':
+			lc.l_attach = 0;
+			break;
 		case 'T':
 			sbuf_cat(sb, "tmpfs");
 			sbuf_cat(sb, ",");

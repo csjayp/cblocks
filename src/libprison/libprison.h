@@ -101,6 +101,7 @@ struct prison_launch {
 	char					p_entry_point_args[1024];
 	char					p_volumes[2048];
 	char					p_network[256];
+	int					p_verbose;
 };
 
 struct prison_console_connect {
@@ -199,6 +200,8 @@ struct build_context {
 	char					 build_root[MAXPATHLEN];
 	TAILQ_ENTRY(build_context)		bc_glue;
 	char					*instance;
+	int					peer_sock;
+	FILE					*peer_sock_fp;
 };
 
 struct vec {

@@ -1,14 +1,54 @@
 #!/bin/sh
 #
-set -x
-#set -e 
-
 data_root="$1"
 image_name="$2"
 instance_id="$3"
 mount_spec="$4"
-entry_point_args="$5"
+network="$5"
+entry_point_args="$6"
 devfs_mount="${data_root}/instances/${instance_id}/root/dev"
+
+network_is_bridge()
+{
+    for netif in `ifconfig -l`; do
+        if [ "$netif" = "$network" ]; then
+            b=`ifconfig "$network" | grep groups | awk '{ print $2 }'`
+            if [ "$b" = "bridge" ]; then
+                echo TRUE
+            fi
+        fi
+    done
+    echo FALSE
+}
+
+get_jail_interface()
+{
+    bridge=`network_is_bridge`
+    case $bridge in
+    TRUE)
+        epair=`ifconfig epair create`
+        if [ $? -ne 0 ]; then
+            echo "Failed to create epair interface"
+            exit 1
+        fi
+        epair_unit=`echo $epair | sed -E "s/epair([0-9+])a/\1/g"`
+        ifconfig epair${epair_unit}a up && ifconfig epair${epair_unit}b up
+        if [ $? -ne 0 ]; then
+            echo "Failed to bring epair interfaces up"
+            exit 1
+        fi
+        ifconfig $network addm epair${epair_unit}a
+        if [ $? -ne 0 ]; then
+            echo "Failed to add epair interface to bridge $network"
+            exit 1
+        fi
+        echo epair${epair_unit}b
+        ;;
+    *)
+        echo "Only bridges are supported at this time"
+        exit 1
+    esac
+}
 
 emit_mount_specification()
 {   
@@ -65,21 +105,26 @@ emit_mount_specification()
 
 config_devfs()
 {
+    devfs -m ${devfs_mount} ruleset 1
+    devfs -m ${devfs_mount} rule applyset
+    devfs -m ${devfs_mount} ruleset 2 
+    devfs -m ${devfs_mount} rule applyset
+    case $CBLOCK_FS in
+    zfs)
+        # Expose /dev/zfs for snapshotting et al
+        devfs -m ${devfs_mount} ruleset 4
+        devfs -m ${devfs_mount} rule applyset
+        ;;
+    esac
     V=`devfs rule showsets | grep "^5000"`
     if [ ! "$V" ]; then
         devfs -m ${devfs_mount} ruleset 5000
-        devfs rule -s 5000 add hide
-        devfs rule -s 5000 add path null unhide
-        devfs rule -s 5000 add path zero unhide
-        devfs rule -s 5000 add path random unhide
-        devfs rule -s 5000 add path urandom unhide
-        devfs rule -s 5000 add path stdin unhide
-        devfs rule -s 5000 add path stdout unhide
-        devfs rule -s 5000 add path stderr unhide
+        devfs rule -s 5000 add path 'bpf*' unhide
+    fi
+    bridge=`network_is_bridge`
+    if [ "$bridge" = "TRUE" ]; then
+        devfs -m ${devfs_mount} ruleset 5000
         devfs -m ${devfs_mount} rule applyset
-    else
-       devfs -m ${devfs_mount} ruleset 5000
-       devfs -m ${devfs_mount} rule applyset
     fi
 }
 
@@ -130,13 +175,26 @@ do_launch()
     ip4=`get_default_ip`
     instance_cmd=`emit_entrypoint`
     instance_hostname=`printf "%10.10s" ${instance_id}`
-    jail -c \
-      "host.hostname=${instance_hostname}" \
-      "ip4.addr=${ip4}" \
-      "name=${instance_id}" \
-      "osrelease=12.1-RELEASE" \
-      "path=${instance_root}" \
-      command=${instance_cmd}
+    is_bridge=`network_is_bridge`
+    if [ "$is_bridge" = "TRUE" ]; then
+       netif=`get_jail_interface`
+       jail -c \
+          "host.hostname=${instance_hostname}" \
+          "vnet" \
+          "vnet.interface=$netif" \
+          "name=${instance_id}" \
+          "osrelease=12.1-RELEASE" \
+          "path=${instance_root}" \
+          command=${instance_cmd}
+    else
+        jail -c \
+          "host.hostname=${instance_hostname}" \
+          "ip4.addr=${ip4}" \
+          "name=${instance_id}" \
+          "osrelease=12.1-RELEASE" \
+          "path=${instance_root}" \
+          command=${instance_cmd}
+    fi
 }
 
 do_launch
