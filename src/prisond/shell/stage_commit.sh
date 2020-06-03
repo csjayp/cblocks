@@ -39,6 +39,7 @@ commit_image()
     fi
     lockf -k "${data_dir}/images/${image_name}.tar.zst" \
       tar -C "${src}" --exclude="/tmp" \
+      --no-xattrs \
       --zstd \
       --exclude="/dev" \
       -cf "${data_dir}/images/${image_name}.tar.zst" .

@@ -52,7 +52,16 @@ cleanup()
         esac
         ;;
     regular)
-        umount_reverse_order
+        case $CBLOCK_FS in
+        zfs)
+            umount "${data_root}/instances/${instance}/root/dev"
+            build_root_vol=`path_to_vol "${data_root}/instances/${instance}"`
+            zfs destroy -r "${build_root_vol}"
+            ;;
+        ufs)
+            umount_reverse_order
+            ;;
+        esac
         ;;
     esac
 }

@@ -73,6 +73,7 @@ static struct option long_options[] = {
 	{ "ufs",		no_argument, 0, 'u' },
 	{ "zfs",		no_argument, 0, 'z' },
 	{ "fuse-unionfs",	no_argument, 0, 'N' },
+	{ "verbose",		no_argument, 0, 'v' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -92,6 +93,7 @@ usage(void)
 	    " -u, --ufs                   UFS as the underlying file system\n"
 	    " -z, --zfs                   ZFS as the underlying file system\n"
 	    " -N, --fuse-unionfs          FUSE unionfs as the underlying file system\n"
+	    " -v, --verbose               Increase verbosiry\n"
 	);
 	exit(1);
 }
@@ -135,7 +137,7 @@ main(int argc, char *argv [], char *env[])
 	gcfg.c_tty_buf_size = 5 * 4096;
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "d:T:46U:s:p:huzN", long_options,
+		c = getopt_long(argc, argv, "d:T:46U:s:p:huzNv", long_options,
 		    &option_index);
 		if (c == -1) {
 			break;
@@ -172,6 +174,9 @@ main(int argc, char *argv [], char *env[])
 			break;
 		case 'N':
 			gcfg.c_underlying_fs = "fuse-unionfs";
+			break;
+		case 'v':
+			gcfg.c_verbose++;
 			break;
 		default:
 			usage();
