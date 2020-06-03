@@ -93,7 +93,7 @@ usage(void)
 	    " -u, --ufs                   UFS as the underlying file system\n"
 	    " -z, --zfs                   ZFS as the underlying file system\n"
 	    " -N, --fuse-unionfs          FUSE unionfs as the underlying file system\n"
-	    " -v, --verbose               Increase verbosiry\n"
+	    " -v, --verbose               Increase verbosity\n"
 	);
 	exit(1);
 }
