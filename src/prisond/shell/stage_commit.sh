@@ -50,8 +50,6 @@ commit_image()
       --exclude="/dev" \
       -cf "${data_dir}/images/${image_name}.tar.zst" .
     if [ -d "${data_dir}/images/${image_name}" ]; then
-        printf "\033[1m--\033[0m %s\n" \
-          "Wiping out directory ${data_dir}/images/${image_name}"
         case $CBLOCK_FS in
         ufs)
             chflags -R noschg "${data_dir}/images/${image_name}"
