@@ -130,9 +130,9 @@ prepare_file_system()
     zfs)
         build_root_vol=`path_to_vol "${build_root}"`
         base_root_vol=`path_to_vol "${base_root}"`
-        zfs snapshot "${base_root_vol}@${instance_name}"
-        zfs clone "${base_root_vol}@${instance_name}" \
-          ${build_root_vol}/${stage_index}
+        zfs snapshot "${base_root_vol}@${instance_name}_${stage_index}"
+        zfs clone "${base_root_vol}@${instance_name}_${stage_index}" \
+          "${build_root_vol}/${stage_index}"
         ;;
     esac
 }

@@ -108,20 +108,6 @@ waitpid_ignore_intr(pid_t pid, int *status)
 	return (rpid);
 }
 
-struct build_context *
-build_lookup_queued_context(struct prison_build_context *pbc)
-{
-	struct build_context *b;
-
-	TAILQ_FOREACH(b, &bc_head, bc_glue) {
-		if (strcmp(pbc->p_image_name, b->pbc.p_image_name) == 0 &&
-		    strcmp(pbc->p_tag, b->pbc.p_tag) == 0) {
-			return (b);
-		}
-	}
-	return (NULL);
-}
-
 void
 print_bold_prefix(FILE *fp)
 {
@@ -290,14 +276,12 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 	 */
 	dup2(bcp->peer_sock, STDOUT_FILENO);
 	dup2(bcp->peer_sock, STDERR_FILENO);
-
 	vec_env = vec_init(16);
 	vec_append(vec_env, DEFAULT_PATH);
 	char buf[128];
 	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
 	vec_append(vec_env, buf);
 	vec_finalize(vec_env);
-
 	vec = vec_init(32);
 	vec_append(vec, "/bin/sh");
 	if (bcp->pbc.p_verbose > 0) {
@@ -391,7 +375,6 @@ build_commit_image(struct build_context *bcp)
 	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
 	vec_append(vec_env, buf);
 	vec_finalize(vec_env);
-
 	vec = vec_init(16);
 	vec_append(vec, "/bin/sh");
 	if (bcp->pbc.p_verbose > 0) {
@@ -408,6 +391,7 @@ build_commit_image(struct build_context *bcp)
 		do_fim = "ON";
 	}
 	vec_append(vec, do_fim);
+	vec_append(vec, bcp->pbc.p_tag);
 	vec_finalize(vec);
 	argv = vec_return(vec);
 	execve(*argv, argv, vec_return(vec_env));
@@ -452,8 +436,17 @@ build_run_build_stage(struct build_context *bcp)
 			break;
 		}
 		print_bold_prefix(bcp->peer_sock_fp);
-		fprintf(bcp->peer_sock_fp,
-		    "Executing stage (%d/%d)\n", k + 1, bcp->pbc.p_nstages);
+		if (bstg->bs_name[0] != '\0') {
+			fprintf(bcp->peer_sock_fp,
+			    "Executing stage (%d/%d) : FROM %s AS %s\n",
+			    k + 1, bcp->pbc.p_nstages, bstg->bs_base_container,
+			    bstg->bs_name);
+		} else {
+			fprintf(bcp->peer_sock_fp,
+			    "Executing stage (%d/%d) : FROM %s\n",
+			    k + 1, bcp->pbc.p_nstages,
+			    bstg->bs_base_container);
+		}
 		fflush(bcp->peer_sock_fp);
 		snprintf(stage_root, sizeof(stage_root),
 		    "%s/%d/root", bcp->build_root, bstg->bs_index);
@@ -529,23 +522,6 @@ dispatch_build_set_outfile(struct build_context *bcp,
 }
 
 int
-do_build_launch(void *arg, struct prison_instance *pi)
-{
-	struct build_context *bcp;
-
-	bcp = (struct build_context *)arg;
-	if (build_run_build_stage(bcp) != 0) {
-		return (-1);
-	}
-	print_bold_prefix(NULL);
-	printf("Build Stage(s) complete. Writing container image...\n");
-	if (build_commit_image(bcp) != 0) {
-		return (-1);
-	}
-	return (0);
-}
-
-int
 dispatch_build_recieve(int sock)
 {
 	struct prison_response resp;
@@ -616,6 +592,8 @@ dispatch_build_recieve(int sock)
 	    "Bootstrapping build stages 1 through %d\n", bctx.pbc.p_nstages); 
 	fflush(bctx.peer_sock_fp);
 	if (build_run_build_stage(&bctx) != 0) {
+		prison_fork_cleanup(bctx.instance, "build", sock,
+		    bctx.pbc.p_verbose);
 		free(bctx.instance);
 		return (-1);
 	}
@@ -624,6 +602,8 @@ dispatch_build_recieve(int sock)
 	    "Build Stage(s) complete. Writing container image...\n");
 	fflush(bctx.peer_sock_fp);
 	if (build_commit_image(&bctx) != 0) {
+		prison_fork_cleanup(bctx.instance, "build", sock,
+		    bctx.pbc.p_verbose);
 		free(bctx.instance);
 		return (-1);
 	}

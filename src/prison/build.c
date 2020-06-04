@@ -259,7 +259,7 @@ build_set_default_tag(struct build_config *bcp)
 	if (bcp->b_tag != NULL) {
 		return;
 	}
-	snprintf(buf, sizeof(buf), "%ld", time(NULL));
+	snprintf(buf, sizeof(buf), "latest");
 	p = strdup(buf);
 	if (p == NULL) {
 		err(1, "strdup failed");
@@ -275,6 +275,7 @@ build_main(int argc, char *argv [], int cltlsock)
 	time_t before, after;
 	int option_index;
 	int c, noexec;
+	char *tag, *ptr;
 
 	noexec = 0;
 	bzero(&bc, sizeof(bc));
@@ -318,6 +319,12 @@ build_main(int argc, char *argv [], int cltlsock)
 	argv += optind;
 	if (bc.b_name == NULL) {
 		errx(1, "must specify image name -n");
+	}
+	tag = strchr(bc.b_name, ':');
+	if (tag != NULL) {
+		tag++;
+		ptr = strdup(tag);
+		bc.b_tag = ptr;
 	}
 	bc.b_path = argv[0];
 	if (!bc.b_path) {

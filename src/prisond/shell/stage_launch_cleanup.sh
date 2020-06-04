@@ -25,10 +25,20 @@ umount_reverse_order()
     done
 }
 
+zfs_lookup_origin()
+{
+    zfs get origin "$1" | grep "^$1" | awk '{ print $3 }'
+}
+
 cleanup()
 {
     case "$type" in
     build)
+        #
+        # Clean up build contexts and bootstrap scripts
+        #
+        rm -fr "${data_root}/instances/${instance}.tar.gz"
+        rm -fr "${data_root}/instances/${instance}.*.sh"
         rm -fr "${data_root}/instances/${instance}/images"
         stage_list=`echo ${data_root}/instances/${instance}/[0-9]*`
         for d in $stage_list; do
@@ -56,7 +66,9 @@ cleanup()
         zfs)
             umount "${data_root}/instances/${instance}/root/dev"
             build_root_vol=`path_to_vol "${data_root}/instances/${instance}"`
-            zfs destroy -r "${build_root_vol}"
+            snap=`zfs_lookup_origin "${build_root_vol}"`
+            zfs destroy -R "${build_root_vol}"
+            zfs destroy "${snap}"
             ;;
         ufs)
             umount_reverse_order
