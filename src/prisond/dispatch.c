@@ -227,7 +227,7 @@ prison_remove(struct prison_instance *pi)
 		cmd = PRISON_IPC_CONSOLE_SESSION_DONE;
 		sock_ipc_must_write(pi->p_peer_sock, &cmd, sizeof(cmd));
 	}
-	prison_fork_cleanup(pi->p_instance_tag, "regular", -1, 0);
+	prison_fork_cleanup(pi->p_instance_tag, "regular", -1, gcfg.c_verbose);
 	assert(pi->p_ttyfd != 0);
 	(void) close(pi->p_ttyfd);
 	TAILQ_REMOVE(&pr_head, pi, p_glue);
@@ -611,7 +611,8 @@ dispatch_launch_prison(int sock)
 	vec_append(env_vec, buf);
 	vec_append(env_vec, "USER=root");
 	vec_append(env_vec, "HOME=/root");
-	vec_append(env_vec, DEFAULT_PATH);
+	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
+	vec_append(env_vec, buf);
 	vec_finalize(env_vec);
 	sprintf(buf, "%s/lib/stage_launch.sh", gcfg.c_data_dir);
 	vec_append(cmd_vec, "/bin/sh");

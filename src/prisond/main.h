@@ -41,6 +41,7 @@ struct global_params {
 	size_t		 c_tty_buf_size;
 	char		*c_data_dir;
 	char		*c_underlying_fs;
+	int		 c_verbose;
 };
 
 struct global_params gcfg;

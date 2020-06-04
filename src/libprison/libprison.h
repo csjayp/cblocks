@@ -37,12 +37,6 @@
 struct tailhead_stage;
 struct tailhead_step;
 
-int		sock_ipc_may_read(int, void *, size_t);
-ssize_t		sock_ipc_must_read(int, void *, size_t);
-ssize_t		sock_ipc_must_write(int, void *, size_t);
-ssize_t		sock_ipc_from_to(int, int, off_t);
-void		sock_ipc_from_sock_to_tty(int);
-
 #define	MAX_PRISON_NAME	512
 
 enum {
@@ -64,11 +58,11 @@ enum {
 #define	PRISON_IPC_NETWORK_CTL		11
 
 struct instance_ent {
-	char				p_instance_name[512];
-	char				p_image_name[512];
-	pid_t				p_pid;
-	char				p_tty_line[64];
-	time_t				p_start_time;
+	char					p_instance_name[512];
+	char					p_image_name[512];
+	pid_t					p_pid;
+	char					p_tty_line[64];
+	time_t					p_start_time;
 };
 
 struct prison_generic_command {
@@ -205,14 +199,14 @@ struct build_context {
 };
 
 struct vec {
-        char                    **vec;
-        size_t                  vec_used;
-        size_t                  vec_alloc;
-#define VEC_OVERFLOW    1
-#define VEC_ENOMEM      2
-        int                     vec_flag;
-	char			*vec_marshalled;
-	size_t			vec_marshalled_len;
+        char **					vec;
+        size_t					vec_used;
+        size_t					vec_alloc;
+#define VEC_OVERFLOW	1
+#define VEC_ENOMEM	2
+        int					vec_flag;
+	char *					vec_marshalled;
+	size_t					vec_marshalled_len;
 };
 
 typedef struct vec vec_t;
@@ -226,5 +220,10 @@ char *		vec_join(vec_t *, char);
 char **		vec_unmarshal(vec_t *, char *, size_t);
 char *		vec_marshal(vec_t *);
 int		vec_merge(vec_t *, vec_t *);
+int		sock_ipc_may_read(int, void *, size_t);
+ssize_t		sock_ipc_must_read(int, void *, size_t);
+ssize_t		sock_ipc_must_write(int, void *, size_t);
+ssize_t		sock_ipc_from_to(int, int, off_t);
+void		sock_ipc_from_sock_to_tty(int);
 
 #endif	/* BUILD_DOT_H_ */

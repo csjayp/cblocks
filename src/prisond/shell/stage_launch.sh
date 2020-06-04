@@ -153,12 +153,25 @@ get_default_ip()
     echo "${ipv4}"
 }
 
+path_to_vol()
+{
+    echo -n "$1" | sed -E "s,^/(.*),\1,g"
+}
+
 do_launch()
 {
     if [ ! -d "${data_root}/images/${image_name}" ]; then
         if [ -f "${data_root}/images/${image_name}.tar.zst" ]; then
             printf "\033[1m--\033[0m %s\n" "Image located. Extracting"
-            mkdir "${data_root}/images/${image_name}"
+            case $CBLOCK_FS in
+            ufs)
+                mkdir "${data_root}/images/${image_name}"
+                ;;
+            zfs)
+                volname=`path_to_vol "${data_root}/images/${image_name}"`
+                zfs create "$volname"
+                ;;
+            esac
             tar -C "${data_root}/images/${image_name}" -zxf \
               "${data_root}/images/${image_name}.tar.zst"
         else
@@ -166,17 +179,27 @@ do_launch()
             exit 1
         fi
     fi
+    instance_hostname=`printf "%10.10s" ${instance_id}`
     instance_root="${data_root}/instances/${instance_id}/root"
-    mkdir -p "${instance_root}"
-    mount -t unionfs -o noatime -o below \
-      "${data_root}/images/${image_name}/root" \
-      "${instance_root}" 
+    case $CBLOCK_FS in
+    zfs)
+        volname=`path_to_vol "${data_root}/images/${image_name}"`
+        dest_volname=`path_to_vol "${data_root}/instances/${instance_id}"`
+        zfs snapshot "$volname@${instance_id}"
+        zfs clone "$volname@${instance_hostname}" "${dest_volname}"
+        ;;
+    ufs)
+        mkdir -p "${instance_root}"
+        mount -t unionfs -o noatime -o below \
+          "${data_root}/images/${image_name}/root" \
+          "${instance_root}"
+        ;;
+    esac
     mount -t devfs devfs "${instance_root}/dev"
     config_devfs
     eval `emit_mount_specification $mount_spec`
     ip4=`get_default_ip`
     instance_cmd=`emit_entrypoint`
-    instance_hostname=`printf "%10.10s" ${instance_id}`
     is_bridge=`network_is_bridge`
     if [ "$is_bridge" = "TRUE" ]; then
        netif=`get_jail_interface`

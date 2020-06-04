@@ -50,15 +50,12 @@ struct prison_instance {
 size_t		prison_instance_get_count(void);
 struct instance_ent *
 		prison_populate_instance_entries(size_t);
-void *	prison_handle_request(void *);
-int	dispatch_get_instances(int);
-int	dispatch_generic_command(int);
-void *	tty_io_queue_loop(void *);
-int	dispatch_build_recieve(int);
-struct build_context *
-	build_lookup_queued_context(struct prison_build_context *);
-int	do_build_launch(void *, struct prison_instance *);
-char *	gen_sha256_instance_id(char *instance_name);
-void	prison_fork_cleanup(char *instance, char *, int, int);
+void *		prison_handle_request(void *);
+int		dispatch_get_instances(int);
+int		dispatch_generic_command(int);
+void *		tty_io_queue_loop(void *);
+int		dispatch_build_recieve(int);
+char *		gen_sha256_instance_id(char *instance_name);
+void		prison_fork_cleanup(char *instance, char *, int, int);
 
 #endif

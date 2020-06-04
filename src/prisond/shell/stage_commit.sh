@@ -9,6 +9,12 @@ image_name=$4
 n_stages=$5
 instance="$6"
 fim_spec_mode="$7"
+build_tag="$8"
+
+path_to_vol()
+{
+    echo -n "$1" | sed -E "s,^/(.*),\1,g"
+}
 
 commit_image()
 {
@@ -39,12 +45,21 @@ commit_image()
     fi
     lockf -k "${data_dir}/images/${image_name}.tar.zst" \
       tar -C "${src}" --exclude="/tmp" \
+      --no-xattrs \
       --zstd \
       --exclude="/dev" \
       -cf "${data_dir}/images/${image_name}.tar.zst" .
     if [ -d "${data_dir}/images/${image_name}" ]; then
-        chflags -R noschg "${data_dir}/images/${image_name}"
-        rm -fr "${data_dir}/images/${image_name}"
+        case $CBLOCK_FS in
+        ufs)
+            chflags -R noschg "${data_dir}/images/${image_name}"
+            rm -fr "${data_dir}/images/${image_name}"
+            ;;
+        zfs)
+            img_vol=`path_to_vol "${data_dir}/images/${image_name}"`
+            zfs destroy "${img_vol}"
+            ;;
+        esac
     fi
 }
 
