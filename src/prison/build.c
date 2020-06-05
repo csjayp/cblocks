@@ -322,6 +322,12 @@ build_main(int argc, char *argv [], int cltlsock)
 	}
 	tag = strchr(bc.b_name, ':');
 	if (tag != NULL) {
+		/*
+		 * Set the ':' character to null which will terminate the
+		 * string right after the base image name. Then we can
+		 * extract the tag and store it seperately.
+		 */
+		*tag = '\0';
 		tag++;
 		ptr = strdup(tag);
 		bc.b_tag = ptr;

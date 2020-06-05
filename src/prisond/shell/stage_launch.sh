@@ -5,8 +5,10 @@ image_name="$2"
 instance_id="$3"
 mount_spec="$4"
 network="$5"
-entry_point_args="$6"
+tag="$6"
+entry_point_args="$7"
 devfs_mount="${data_root}/instances/${instance_id}/root/dev"
+image_dir=""
 
 network_is_bridge()
 {
@@ -132,9 +134,9 @@ config_devfs()
 
 emit_entrypoint()
 {
-    CMD=`cat "${data_root}/images/${image_name}/ENTRYPOINT"`
-    if [ -f "${data_root}/images/${image_name}/ARGS" ]; then
-        ARGS=`cat "${data_root}/images/${image_name}/ARGS"`
+    CMD=`cat "${image_dir}/ENTRYPOINT"`
+    if [ -f "${image_dir}/ARGS" ]; then
+        ARGS=`cat "${image_dir}/ARGS"`
     fi
     if [ "${entry_point_args}" ]; then
         ARGS="${entry_point_args}"
@@ -160,30 +162,17 @@ path_to_vol()
 
 do_launch()
 {
-    if [ ! -d "${data_root}/images/${image_name}" ]; then
-        if [ -f "${data_root}/images/${image_name}.tar.zst" ]; then
-            printf "\033[1m--\033[0m %s\n" "Image located. Extracting"
-            case $CBLOCK_FS in
-            ufs)
-                mkdir "${data_root}/images/${image_name}"
-                ;;
-            zfs)
-                volname=`path_to_vol "${data_root}/images/${image_name}"`
-                zfs create "$volname"
-                ;;
-            esac
-            tar -C "${data_root}/images/${image_name}" -zxf \
-              "${data_root}/images/${image_name}.tar.zst"
-        else
-            echo "[FATAL]: no such image ${image_name} downloaded"
-            exit 1
-        fi
+    img_tag="${image_name}:${tag}"
+    if [ ! -h "${data_root}/images/${img_tag}" ]; then
+        echo "[FATAL]: no such image ${image_name} downloaded"
+        exit 1
     fi
+    image_dir=`readlink "${data_root}/images/${img_tag}"`
     instance_hostname=`printf "%10.10s" ${instance_id}`
     instance_root="${data_root}/instances/${instance_id}/root"
     case $CBLOCK_FS in
     zfs)
-        volname=`path_to_vol "${data_root}/images/${image_name}"`
+        volname=`path_to_vol "${image_dir}"`
         dest_volname=`path_to_vol "${data_root}/instances/${instance_id}"`
         zfs snapshot "$volname@${instance_id}"
         zfs clone "$volname@${instance_hostname}" "${dest_volname}"
@@ -191,8 +180,7 @@ do_launch()
     ufs)
         mkdir -p "${instance_root}"
         mount -t unionfs -o noatime -o below \
-          "${data_root}/images/${image_name}/root" \
-          "${instance_root}"
+          "${image_dir}/root" "${instance_root}"
         ;;
     esac
     mount -t devfs devfs "${instance_root}/dev"

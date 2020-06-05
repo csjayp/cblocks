@@ -52,6 +52,7 @@ struct launch_config {
 	char		*l_network;
 	int		 l_attach;
 	int		 l_verbose;
+	char		*l_tag;
 };
 
 static struct option launch_options[] = {
@@ -115,6 +116,7 @@ launch_container(int sock, struct launch_config *lcp)
 	}
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	pl.p_verbose = lcp->l_verbose;
+	strlcpy(pl.p_tag, lcp->l_tag, sizeof(pl.p_tag));
 	strlcpy(pl.p_name, lcp->l_name, sizeof(pl.p_name));
 	strlcpy(pl.p_term, term, sizeof(pl.p_term));
 	strlcpy(pl.p_volumes, lcp->l_volumes, sizeof(pl.p_volumes));
@@ -143,12 +145,14 @@ launch_main(int argc, char *argv [], int ctlsock)
 	struct launch_config lc;
 	int option_index, c;
 	struct sbuf *sb;
+	char *tag, *ptr;
 
 	bzero(&lc, sizeof(lc));
 	sb = sbuf_new_auto();
 	sbuf_cat(sb, "devfs");
 	sbuf_cat(sb, ",");
-	lc.l_network = strdup("default");
+	lc.l_network = "default";
+	lc.l_tag = "latest";
 	lc.l_attach = 1;
 	lc.l_verbose = 0;
 	reset_getopt_state();
@@ -203,6 +207,18 @@ launch_main(int argc, char *argv [], int ctlsock)
 		fprintf(stderr, "must supply container name\n");
 		launch_usage();
 	}
+	tag = strchr(lc.l_name, ':');
+	if (tag != NULL) {
+		/*
+		 * Set the ':' character to null which will terminate the
+		 * string right after the base image name. Then we can
+		 * extract the tag and store it seperately.
+		 */
+		*tag = '\0';
+		tag++;
+		ptr = strdup(tag);
+		lc.l_tag = ptr;
+        }
 	sbuf_finish(sb);
 	lc.l_volumes = sbuf_data(sb);
 	argc -= optind;

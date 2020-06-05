@@ -467,6 +467,7 @@ build_run_build_stage(struct build_context *bcp)
 			vec_env = vec_init(8);
 			vec_append(vec_env, buf);
 			vec_append(vec_env, "USER=root");
+			vec_append(vec_env, "HOME=/root");
 			vec_append(vec_env, DEFAULT_PATH);
 			vec_append(vec_env, "TERM=xterm");
 			vec_append(vec_env, "BLOCKSIZE=K");
@@ -486,6 +487,14 @@ build_run_build_stage(struct build_context *bcp)
 			err(1, "execve failed");
 		}
 		waitpid_ignore_intr(pid, &status);
+		if (status != 0) {
+			print_bold_prefix(bcp->peer_sock_fp);
+			fprintf(bcp->peer_sock_fp,
+			    "Execution of stage of %d failed. Terminating.\n",
+			    k + 1);
+			fflush(bcp->peer_sock_fp);
+			break;
+		}
 	}
 	if (status == 0) {
 		bstg = &bcp->stages[k - 1];
@@ -572,7 +581,11 @@ dispatch_build_recieve(int sock)
 		return (1);
         }
 	if (sock_ipc_from_to(sock, fd, bctx.pbc.p_context_size) == -1) {
-		err(1, "sock_ipc_from_to failed");
+		free(bctx.steps);
+		free(bctx.stages);
+		close(fd);
+		warn("sock_ipc_from_to failed");
+		return (1);
 	}
 	/*
 	 * Copy this socket purely so we can dup it to stdout/stderr. Set this

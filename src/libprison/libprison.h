@@ -91,6 +91,7 @@ struct prison_response {
 
 struct prison_launch {
 	char					p_name[MAX_PRISON_NAME];
+	char					p_tag[1024];
 	char					p_term[128];
 	char					p_entry_point_args[1024];
 	char					p_volumes[2048];

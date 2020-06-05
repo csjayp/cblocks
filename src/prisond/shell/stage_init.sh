@@ -38,28 +38,12 @@ bind_devfs()
 
 prepare_file_system()
 {
-    base_root="${data_dir}/images/${base_container}"
-    if [ ! -d "${base_root}" ]; then
-        #
+    if [ -h "${data_dir}/images/${base_container}:latest" ]; then
+        readlnk=`readlink "${data_dir}/images/${base_container}:latest"`
+        base_root=`realpath ${readlnk}`
+    else
         # Check to see if we have an ephemeral build stage
-        if [ ! -h "${build_root}/images/${base_container}" ]; then
-            if [ ! -f "${data_dir}/images/${base_container}.tar.zst" ]; then
-                exit 1
-            fi
-            case $CBLOCK_FS in
-            fuse-unionfs|ufs)
-                mkdir "${data_dir}/images/${base_container}"
-                ;;
-            zfs)
-                zfs_img_vol=`path_to_vol "${data_dir}/images/${base_container}"`
-                zfs create "${zfs_img_vol}"
-                ;;
-            esac
-            printf "\033[1m--\033[0m %s\n" \
-              "Image present but not unpacked. Extracting..."
-            tar -C "${data_dir}/images/${base_container}" -zxf \
-                "${data_dir}/images/${base_container}.tar.zst"
-        else
+        if [ -h "${build_root}/images/${base_container}" ]; then
             printf "\033[1m--\033[0m %s\n" "Ephemeral image found from previous stage"
             case $CBLOCK_FS in
             ufs|fuse-unionfs)
@@ -69,6 +53,9 @@ prepare_file_system()
                 base_root=`readlink "${build_root}/images/${base_container}"`
                 ;;
             esac
+        else
+            echo "Error: no such image"
+            exit 1
         fi
     fi
     #
