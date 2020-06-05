@@ -43,24 +43,29 @@ commit_image()
         cd "${src}"
         mtree -c -K sha256 -p . > FIM.spec
     fi
+    case $CBLOCK_FS in
+    zfs)
+        nvol=`path_to_vol "${data_dir}/images/${image_name}.${instance}"`
+        zfs create ${nvol}
+        ;;
+    ufs)
+        mkdir "${data_dir}/images/${image_name}.${instance}"
+        ;;
+    esac
+    #bytes=`du -sk "${src}" | awk '{ print $1 }'`
     lockf -k "${data_dir}/images/${image_name}.tar.zst" \
       tar -C "${src}" --exclude="/tmp" \
       --no-xattrs \
-      --zstd \
       --exclude="/dev" \
-      -cf "${data_dir}/images/${image_name}.tar.zst" .
-    if [ -d "${data_dir}/images/${image_name}" ]; then
-        case $CBLOCK_FS in
-        ufs)
-            chflags -R noschg "${data_dir}/images/${image_name}"
-            rm -fr "${data_dir}/images/${image_name}"
-            ;;
-        zfs)
-            img_vol=`path_to_vol "${data_dir}/images/${image_name}"`
-            zfs destroy "${img_vol}"
-            ;;
-        esac
+      -cf - . | \
+    tar -xpf - -C "${data_dir}/images/${image_name}.${instance}"
+    # NB: we need to do this atomically
+    #
+    if [ -h "${data_dir}/images/${image_name}:${build_tag}" ]; then
+        rm "${data_dir}/images/${image_name}:${build_tag}"
     fi
+    ln -s "${data_dir}/images/${image_name}.${instance}" \
+        "${data_dir}/images/${image_name}:${build_tag}"
 }
 
 commit_image

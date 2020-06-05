@@ -631,6 +631,7 @@ dispatch_launch_prison(int sock)
 	} else {
 		vec_append(cmd_vec, "default");
 	}
+	vec_append(cmd_vec, pl.p_tag);
 	if (pl.p_entry_point_args[0] != '\0') {
 		vec_append(cmd_vec, pl.p_entry_point_args);
 	}

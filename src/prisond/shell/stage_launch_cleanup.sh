@@ -42,7 +42,7 @@ cleanup()
         rm -fr "${data_root}/instances/${instance}/images"
         stage_list=`echo ${data_root}/instances/${instance}/[0-9]*`
         for d in $stage_list; do
-            umount "${d}/root/dev"
+            umount -f "${d}/root/dev"
             case $CBLOCK_FS in
             fuse-unionfs)
                 umount -f "${d}/root"
@@ -78,5 +78,5 @@ cleanup()
     esac
 }
 
-cleanup
 kill_jail
+cleanup
