@@ -3,14 +3,14 @@
 # 
 set -e
 
-cd src/libprison
+cd src/libcblock
 make
 make install
 
 cd ../../
-cd src/prisond
+cd src/cblockd
 make
 
 cd ../../
-cd src/prison
+cd src/cblock
 make
