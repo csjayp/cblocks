@@ -151,9 +151,9 @@ bootstrap()
     stage_work_dir=`mktemp -d "${build_root}/${stage_index}/root/tmp/XXXXXXXX"`
     tar -C "${stage_work_dir}" -zxf "${build_context}"
     chmod +x "${build_root}.${stage_index}.sh"
-    cp -p "${build_root}.${stage_index}.sh" "${build_root}/${stage_index}/root/prison-bootstrap.sh"
+    cp -p "${build_root}.${stage_index}.sh" "${build_root}/${stage_index}/root/cblock-bootstrap.sh"
 
-    VARS="${build_root}/${stage_index}/root/prison_build_variables.sh"
+    VARS="${build_root}/${stage_index}/root/cblock_build_variables.sh"
     stage_tmp_dir=`echo ${stage_work_dir} | sed s,${build_root}/${stage_index}/root,,g`
     printf "stage_tmp_dir=${stage_tmp_dir}\nstage_tmp_dir=${stage_tmp_dir}\n \
       \nbuild_root=${build_root} \

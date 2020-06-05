@@ -49,7 +49,7 @@
 
 #include "config.h"
 
-#include <libprison.h>
+#include <libcblock.h>
 
 static char *data_sub_dirs[] = {
 	"spool",
@@ -89,7 +89,7 @@ usage(void)
 	    " -s, --listen-host=HOST      Listen host/address\n"
 	    " -p, --listen-port=PORT      Listen on port\n"
 	    " -T, --tty-buffer-size=SIZE  Store at most SIZE bytes in console\n"
-	    " -d, --data-directory        Where the prisond data/spools/images are stored\n"
+	    " -d, --data-directory        Where the cblockd data/spools/images are stored\n"
 	    " -u, --ufs                   UFS as the underlying file system\n"
 	    " -z, --zfs                   ZFS as the underlying file system\n"
 	    " -N, --fuse-unionfs          FUSE unionfs as the underlying file system\n"
@@ -131,7 +131,7 @@ main(int argc, char *argv [], char *env[])
 
 	gcfg.c_data_dir = DEFAULT_DATA_DIR;
 	gcfg.global_env = env;
-	gcfg.c_callback = prison_handle_request;
+	gcfg.c_callback = cblock_handle_request;
 	gcfg.c_family = PF_UNSPEC;
 	gcfg.c_port = "3333";
 	gcfg.c_tty_buf_size = 5 * 4096;

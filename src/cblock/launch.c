@@ -40,7 +40,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <libprison.h>
+#include <libcblock.h>
 
 #include "main.h"
 
@@ -90,8 +90,8 @@ launch_usage(void)
 static void
 launch_container(int sock, struct launch_config *lcp)
 {
-	struct prison_launch pl;
-	struct prison_response resp;
+	struct cblock_launch pl;
+	struct cblock_response resp;
 	char *term, *args;
 	uint32_t cmd;
 	vec_t *vec;

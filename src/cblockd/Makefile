@@ -1,8 +1,8 @@
 CC	?= cc
 CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I $(PREFIX)/include
-TARGETS	= prisond
+TARGETS	= cblockd
 OBJ	= main.o sock_ipc.o dispatch.o termbuf.o build.o instances.o exec.o
-LIBS	= -lpthread -lutil -lprison -lcrypto
+LIBS	= -lpthread -lutil -lcblock -lcrypto
 PREFIX	?= /usr/local
 
 all:	$(TARGETS)
@@ -10,12 +10,12 @@ all:	$(TARGETS)
 .c.o:
 	$(CC) $(CFLAGS) -c $<
 
-prisond: $(OBJ)
+cblockd: $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib
 
 clean:
-	rm -fr *.o prisond *.core *.plist
+	rm -fr *.o $(TARGETS) *.core *.plist
 
 install:
 	[ -d $(PREFIX)/bin ] || mkdir -p $(PREFIX)/bin
-	install -m 0555 prisond $(PREFIX)/bin
+	install -m 0555 $(TARGETS) $(PREFIX)/bin

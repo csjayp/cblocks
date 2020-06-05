@@ -26,9 +26,8 @@
  */
 #ifndef DISPATCH_DOT_H_
 #define DISPATCH_DOT_H_
-#include <libprison.h>
 
-struct prison_instance {
+struct cblock_instance {
         int                             p_type;
         uint32_t                        p_state;
 #define STATE_DEAD              0x00000001
@@ -37,7 +36,7 @@ struct prison_instance {
         pid_t                           p_pid;
         int                             p_ttyfd;
         char                            p_ttyname[256];
-        TAILQ_ENTRY(prison_instance)    p_glue;
+        TAILQ_ENTRY(cblock_instance)    p_glue;
         struct tty_buffer               p_ttybuf;
         int                             p_peer_sock;
         int                             p_pipe[2];
@@ -47,15 +46,15 @@ struct prison_instance {
 	int				p_pid_file;
 };
 
-size_t		prison_instance_get_count(void);
+size_t		cblock_instance_get_count(void);
 struct instance_ent *
-		prison_populate_instance_entries(size_t);
-void *		prison_handle_request(void *);
+		cblock_populate_instance_entries(size_t);
+void *		cblock_handle_request(void *);
 int		dispatch_get_instances(int);
 int		dispatch_generic_command(int);
 void *		tty_io_queue_loop(void *);
 int		dispatch_build_recieve(int);
 char *		gen_sha256_instance_id(char *instance_name);
-void		prison_fork_cleanup(char *instance, char *, int, int);
+void		cblock_fork_cleanup(char *instance, char *, int, int);
 
 #endif

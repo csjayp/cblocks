@@ -45,7 +45,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <libprison.h>
+#include <libcblock.h>
 
 #include "main.h"
 #include "sock_ipc.h"
@@ -74,7 +74,7 @@ static void
 console_usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: prison console [OPTIONS]\n\n"
+	    "Usage: cblock console [OPTIONS]\n\n"
 	    "Options\n"
 	    " -h, --help        Display program usage\n"
 	    " -n, --name        Name of console to connect to\n"
@@ -257,8 +257,8 @@ console_tty_console_session(int sock)
 static void
 console_connect_console(int sock, struct console_config *ccp)
 {
-	struct prison_console_connect pcc;
-	struct prison_response resp;
+	struct cblock_console_connect pcc;
+	struct cblock_response resp;
 	uint32_t cmd;
 
 	bzero(&pcc, sizeof(pcc));

@@ -35,7 +35,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <libprison.h>
+#include <libcblock.h>
 
 #include "main.h"
 
@@ -100,7 +100,7 @@ instance_get(struct instance_config *icp, int ctlsock)
 static void
 instance_prune(struct instance_config *icp, int ctlsock)
 {
-	struct prison_generic_command arg;
+	struct cblock_generic_command arg;
 	uint32_t cmd;
 
 	cmd = PRISON_IPC_GENERIC_COMMAND;
