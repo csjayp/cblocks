@@ -70,14 +70,14 @@ sock_ipc_setup_unix(struct global_params *cmd)
 	return (0);
 }
 
-static struct prison_peer *
+static struct cblock_peer *
 sock_ipc_construct_peer(int sock, int family)
 {
-	struct prison_peer *p;
+	struct cblock_peer *p;
 
 	p = calloc(1, sizeof(*p));
 	if (p == NULL) {
-		err(1, "calloc(prison peer) failed");
+		err(1, "calloc(cblock peer) failed");
 	}
 	p->p_sock = sock;
 	p->p_family = family;
@@ -131,7 +131,7 @@ static int
 sock_ipc_accept_connection(int sock)
 {
 	struct sockaddr_storage addrs;
-	struct prison_peer *p;
+	struct cblock_peer *p;
 	struct sockaddr sa;
 	socklen_t slen;
 	int nsock;

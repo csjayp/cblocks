@@ -202,7 +202,7 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 		}
 		if (!header) {
 			fprintf(fp, "#!/bin/sh\n\n");
-			fprintf(fp, ". /prison_build_variables.sh\n");
+			fprintf(fp, ". /cblock_build_variables.sh\n");
 			fprintf(fp, "set -e\n");
 			if (bcp->pbc.p_verbose > 0) {
 				fprintf(fp, "set -x\n");
@@ -533,7 +533,7 @@ dispatch_build_set_outfile(struct build_context *bcp,
 int
 dispatch_build_recieve(int sock)
 {
-	struct prison_response resp;
+	struct cblock_response resp;
 	struct build_context bctx;
 	ssize_t cc;
 	int fd;
@@ -605,7 +605,7 @@ dispatch_build_recieve(int sock)
 	    "Bootstrapping build stages 1 through %d\n", bctx.pbc.p_nstages); 
 	fflush(bctx.peer_sock_fp);
 	if (build_run_build_stage(&bctx) != 0) {
-		prison_fork_cleanup(bctx.instance, "build", sock,
+		cblock_fork_cleanup(bctx.instance, "build", sock,
 		    bctx.pbc.p_verbose);
 		free(bctx.instance);
 		return (-1);
@@ -615,7 +615,7 @@ dispatch_build_recieve(int sock)
 	    "Build Stage(s) complete. Writing container image...\n");
 	fflush(bctx.peer_sock_fp);
 	if (build_commit_image(&bctx) != 0) {
-		prison_fork_cleanup(bctx.instance, "build", sock,
+		cblock_fork_cleanup(bctx.instance, "build", sock,
 		    bctx.pbc.p_verbose);
 		free(bctx.instance);
 		return (-1);
@@ -624,7 +624,7 @@ dispatch_build_recieve(int sock)
 	fprintf(bctx.peer_sock_fp,
 	    "Cleaning up ephemeral images and build artifacts\n");
 	fflush(bctx.peer_sock_fp);
-	prison_fork_cleanup(bctx.instance, "build", sock, bctx.pbc.p_verbose);
+	cblock_fork_cleanup(bctx.instance, "build", sock, bctx.pbc.p_verbose);
 	free(bctx.instance);
 	return (1);
 }

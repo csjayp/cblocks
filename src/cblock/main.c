@@ -81,7 +81,7 @@ usage(void)
 	struct sub_command *scp;
 
 	(void) fprintf(stderr,
-	    "Usage: prison [OPTIONS] COMMAND\n\n"
+	    "Usage: cblock [OPTIONS] COMMAND\n\n"
 	    "Options\n"
 	    " -4, --ipv4                IPv4 sockets only\n"
 	    " -6, --ipv6                IPv6 sockets only\n"
@@ -95,7 +95,7 @@ usage(void)
 		    " %-10s %s\n", scp->sc_name, scp->sc_description);
 	}
 	(void) fprintf(stderr,
-	    "\nRun 'prison COMMAND --help' for info on a command.\n");
+	    "\nRun 'cblock COMMAND --help' for info on a command.\n");
 	exit(1);
 }
 

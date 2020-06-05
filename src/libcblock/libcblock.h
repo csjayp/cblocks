@@ -65,14 +65,14 @@ struct instance_ent {
 	time_t					p_start_time;
 };
 
-struct prison_generic_command {
+struct cblock_generic_command {
 	char					p_cmdname[512];
 	size_t					p_mlen;
 };
 
-struct prison_build_context {
+struct cblock_build_context {
 	char					p_image_name[1024];
-	char					p_prison_file[1024];
+	char					p_cblock_file[1024];
 	off_t					p_context_size;
 	char					p_tag[1024];
 	int					p_nstages;
@@ -84,12 +84,12 @@ struct prison_build_context {
 	int					p_build_fim_spec;
 };
 
-struct prison_response {
+struct cblock_response {
 	int					p_ecode;
 	char					p_errbuf[1024];
 };
 
-struct prison_launch {
+struct cblock_launch {
 	char					p_name[MAX_PRISON_NAME];
 	char					p_tag[1024];
 	char					p_term[128];
@@ -99,7 +99,7 @@ struct prison_launch {
 	int					p_verbose;
 };
 
-struct prison_console_connect {
+struct cblock_console_connect {
 	char					p_name[MAX_PRISON_NAME];
 	char					p_instance[MAX_PRISON_NAME];
 	struct winsize				p_winsize;
@@ -189,7 +189,7 @@ struct build_manifest {
 };
 
 struct build_context {
-	struct prison_build_context		pbc;
+	struct cblock_build_context		pbc;
 	struct build_step			*steps;
 	struct build_stage			*stages;
 	char					 build_root[MAXPATHLEN];

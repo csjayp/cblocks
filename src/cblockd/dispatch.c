@@ -58,16 +58,16 @@
 
 #include <libcblock.h>
 
-TAILQ_HEAD( , prison_peer) p_head;
-TAILQ_HEAD( , prison_instance) pr_head;
+TAILQ_HEAD( , cblock_peer) p_head;
+TAILQ_HEAD( , cblock_instance) pr_head;
 
 static int reap_children;
 
 pthread_mutex_t peer_mutex;
-pthread_mutex_t prison_mutex;
+pthread_mutex_t cblock_mutex;
 
 int
-prison_create_pid_file(struct prison_instance *p)
+cblock_create_pid_file(struct cblock_instance *p)
 {
 	char pid_path[1024], pid_buf[32];
 	mode_t mode;
@@ -91,28 +91,28 @@ prison_create_pid_file(struct prison_instance *p)
 }
 
 size_t
-prison_instance_get_count(void)
+cblock_instance_get_count(void)
 {
-	struct prison_instance *p;
+	struct cblock_instance *p;
 	size_t count;
 
 	if (TAILQ_EMPTY(&pr_head)) {
 		return (0);
 	}
 	count = 0;
-	pthread_mutex_lock(&prison_mutex);
+	pthread_mutex_lock(&cblock_mutex);
 	TAILQ_FOREACH(p, &pr_head, p_glue) {
 		count++;
 	}
-	pthread_mutex_unlock(&prison_mutex);
+	pthread_mutex_unlock(&cblock_mutex);
 	return (count);
 }
 
 struct instance_ent *
-prison_populate_instance_entries(size_t max_ents)
+cblock_populate_instance_entries(size_t max_ents)
 {
 	struct instance_ent *vec, *cur;
-	struct prison_instance *p;
+	struct cblock_instance *p;
 	int counter;
 
 	vec = calloc(max_ents, sizeof(*vec));
@@ -120,7 +120,7 @@ prison_populate_instance_entries(size_t max_ents)
 		return (NULL);
 	}
 	counter = 0;
-	pthread_mutex_lock(&prison_mutex);
+	pthread_mutex_lock(&cblock_mutex);
 	TAILQ_FOREACH(p, &pr_head, p_glue) {
 		cur = &vec[counter];
 		strlcpy(cur->p_instance_name, p->p_instance_tag,
@@ -136,12 +136,12 @@ prison_populate_instance_entries(size_t max_ents)
 		}
 		counter++;
 	}
-	pthread_mutex_unlock(&prison_mutex);
+	pthread_mutex_unlock(&cblock_mutex);
 	return (vec);
 }
 
 static int
-prison_instance_match(char *full_instance_name, const char *user_supplied)
+cblock_instance_match(char *full_instance_name, const char *user_supplied)
 {
 	size_t slen;
 
@@ -163,7 +163,7 @@ handle_reap_children(int sig)
 }
 
 void
-prison_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
+cblock_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
 {
         char buf[128], **argv;
         vec_t *vec, *vec_env;
@@ -171,7 +171,7 @@ prison_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
 
         pid_t pid = fork();
         if (pid == -1) {
-                err(1, "prison_remove: failed to execute cleanup handlers");
+                err(1, "cblock_remove: failed to execute cleanup handlers");
         }
         if (pid == 0) {
 		vec_env = vec_init(8);
@@ -197,7 +197,7 @@ prison_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
 			dup2(dup_sock, STDERR_FILENO);
 		}
                 execve(*argv, argv, vec_return(vec_env));
-                err(1, "prison_remove: execve failed");
+                err(1, "cblock_remove: execve failed");
         }
         while (1) {
                 ret = waitpid(pid, &status, 0);
@@ -212,7 +212,7 @@ prison_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
 }
 
 void
-prison_remove(struct prison_instance *pi)
+cblock_remove(struct cblock_instance *pi)
 {
 	uint32_t cmd;
 	size_t cur;
@@ -227,7 +227,7 @@ prison_remove(struct prison_instance *pi)
 		cmd = PRISON_IPC_CONSOLE_SESSION_DONE;
 		sock_ipc_must_write(pi->p_peer_sock, &cmd, sizeof(cmd));
 	}
-	prison_fork_cleanup(pi->p_instance_tag, "regular", -1, gcfg.c_verbose);
+	cblock_fork_cleanup(pi->p_instance_tag, "regular", -1, gcfg.c_verbose);
 	assert(pi->p_ttyfd != 0);
 	(void) close(pi->p_ttyfd);
 	TAILQ_REMOVE(&pr_head, pi, p_glue);
@@ -240,21 +240,21 @@ prison_remove(struct prison_instance *pi)
 }
 
 static void
-prison_detach_console(const char *instance)
+cblock_detach_console(const char *instance)
 {
-	struct prison_instance *pi;
+	struct cblock_instance *pi;
 
-	pthread_mutex_lock(&prison_mutex);
+	pthread_mutex_lock(&cblock_mutex);
 	TAILQ_FOREACH(pi, &pr_head, p_glue) {
-		if (!prison_instance_match(pi->p_instance_tag, instance)) {
+		if (!cblock_instance_match(pi->p_instance_tag, instance)) {
 			continue;
 		}
 		pi->p_state &= ~STATE_CONNECTED;
 		pi->p_peer_sock = -1;
-		pthread_mutex_unlock(&prison_mutex);
+		pthread_mutex_unlock(&cblock_mutex);
 		return;
 	}
-	pthread_mutex_unlock(&prison_mutex);
+	pthread_mutex_unlock(&cblock_mutex);
 	/*
 	 * If we are here, the process was non-interactive (build job) and
 	 * has completed already.
@@ -262,13 +262,13 @@ prison_detach_console(const char *instance)
 }
 
 static void
-prison_reap_children(void)
+cblock_reap_children(void)
 {
-	struct prison_instance *pi, *p_temp;
+	struct cblock_instance *pi, *p_temp;
 	int status;
 	pid_t pid;
 
-	pthread_mutex_lock(&prison_mutex);
+	pthread_mutex_lock(&cblock_mutex);
 	TAILQ_FOREACH_SAFE(pi, &pr_head, p_glue, p_temp) {
 		pid = waitpid(pi->p_pid, &status, WNOHANG);
 		if (pid != pi->p_pid) {
@@ -278,21 +278,21 @@ prison_reap_children(void)
 		printf("collected exit status from proc %d\n", pi->p_pid);
 		printf("dumping TTY buffer:\n");
 		termbuf_print_queue(&pi->p_ttybuf.t_head);
-		prison_remove(pi);
+		cblock_remove(pi);
 	}
-	pthread_mutex_unlock(&prison_mutex);
+	pthread_mutex_unlock(&cblock_mutex);
 	reap_children = 0;
 }
 
 static int
 tty_initialize_fdset(fd_set *rfds)
 {
-	struct prison_instance *pi, *p_temp;
+	struct cblock_instance *pi, *p_temp;
 	int maxfd;
 
 	FD_ZERO(rfds);
 	maxfd = 0;
-	pthread_mutex_lock(&prison_mutex);
+	pthread_mutex_lock(&cblock_mutex);
 	TAILQ_FOREACH_SAFE(pi, &pr_head, p_glue, p_temp) {
 		if ((pi->p_state & STATE_DEAD) != 0) {
 			continue;
@@ -302,14 +302,14 @@ tty_initialize_fdset(fd_set *rfds)
 		}
 		FD_SET(pi->p_ttyfd, rfds);
 	}
-	pthread_mutex_unlock(&prison_mutex);
+	pthread_mutex_unlock(&cblock_mutex);
 	return (maxfd);
 }
 
 void *
 tty_io_queue_loop(void *arg)
 {
-	struct prison_instance *pi;
+	struct cblock_instance *pi;
 	struct timeval tv;
 	u_char buf[8192];
 	int maxfd, error;
@@ -319,7 +319,7 @@ tty_io_queue_loop(void *arg)
 	size_t len;
 
 	while (1) {
-		prison_reap_children();
+		cblock_reap_children();
 		maxfd = tty_initialize_fdset(&rfds);
 		tv.tv_sec = 0;
 		tv.tv_usec = 500000;
@@ -334,7 +334,7 @@ tty_io_queue_loop(void *arg)
 		if (error == 0) {
 			continue;
 		}
-		pthread_mutex_lock(&prison_mutex);
+		pthread_mutex_lock(&cblock_mutex);
 		TAILQ_FOREACH(pi, &pr_head, p_glue) {
 			if (!FD_ISSET(pi->p_ttyfd, &rfds)) {
 				continue;
@@ -358,27 +358,27 @@ tty_io_queue_loop(void *arg)
 			sock_ipc_must_write(pi->p_peer_sock, &len, sizeof(len));
 			sock_ipc_must_write(pi->p_peer_sock, buf, cc);
 		}
-		pthread_mutex_unlock(&prison_mutex);
+		pthread_mutex_unlock(&cblock_mutex);
 	}
 }
 
 static int
-prison_instance_is_dead(const char *instance)
+cblock_instance_is_dead(const char *instance)
 {
-	struct prison_instance *pi;
+	struct cblock_instance *pi;
 	int isdead;
 
 	isdead = 0;
-	pthread_mutex_lock(&prison_mutex);
+	pthread_mutex_lock(&cblock_mutex);
 	TAILQ_FOREACH(pi, &pr_head, p_glue) {
-		if (!prison_instance_match(pi->p_instance_tag, instance)) {
+		if (!cblock_instance_match(pi->p_instance_tag, instance)) {
 			continue;
 		}
 		isdead = ((pi->p_state & STATE_DEAD) != 0);
-		pthread_mutex_unlock(&prison_mutex);
+		pthread_mutex_unlock(&cblock_mutex);
 		return (isdead);
         }
-        pthread_mutex_unlock(&prison_mutex);
+        pthread_mutex_unlock(&cblock_mutex);
 	/*
 	 * The console was non-interactive (i.e.: a build job) and it is
 	 * complete and the process(s) have been reaped. We might want
@@ -427,7 +427,7 @@ tty_console_session(const char *instance, int sock, int ttyfd)
 		 * rather than iterating through the jail list for read input
 		 * from the console.
 		 */
-		if (prison_instance_is_dead(instance)) {
+		if (cblock_instance_is_dead(instance)) {
 			break;
 		}
 		vptr = buf;
@@ -451,13 +451,13 @@ tty_console_session(const char *instance, int sock, int ttyfd)
 	printf("console dis-connected\n");
 }
 
-struct prison_instance *
-prison_lookup_instance(const char *instance)
+struct cblock_instance *
+cblock_lookup_instance(const char *instance)
 {
-	struct prison_instance *pi;
+	struct cblock_instance *pi;
 
 	TAILQ_FOREACH(pi, &pr_head, p_glue) {
-		if (!prison_instance_match(pi->p_instance_tag, instance)) {
+		if (!cblock_instance_match(pi->p_instance_tag, instance)) {
 			continue;
 		}
 		return (pi);
@@ -491,9 +491,9 @@ trim_tty_buffer(char *input, size_t len, size_t *newlen)
 int
 dispatch_connect_console(int sock)
 {
-	struct prison_console_connect pcc;
-	struct prison_response resp;
-	struct prison_instance *pi;
+	struct cblock_console_connect pcc;
+	struct cblock_response resp;
+	struct cblock_instance *pi;
 	char *tty_block, *trimmed;
 	ssize_t tty_buflen;
 	uint32_t cmd;
@@ -502,17 +502,17 @@ dispatch_connect_console(int sock)
 
 	bzero(&resp, sizeof(resp));
 	sock_ipc_must_read(sock, &pcc, sizeof(pcc));
-	pthread_mutex_lock(&prison_mutex);
-	pi = prison_lookup_instance(pcc.p_instance);
+	pthread_mutex_lock(&cblock_mutex);
+	pi = cblock_lookup_instance(pcc.p_instance);
 	if (pi == NULL) {
-		pthread_mutex_unlock(&prison_mutex);
+		pthread_mutex_unlock(&cblock_mutex);
 		sprintf(resp.p_errbuf, "%s invalid container", pcc.p_instance);
 		resp.p_ecode = 1;
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
 	}
 	if ((pi->p_state & STATE_CONNECTED) != 0) {
-		pthread_mutex_unlock(&prison_mutex);
+		pthread_mutex_unlock(&cblock_mutex);
 		sprintf(resp.p_errbuf, "%s console already attached", pcc.p_instance);
 		resp.p_ecode = 1;
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
@@ -523,7 +523,7 @@ dispatch_connect_console(int sock)
 	tty_block = termbuf_to_contig(&pi->p_ttybuf);
 	tty_buflen = pi->p_ttybuf.t_tot_len;
 	pi->p_peer_sock = sock;
-	pthread_mutex_unlock(&prison_mutex);
+	pthread_mutex_unlock(&cblock_mutex);
 	resp.p_ecode = 0;
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
 	if (tty_block) {
@@ -541,7 +541,7 @@ dispatch_connect_console(int sock)
 		err(1, "ioctl(TIOCSWINSZ): failed");
 	}
 	tty_console_session(pcc.p_instance, sock, ttyfd);
-	prison_detach_console(pcc.p_instance);
+	cblock_detach_console(pcc.p_instance);
 	return (1);
 }
 
@@ -578,14 +578,14 @@ gen_sha256_instance_id(char *instance_name)
 }
 
 int
-dispatch_launch_prison(int sock)
+dispatch_launch_cblock(int sock)
 {
 	extern struct global_params gcfg;
 	char **env, **argv, buf[128];
-	struct prison_response resp;
-	struct prison_instance *pi;
+	struct cblock_response resp;
+	struct cblock_instance *pi;
 	vec_t *cmd_vec, *env_vec;
-	struct prison_launch pl;
+	struct cblock_launch pl;
 	ssize_t cc;
 
 	cc = sock_ipc_must_read(sock, &pl, sizeof(pl));
@@ -643,12 +643,12 @@ dispatch_launch_prison(int sock)
 		execve(*argv, argv, env);
 		err(1, "execve failed");
 	}
-	prison_create_pid_file(pi);
+	cblock_create_pid_file(pi);
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
-	pthread_mutex_lock(&prison_mutex);
+	pthread_mutex_lock(&cblock_mutex);
 	TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
-	pthread_mutex_unlock(&prison_mutex);
+	pthread_mutex_unlock(&cblock_mutex);
 	resp.p_ecode = 0;
 	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "%s",
 	    pi->p_instance_tag);
@@ -659,13 +659,13 @@ dispatch_launch_prison(int sock)
 void *
 dispatch_work(void *arg)
 {
-	struct prison_peer *p;
+	struct cblock_peer *p;
 	uint32_t cmd;
 	ssize_t cc;
 	int done;
 
 	signal(SIGCHLD, handle_reap_children);
-	p = (struct prison_peer *)arg;
+	p = (struct cblock_peer *)arg;
 	printf("newly accepted socket: %d\n", p->p_sock);
 	done = 0;
 	while (!done) {
@@ -690,7 +690,7 @@ dispatch_work(void *arg)
 			done = 1;
 			break;
 		case PRISON_IPC_LAUNCH_PRISON:
-			cc = dispatch_launch_prison(p->p_sock);
+			cc = dispatch_launch_cblock(p->p_sock);
 			break;
 		default:
 			/*
@@ -710,11 +710,11 @@ dispatch_work(void *arg)
 }
 
 void *
-prison_handle_request(void *arg)
+cblock_handle_request(void *arg)
 {
-	struct prison_peer *p;
+	struct cblock_peer *p;
 
-	p = (struct prison_peer *)arg;
+	p = (struct cblock_peer *)arg;
 	if (pthread_create(&p->p_thr, NULL, dispatch_work, arg) != 0) {
 		err(1, "pthread_create(dispatch_work) failed");
 	}

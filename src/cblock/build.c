@@ -50,7 +50,7 @@
 
 struct build_config {
 	char			*b_name;
-	char			*b_prison_file;
+	char			*b_cblock_file;
 	char			*b_path;
 	char			*b_context_path;
 	char			*b_tag;
@@ -61,7 +61,7 @@ struct build_config {
 
 static struct option build_options[] = {
 	{ "name",		required_argument, 0, 'n' },
-	{ "prison-file-path",	required_argument, 0, 'f' },
+	{ "cblock-file-path",	required_argument, 0, 'f' },
 	{ "tag",		required_argument, 0, 't' },
 	{ "no-exec",		no_argument, 0, 'N' },
 	{ "help",		no_argument, 0, 'h' },
@@ -82,7 +82,7 @@ build_manifest_load(struct build_config *bcp)
 		err(1, "failed to get build manifest");
 	}
 	(void) snprintf(manifest_path, sizeof(manifest_path), "%s/%s",
-	    bcp->b_path, bcp->b_prison_file);
+	    bcp->b_path, bcp->b_cblock_file);
 	f = fopen(manifest_path, "r");
 	if (f == NULL) {
 		err(1, "fopen manifest failed");
@@ -100,11 +100,11 @@ static void
 build_usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: prison build [OPTIONS] PATH\n\n"
+	    "Usage: cblock build [OPTIONS] PATH\n\n"
 	    "Options\n"
 	    " -h, --help                    Print help\n"
 	    " -n, --name=NAME               Name of container image to build\n"
-	    " -f, --prison-file-path=PATH   Path to Prisonfile (relative to build path)\n"
+	    " -f, --cblock-file-path=PATH   Path to Prisonfile (relative to build path)\n"
 	    " -t, --tag=NAME                Tag to use for the image build\n"
 	    " -N, --no-exec                 Do everything but submit the build context\n"
 	    " -v, --verbose                 Increase verbosity of build\n"
@@ -114,7 +114,7 @@ build_usage(void)
 
 static void
 build_init_stage_count(struct build_config *bcp,
-    struct prison_build_context *pbc)
+    struct cblock_build_context *pbc)
 {
 	struct build_stage *bsp;
 	struct build_step *bs;
@@ -151,7 +151,7 @@ build_send_stages(int sock, struct build_config *bcp)
 static int
 build_send_context(int sock, struct build_config *bcp)
 {
-	struct prison_build_context pbc;
+	struct cblock_build_context pbc;
 	struct stat sb;
 	char *term;
 	u_int cmd;
@@ -176,8 +176,8 @@ build_send_context(int sock, struct build_config *bcp)
 	pbc.p_verbose = bcp->b_verbose;
 	strlcpy(pbc.p_term, term, sizeof(pbc.p_term));
 	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
-	strlcpy(pbc.p_prison_file, bcp->b_prison_file,
-	    sizeof(pbc.p_prison_file));
+	strlcpy(pbc.p_cblock_file, bcp->b_cblock_file,
+	    sizeof(pbc.p_cblock_file));
 	if (bcp->b_bmp->entry_point) {
 		strlcpy(pbc.p_entry_point, bcp->b_bmp->entry_point,
 		    sizeof(pbc.p_entry_point));
@@ -208,7 +208,7 @@ build_generate_context(struct build_config *bcp)
 	int ret, status, pid;
 
 	fflush(stdout);
-	template = strdup("/tmp/prison-bcontext.XXXXXXXXX");
+	template = strdup("/tmp/cblock-bcontext.XXXXXXXXX");
 	build_context_path = mktemp(template);
 	if (build_context_path == NULL) {
 		err(1, "failed to generate random file");
@@ -279,7 +279,7 @@ build_main(int argc, char *argv [], int cltlsock)
 
 	noexec = 0;
 	bzero(&bc, sizeof(bc));
-	bc.b_prison_file = "Prisonfile";
+	bc.b_cblock_file = "Prisonfile";
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
@@ -305,7 +305,7 @@ build_main(int argc, char *argv [], int cltlsock)
 			bc.b_name = optarg;
 			break;
 		case 'f':
-			bc.b_prison_file = optarg;
+			bc.b_cblock_file = optarg;
 			break;
 		case 't':
 			bc.b_tag = optarg;

@@ -70,7 +70,7 @@ network_usage(void)
 static int
 network_create(int ctlsock, struct network_config *nc)
 {
-	struct prison_generic_command arg;
+	struct cblock_generic_command arg;
 	char *payload;
 	uint32_t cmd;
 	vec_t *vec;

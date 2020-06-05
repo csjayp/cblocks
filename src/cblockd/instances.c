@@ -51,12 +51,12 @@ dispatch_get_instances(sock)
 	struct instance_ent *ents;
 	size_t count;
 
-	count = prison_instance_get_count();
+	count = cblock_instance_get_count();
 	sock_ipc_must_write(sock, &count, sizeof(count));
 	if (count == 0) {
 		return (1);
 	}
-	ents = prison_populate_instance_entries(count);
+	ents = cblock_populate_instance_entries(count);
 	sock_ipc_must_write(sock, ents, count * sizeof(struct instance_ent));
 	free(ents);
 	return (1);

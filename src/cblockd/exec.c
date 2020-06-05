@@ -72,7 +72,7 @@ lookup_script(char *command)
 int
 dispatch_generic_command(int sock)
 {
-	struct prison_generic_command arg;
+	struct cblock_generic_command arg;
 	char *marshalled,*script;
 	int pipefds[2], error;
 	vec_t *vec;
