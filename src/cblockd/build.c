@@ -33,6 +33,7 @@
 #include <sys/ttycom.h>
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -106,6 +107,19 @@ waitpid_ignore_intr(pid_t pid, int *status)
 		break;
 	}
 	return (rpid);
+}
+
+void
+print_red(FILE *fp, char *fmt, ...)
+{
+	char fmtbuf[1024];
+	va_list ap;
+
+	va_start(ap, fmt);
+	(void) vsnprintf(fmtbuf, sizeof(fmtbuf), fmt, ap);
+	va_end(ap);
+	fprintf(fp, "\033[1;31m%s\033[0m", fmtbuf);
+	fflush(fp);
 }
 
 void
@@ -490,8 +504,10 @@ build_run_build_stage(struct build_context *bcp)
 		if (status != 0) {
 			print_bold_prefix(bcp->peer_sock_fp);
 			fprintf(bcp->peer_sock_fp,
-			    "Execution of stage of %d failed. Terminating.\n",
-			    k + 1);
+			    "Execution of stage of %d ", k + 1);
+			print_red(bcp->peer_sock_fp, "failed");
+			fprintf(bcp->peer_sock_fp,
+			    ". Terminating.\n");
 			fflush(bcp->peer_sock_fp);
 			break;
 		}

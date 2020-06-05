@@ -64,7 +64,7 @@ cleanup()
     regular)
         case $CBLOCK_FS in
         zfs)
-            umount "${data_root}/instances/${instance}/root/dev"
+            umount_reverse_order
             build_root_vol=`path_to_vol "${data_root}/instances/${instance}"`
             snap=`zfs_lookup_origin "${build_root_vol}"`
             zfs destroy -R "${build_root_vol}"

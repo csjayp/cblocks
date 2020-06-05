@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <err.h>
 #include <fcntl.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <libcblock.h>
@@ -70,6 +71,7 @@ instance_get(struct instance_config *icp, int ctlsock)
 	struct instance_ent *ent, *cur;
 	uint32_t cmd, k;
 	size_t count;
+	time_t now;
 
 	cmd = PRISON_IPC_GET_INSTANCES;
 	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
@@ -83,17 +85,18 @@ instance_get(struct instance_config *icp, int ctlsock)
 	}
 	sock_ipc_must_read(ctlsock, ent, count * sizeof(struct instance_ent));
 	if (!icp->i_quiet) {
-		printf("%-10.10s  %-15.15s %-12.12s %-7.7s %-11.11s\n",
-		    "INSTANCE", "IMAGE", "TTY", "PID", "START@");
+		printf("%-10.10s  %-15.15s %-12.12s %-7.7s %10.10s\n",
+		    "INSTANCE", "IMAGE", "TTY", "PID", "UP");
 	}
+	now = time(NULL);
 	for (k = 0; k < count; k++) {
 		cur = &ent[k];
-		printf("%-10.10s  %-15.15s %-12.12s %-7d %-11ld\n",
+		printf("%-10.10s  %-15.15s %-12.12s %-7d %9lds\n",
 		    cur->p_instance_name,
 		    cur->p_image_name,
 		    cur->p_tty_line,
 		    cur->p_pid,
-		    cur->p_start_time);
+		    now - cur->p_start_time);
 	}
 }
 
