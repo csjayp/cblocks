@@ -43,7 +43,7 @@
 #include "sock_ipc.h"
 #include "config.h"
 
-#include <libprison.h>
+#include <libcblock.h>
 
 struct command_ent {
 	char	*command;

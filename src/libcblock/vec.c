@@ -28,7 +28,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "libprison.h"
+#include "libcblock.h"
 
 char *
 vec_marshal(vec_t *vec)

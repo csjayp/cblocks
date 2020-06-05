@@ -49,7 +49,7 @@
 
 #include "config.h"
 
-#include <libprison.h>
+#include <libcblock.h>
 
 static char *data_sub_dirs[] = {
 	"spool",

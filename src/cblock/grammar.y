@@ -36,7 +36,7 @@
 #include <err.h>
 #include <assert.h>
 
-#include <libprison.h>
+#include <libcblock.h>
 
 #include "parser.h"
 

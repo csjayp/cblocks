@@ -56,7 +56,7 @@
 #include "sock_ipc.h"
 #include "config.h"
 
-#include <libprison.h>
+#include <libcblock.h>
 
 TAILQ_HEAD( , prison_peer) p_head;
 TAILQ_HEAD( , prison_instance) pr_head;

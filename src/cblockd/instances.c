@@ -24,38 +24,40 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#ifndef DISPATCH_DOT_H_
-#define DISPATCH_DOT_H_
-#include <libprison.h>
+#include <sys/types.h>
+#include <sys/queue.h>
 
-struct prison_instance {
-        int                             p_type;
-        uint32_t                        p_state;
-#define STATE_DEAD              0x00000001
-#define STATE_CONNECTED         0x00000002
-        char                            p_name[256];
-        pid_t                           p_pid;
-        int                             p_ttyfd;
-        char                            p_ttyname[256];
-        TAILQ_ENTRY(prison_instance)    p_glue;
-        struct tty_buffer               p_ttybuf;
-        int                             p_peer_sock;
-        int                             p_pipe[2];
-        char                            *p_instance_tag;
-        time_t                          p_launch_time;
-	char				p_image_name[256];
-	int				p_pid_file;
-};
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-size_t		prison_instance_get_count(void);
-struct instance_ent *
-		prison_populate_instance_entries(size_t);
-void *		prison_handle_request(void *);
-int		dispatch_get_instances(int);
-int		dispatch_generic_command(int);
-void *		tty_io_queue_loop(void *);
-int		dispatch_build_recieve(int);
-char *		gen_sha256_instance_id(char *instance_name);
-void		prison_fork_cleanup(char *instance, char *, int, int);
+#include "termbuf.h"
+#include "main.h"
+#include "dispatch.h"
+#include "sock_ipc.h"
+#include "config.h"
 
-#endif
+#include <libcblock.h>
+
+int
+dispatch_get_instances(sock)
+{
+	struct instance_ent *ents;
+	size_t count;
+
+	count = prison_instance_get_count();
+	sock_ipc_must_write(sock, &count, sizeof(count));
+	if (count == 0) {
+		return (1);
+	}
+	ents = prison_populate_instance_entries(count);
+	sock_ipc_must_write(sock, ents, count * sizeof(struct instance_ent));
+	free(ents);
+	return (1);
+}

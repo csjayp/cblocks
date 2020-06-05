@@ -52,7 +52,7 @@
 #include "sock_ipc.h"
 #include "config.h"
 
-#include <libprison.h>
+#include <libcblock.h>
 
 TAILQ_HEAD( , build_context) bc_head;
 

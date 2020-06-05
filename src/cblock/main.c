@@ -45,7 +45,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <libprison.h>
+#include <libcblock.h>
 
 #include "main.h"
 #include "sock_ipc.h"
