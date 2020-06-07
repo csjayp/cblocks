@@ -57,40 +57,12 @@
 
 TAILQ_HEAD( , build_context) bc_head;
 
-struct copy_from_msg {
-	int		stage;
-	char		reqpath[MAXPATHLEN];
+struct build_copy_from {
+        int                             stage;
+        vec_t                           *pathv;
+        TAILQ_ENTRY(build_copy_from)    glue;
 };
-
-struct copy_from_dispatcher {
-	char	*instance;
-	int	sock;
-};
-
-void *
-build_dispatch_copy_from(void *arg)
-{
-	struct copy_from_dispatcher *cf;
-	struct copy_from_msg cp_msg;
-	ssize_t cc;
-
-	cf = (struct copy_from_dispatcher *) arg;
-	while (1) {
-		bzero(&cp_msg, sizeof(cp_msg));
-		cc = read(cf->sock, &cp_msg, sizeof(cp_msg));
-		switch (cc) {
-		case -1:
-			if (errno == EINTR) {
-				continue;
-			}
-			err(1, "read failed");
-			break;
-		case 0:
-			break;
-		}
-	}
-	return (NULL);
-}
+typedef TAILQ_HEAD( , build_copy_from) build_copy_from_t;
 
 pid_t
 waitpid_ignore_intr(pid_t pid, int *status)
@@ -187,6 +159,96 @@ build_get_stage_deps(struct build_context *bcp, int stage_index)
 	return (strdup(p));
 }
 
+struct build_copy_from *
+build_stage_find_copy_from(int stage, build_copy_from_t *head)
+{
+	struct build_copy_from *cfp;
+
+	TAILQ_FOREACH(cfp, head, glue) {
+		if (cfp->stage != stage) {
+			continue;
+		}
+		return (cfp);
+	}
+	return (NULL);
+}
+
+static int
+build_stage_compile_copy_from(struct build_context *bcp, int stage_index)
+{
+	char tar_path[MAXPATHLEN], root_path[MAXPATHLEN], *src, **argv;
+	build_copy_from_t stage_deps;
+	struct build_copy_from *cfp;
+	int k, this_stage, status;
+	struct build_step *bsp;
+	vec_t *vec;
+	pid_t pid;
+
+	TAILQ_INIT(&stage_deps);
+	for (k = 0; k < bcp->pbc.p_nsteps; k++) {
+		bsp = &bcp->steps[k];
+		if (bsp->stage_index != stage_index) {
+			continue;
+		}
+		if (bsp->step_op != STEP_COPY_FROM) {
+			continue;
+		}
+		this_stage = bsp->step_data.step_copy_from.sc_stage;
+		cfp = build_stage_find_copy_from(this_stage, &stage_deps);
+		if (cfp == NULL) {
+			cfp = calloc(1, sizeof(*cfp));
+			if (cfp == NULL) {
+				warn("allocation failure");
+				return (-1);
+			}
+			cfp->stage = this_stage;
+			cfp->pathv = vec_init(32);
+			TAILQ_INSERT_HEAD(&stage_deps, cfp, glue);
+		}
+		src = bsp->step_data.step_copy_from.sc_source;
+		if (*src == '/') {
+			src++;
+		}
+		vec_append(cfp->pathv, src);
+	}
+	if (TAILQ_EMPTY(&stage_deps)) {
+		return (0);
+	}
+	TAILQ_FOREACH(cfp, &stage_deps, glue) {
+		snprintf(root_path, sizeof(root_path),
+		    "%s/instances/%s/%d/root", gcfg.c_data_dir,
+		    bcp->instance, cfp->stage);
+		snprintf(tar_path, sizeof(tar_path),
+		    "%s/instances/copy_from_%s_%d.tar",
+                    gcfg.c_data_dir, bcp->instance, cfp->stage);
+		/*
+		 * NB: we have the data to figure out exactly how many
+		 * Items we will need.
+		 */
+		vec = vec_init(128);
+		vec_append(vec, "/usr/bin/tar");
+		vec_append(vec, "-C");
+		vec_append(vec, root_path);
+		vec_append(vec, "-cf");
+		vec_append(vec, tar_path);
+		vec_merge(cfp->pathv, vec);
+		vec_finalize(vec);
+		pid = fork();
+		if (pid == -1) {
+			warn("fork failed");
+			return (-1);
+		}
+		if (pid == 0) {
+			argv = vec_return(vec);
+			execve(*argv, argv, NULL);
+			err(1, "execve failed");
+		}
+		vec_free(vec);
+		waitpid_ignore_intr(pid, &status);
+	}
+	return (0);
+}
+
 static int
 build_emit_shell_script(struct build_context *bcp, int stage_index)
 {
@@ -216,7 +278,7 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 		}
 		if (!header) {
 			fprintf(fp, "#!/bin/sh\n\n");
-			fprintf(fp, ". /cblock_build_variables.sh\n");
+			fprintf(fp, ". /tmp/cblock_build_variables.sh\n");
 			fprintf(fp, "set -e\n");
 			if (bcp->pbc.p_verbose > 0) {
 				fprintf(fp, "set -x\n");
@@ -248,7 +310,7 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 			fprintf(fp, "%s\n", bsp->step_data.step_cmd);
 			break;
 		case STEP_COPY_FROM:
-			fprintf(fp, "cp -pr \"${stages}/%d/%s\" %s\n",
+			fprintf(fp, "cp -pr /tmp/stage%d/%s %s\n",
 			    bsp->step_data.step_copy_from.sc_stage,
 			    bsp->step_data.step_copy_from.sc_source,
 			    bsp->step_data.step_copy_from.sc_dest);
@@ -272,7 +334,7 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 	pid_t pid;
 
 	(void) snprintf(script, sizeof(script),
-	    "%s/lib/stage_init.sh", gcfg.c_data_dir);
+	    "%s/lib/stage_bootstrap_build.sh", gcfg.c_data_dir);
 	(void) snprintf(index, sizeof(index), "%d", stage->bs_index);
 	(void) snprintf(context_archive, sizeof(context_archive),
 	    "%s/instances/%s.tar.gz", gcfg.c_data_dir, bcp->instance);
@@ -417,7 +479,7 @@ build_commit_image(struct build_context *bcp)
 static int
 build_run_build_stage(struct build_context *bcp)
 {
-	char stage_root[MAXPATHLEN], **argv, builder[1024];
+	char stage_root[MAXPATHLEN], **argv, builder[1024], buf[512];
 	struct build_stage *bstg;
 	vec_t *vec, *vec_env;
 	int status, k;
@@ -439,6 +501,9 @@ build_run_build_stage(struct build_context *bcp)
 			err(1, "mkdir(%s) stage root mount failed", stage_root);
 		}
 		build_emit_shell_script(bcp, bstg->bs_index);
+		if (build_stage_compile_copy_from(bcp, bstg->bs_index)) { 
+			printf("Stage has COPY FROM instruction\n");
+		}
 		status = build_init_stage(bcp, bstg);
 		if (status != 0) {
 			print_bold_prefix(bcp->peer_sock_fp);
@@ -476,7 +541,6 @@ build_run_build_stage(struct build_context *bcp)
 			 * especially for build containers. PATH is really
 			 * important.
 			 */
-			char buf[128];
 			sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
 			vec_env = vec_init(8);
 			vec_append(vec_env, buf);

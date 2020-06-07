@@ -129,8 +129,27 @@ path_to_vol()
     echo -n "$1" | sed -E "s,^/(.*),\1,g"
 }
 
+get_dep_list()
+{
+    find "${data_dir}/instances" \
+      -name "copy_from_${instance_name}_*" -type f \
+      -maxdepth 1
+}
+
+extract_previous_stage_deps()
+{
+    for f in `get_dep_list`; do
+        unit=`echo $f | sed -E 's/.*_([[:xdigit:]]+)_([0-9]+).tar/\2/g'`
+        targ="${build_root}/${stage_index}/root/tmp/stage${unit}"
+        mkdir ${targ}
+        tar -C ${targ} -xpf $f
+        rm $f
+    done
+}
+
 bootstrap()
 {
+
     case $CBLOCK_FS in
     ufs|fuse-unionfs)
         mkdir -p "${build_root}/${stage_index}"
@@ -142,18 +161,17 @@ bootstrap()
         fi
         ;;
     esac
-
     prepare_file_system
-
     if [ ! -d "${build_root}/${stage_index}/root/tmp" ]; then
         mkdir "${build_root}/${stage_index}/root/tmp"
     fi
+    extract_previous_stage_deps
     stage_work_dir=`mktemp -d "${build_root}/${stage_index}/root/tmp/XXXXXXXX"`
     tar -C "${stage_work_dir}" -zxf "${build_context}"
     chmod +x "${build_root}.${stage_index}.sh"
-    cp -p "${build_root}.${stage_index}.sh" "${build_root}/${stage_index}/root/cblock-bootstrap.sh"
+    cp -p "${build_root}.${stage_index}.sh" "${build_root}/${stage_index}/root/tmp/cblock-bootstrap.sh"
 
-    VARS="${build_root}/${stage_index}/root/cblock_build_variables.sh"
+    VARS="${build_root}/${stage_index}/root/tmp/cblock_build_variables.sh"
     stage_tmp_dir=`echo ${stage_work_dir} | sed s,${build_root}/${stage_index}/root,,g`
     printf "stage_tmp_dir=${stage_tmp_dir}\nstage_tmp_dir=${stage_tmp_dir}\n \
       \nbuild_root=${build_root} \
