@@ -104,7 +104,7 @@ build_usage(void)
 	    "Options\n"
 	    " -h, --help                    Print help\n"
 	    " -n, --name=NAME               Name of container image to build\n"
-	    " -f, --cblock-file-path=PATH   Path to Prisonfile (relative to build path)\n"
+	    " -f, --cblock-file-path=PATH   Path to Cblockfile (relative to build path)\n"
 	    " -t, --tag=NAME                Tag to use for the image build\n"
 	    " -N, --no-exec                 Do everything but submit the build context\n"
 	    " -v, --verbose                 Increase verbosity of build\n"
@@ -279,7 +279,7 @@ build_main(int argc, char *argv [], int cltlsock)
 
 	noexec = 0;
 	bzero(&bc, sizeof(bc));
-	bc.b_cblock_file = "Prisonfile";
+	bc.b_cblock_file = "Cblockfile";
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
