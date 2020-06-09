@@ -9,6 +9,26 @@ path_to_vol()
     echo -n "$1" | sed -E "s,^/(.*),\1,g"
 }
 
+network_cleanup()
+{
+    while read ln; do
+        ins=`echo $ln | awk -F: '{ print $2 }'`
+        if [ "$ins" != "$instance" ]; then
+            continue
+        fi
+        type=`echo $ln | awk -F: '{ print $1 }'`
+        case $type in
+        nat)
+            ip=`echo $ln | awk -F: '{ print $3 }'`
+            pfctl -a cblock-nat/${instance} -Fa
+            pfctl -a cblock-rdr/${instance} -Fa
+            ifconfig cblock0 ${ip}/32 delete
+            ;;
+        esac
+        break
+    done < $data_root/networks/cur
+}
+
 kill_jail()
 {
     pattern=`echo $instance | awk '{ printf("%.10s", $1) }'`
@@ -80,3 +100,4 @@ cleanup()
 
 kill_jail
 cleanup
+network_cleanup

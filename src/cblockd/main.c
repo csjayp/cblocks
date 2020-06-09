@@ -58,6 +58,7 @@ static char *data_sub_dirs[] = {
 	"images",
 	"instances",
 	"unions",
+	"networks",
 	NULL,
 };
 

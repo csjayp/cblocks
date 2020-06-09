@@ -205,7 +205,8 @@ static int
 build_generate_context(struct build_config *bcp)
 {
 	char *argv[10], *build_context_path, *template, dst[256];
-	int ret, status, pid;
+	int status;
+	pid_t pid;
 
 	fflush(stdout);
 	template = strdup("/tmp/cblock-bcontext.XXXXXXXXX");
@@ -230,16 +231,7 @@ build_generate_context(struct build_config *bcp)
 		execve(*argv, argv, NULL);
 		err(1, "failed to exec tar for build context");
 	}
-	while (1) {
-		ret = waitpid(pid, &status, 0);
-		if (ret == -1 && errno == EINTR) {
-			continue;
-		} else if (ret == -1) {
-			err(1, "waitpid faild");
-		}
-		break;
-		assert(ret == pid);
-	}
+	waitpid_ignore_intr(pid, &status);
 	if (rename(build_context_path, dst) == -1) {
 		err(1, "could not rename build context");
 	}

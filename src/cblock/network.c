@@ -44,6 +44,7 @@ struct network_config {
 	char		*n_netif;
 	char		*n_type;
 	int		 n_create;
+	char		*n_netmask;
 };
 
 static struct option network_options[] = {
@@ -51,6 +52,7 @@ static struct option network_options[] = {
 	{ "name",		required_argument, 0, 'n' },
 	{ "interface",		required_argument, 0, 'i' },
 	{ "type",		required_argument, 0, 't' },
+	{ "netmask",		required_argument, 0, 'm' },
 	{ "help",		no_argument, 0, 'h' },
 	{ 0, 0, 0, 0 }
 };
@@ -63,6 +65,7 @@ network_usage(void)
 	    " -n, --name=NAME         Name for network configuration\n"
 	    " -i, --interface=NETIF   Network interface for inbound/outbound traffic\n"
 	    " -t, --type=TYPE         Type, either 'nat' or 'bridge'\n"
+            " -m, --netmask=CIDR      Specify network to use for nat network config\n"
 	    " -h, --help              Print help\n");
 	exit(1);
 }
@@ -75,6 +78,9 @@ network_create(int ctlsock, struct network_config *nc)
 	uint32_t cmd;
 	vec_t *vec;
 
+	if (strcasecmp(nc->n_type, "nat") == 0 && nc->n_netmask == NULL) {
+		errx(1, "nat networks must have network address specified");
+	}
 	if (nc->n_netif == NULL) {
 		errx(1, "Must specify root network interface --interface");
 	}
@@ -91,6 +97,10 @@ network_create(int ctlsock, struct network_config *nc)
 	vec_append(vec, nc->n_name);
 	vec_append(vec, "-i");
 	vec_append(vec, nc->n_netif);
+	if (nc->n_netmask) {
+		vec_append(vec, "-m");
+		vec_append(vec, nc->n_netmask);
+	}
 	vec_finalize(vec);
 	payload = vec_marshal(vec);
 	if (payload == NULL) {
@@ -115,12 +125,15 @@ network_main(int argc, char *argv [], int ctlsock)
 	nc.n_type = "bridge";
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "cn:i:t:h", network_options,
+		c = getopt_long(argc, argv, "m:cn:i:t:h", network_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'm':
+			nc.n_netmask = optarg;
+			break;
 		case 'c':
 			nc.n_create = 1;
 			break;
