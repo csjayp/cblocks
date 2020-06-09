@@ -53,6 +53,7 @@ struct launch_config {
 	int		 l_attach;
 	int		 l_verbose;
 	char		*l_tag;
+	char		*l_ports;
 };
 
 static struct option launch_options[] = {
@@ -66,6 +67,7 @@ static struct option launch_options[] = {
 	{ "help",		no_argument, 0, 'h' },
 	{ "no-attach",		no_argument, 0, 'A' },
 	{ "verbose",		no_argument, 0, 'v' },
+	{ "port",		required_argument, 0, 'P' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -77,10 +79,11 @@ launch_usage(void)
 	    " -n, --name=NAME            Name of container image to launch\n"
 	    " -t, --terminal=TERM        Terminal type to use (TERM)\n"
 	    " -N, --network=NETWORK      Attach container to specified network\n"
-	    " -V, --volume=VOLUMESPE     Mount volume into the container\n"
+	    " -V, --volume=VOLUMESPEC    Mount volume into the container\n"
 	    " -F, --fdescfs              Mount file-descriptor file system\n"
 	    " -T, --tmpfs                Mount in-memory ephemeral tmpfs\n"
 	    " -p, --procfs               Mount process file system\n"
+	    " -P, --port=PORTSPEC        Expose container port(s)\n"
 	    " -A, --no-attach            Do not attach to container console\n"
 	    " -v, --verbose              Launch container with verbosity enabled\n"
 	);
@@ -120,6 +123,7 @@ launch_container(int sock, struct launch_config *lcp)
 	strlcpy(pl.p_name, lcp->l_name, sizeof(pl.p_name));
 	strlcpy(pl.p_term, term, sizeof(pl.p_term));
 	strlcpy(pl.p_volumes, lcp->l_volumes, sizeof(pl.p_volumes));
+	strlcpy(pl.p_ports, lcp->l_ports, sizeof(pl.p_ports));
 	strlcpy(pl.p_network, lcp->l_network, sizeof(pl.p_network));
 	sock_ipc_must_write(sock, &pl, sizeof(pl));
 	sock_ipc_must_read(sock, &resp, sizeof(resp));
@@ -144,11 +148,12 @@ launch_main(int argc, char *argv [], int ctlsock)
 {
 	struct launch_config lc;
 	int option_index, c;
-	struct sbuf *sb;
+	struct sbuf *sb, *pb;
 	char *tag, *ptr;
 
 	bzero(&lc, sizeof(lc));
 	sb = sbuf_new_auto();
+	pb = sbuf_new_auto();
 	sbuf_cat(sb, "devfs");
 	sbuf_cat(sb, ",");
 	lc.l_network = "default";
@@ -158,12 +163,16 @@ launch_main(int argc, char *argv [], int ctlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "N:Fpn:t:V:T", launch_options,
+		c = getopt_long(argc, argv, "P:vN:Fpn:t:V:T", launch_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'P':
+			sbuf_cat(pb, optarg);
+			sbuf_cat(pb, ",");
+			break;
 		case 'v':
 			lc.l_verbose = 1;
 			break;
@@ -220,6 +229,8 @@ launch_main(int argc, char *argv [], int ctlsock)
 		lc.l_tag = ptr;
         }
 	sbuf_finish(sb);
+	sbuf_finish(pb);
+	lc.l_ports = sbuf_data(pb);
 	lc.l_volumes = sbuf_data(sb);
 	argc -= optind;
 	argv += optind;

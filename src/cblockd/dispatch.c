@@ -607,6 +607,9 @@ dispatch_launch_cblock(int sock)
 	/*
 	 * Setup the environment variables first.
 	 */
+	if (pl.p_ports[0] == '\0') {
+		strcpy(pl.p_ports, "none");
+	}
 	sprintf(buf, "TERM=%s", pl.p_term);
 	vec_append(env_vec, buf);
 	vec_append(env_vec, "USER=root");
@@ -632,6 +635,7 @@ dispatch_launch_cblock(int sock)
 		vec_append(cmd_vec, "default");
 	}
 	vec_append(cmd_vec, pl.p_tag);
+	vec_append(cmd_vec, pl.p_ports);
 	if (pl.p_entry_point_args[0] != '\0') {
 		vec_append(cmd_vec, pl.p_entry_point_args);
 	}

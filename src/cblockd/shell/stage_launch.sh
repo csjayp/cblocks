@@ -6,7 +6,8 @@ instance_id="$3"
 mount_spec="$4"
 network="$5"
 tag="$6"
-entry_point_args="$7"
+ports="$7"
+entry_point_args="$8"
 devfs_mount="${data_root}/instances/${instance_id}/root/dev"
 image_dir=""
 
@@ -50,6 +51,48 @@ get_jail_interface()
         echo "Only bridges are supported at this time"
         exit 1
     esac
+}
+
+setup_port_redirects()
+{
+    _all_fields=$1
+    for spec in `echo "${_all_fields}" | sed "s/,/ /g"`; do
+        case $spec in
+        none)
+            return
+            ;;
+        *:*:*)
+            for field in `jot 4`; do
+                case $field in
+                1)
+                    host_port=`echo "$spec" | cut -f $field -d:`
+                    ;;
+                2)
+                    container_port=`echo "$spec" | cut -f $field -d:`
+                    ;;
+                3)
+                    visibility=`echo "$spec" | cut -f $field -d:`
+                    ;;
+                esac
+            done
+            ;;
+        *:*)
+            for field in `jot 4`; do
+                case $field in
+                1)
+                    host_port=`echo "$spec" | cut -f $field -d:`
+                    ;;
+                2)
+                    container_port=`echo "$spec" | cut -f $field -d:`
+                    ;;
+                esac
+            done
+            echo "rdr on lo0 inet proto tcp " \
+              "from any to any port $host_port -> $2 port $container_port" | \
+            pfctl -a cblock-rdr/${instance_id} -f -
+            ;;
+        esac
+    done
 }
 
 emit_mount_specification()
@@ -160,8 +203,60 @@ path_to_vol()
     echo -n "$1" | sed -E "s,^/(.*),\1,g"
 }
 
+is_broadcast()
+{
+    range=`subcalc inet $1 | grep "^range:"`
+    start=`echo $range | awk '{ print $2 }'`
+    end=`echo $range | awk '{ print $4 }'`
+    if [ "$2" = "$start" ] || [ "$2" = "$end" ]; then
+        echo yes
+    else
+        echo no
+    fi
+}
+
+is_assigned()
+{
+    for ip in `ifconfig cblock0 | grep "inet "| awk '{ print $2 }'`; do
+        if [ "$ip" = "$1" ]; then
+            echo yes
+            return
+        fi
+    done
+    echo no
+}
+
+network_to_ip()
+{
+    while read ln; do
+        n_type=`echo $ln | awk -F: '{ print $1 }'`
+        if [ "$n_type" != "nat" ]; then
+            continue
+        fi
+        n_name=`echo $ln | awk -F: '{ print $2 }'`
+        if [ "$n_name" != "$network" ]; then
+            continue
+        fi
+        net_addr=`echo $ln | awk -F: '{ print $4 }'`
+        out_if=`echo $ln | awk -F: '{ print $3 }'`
+        for ip in `subcalc inet $net_addr print | grep -v "^;"`; do
+            if [ `is_assigned $ip` = "no" ] && \
+               [ `is_broadcast $net_addr $ip` = "no" ]; then
+                ifconfig cblock0 inet "${ip}/32" alias
+                echo "nat on $out_if from ${ip}/32 to any -> ($out_if)" | \
+                    pfctl -a cblock-nat/${instance_id} -f -
+                echo "nat:${instance_id}:${ip}" >> $data_root/networks/cur
+                echo "${ip}"
+                return
+            fi
+        done
+    done < $data_root/networks/network_list
+    exit 1
+}
+
 do_launch()
 {
+    sysctl net.inet.ip.forwarding=1
     img_tag="${image_name}:${tag}"
     if [ ! -h "${data_root}/images/${img_tag}" ]; then
         echo "[FATAL]: no such image ${image_name} downloaded"
@@ -186,7 +281,6 @@ do_launch()
     mount -t devfs devfs "${instance_root}/dev"
     config_devfs
     eval `emit_mount_specification $mount_spec`
-    ip4=`get_default_ip`
     instance_cmd=`emit_entrypoint`
     is_bridge=`network_is_bridge`
     if [ "$is_bridge" = "TRUE" ]; then
@@ -200,6 +294,9 @@ do_launch()
           "path=${instance_root}" \
           command=${instance_cmd}
     else
+        ip4=`network_to_ip`
+        setup_port_redirects $ports $ip4
+        #ip4=`get_default_ip`
         jail -c \
           "host.hostname=${instance_hostname}" \
           "ip4.addr=${ip4}" \

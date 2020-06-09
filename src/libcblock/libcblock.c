@@ -25,6 +25,7 @@
  * SUCH DAMAGE.
  */
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/queue.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -43,6 +44,23 @@
 #include <errno.h>
 #include <string.h>
 #include <err.h>
+
+pid_t
+waitpid_ignore_intr(pid_t pid, int *status)
+{
+	pid_t rpid;
+
+	while (1) {
+		rpid = waitpid(pid, status, 0);
+		if (rpid == -1 && errno == EINTR) {
+			continue;
+		} else if (pid == -1) {
+			err(1, "waitpid failed");
+		}
+		break;
+	}
+	return (rpid);
+}
 
 void
 sock_ipc_from_sock_to_tty(int sock)

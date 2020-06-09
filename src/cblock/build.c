@@ -104,7 +104,7 @@ build_usage(void)
 	    "Options\n"
 	    " -h, --help                    Print help\n"
 	    " -n, --name=NAME               Name of container image to build\n"
-	    " -f, --cblock-file-path=PATH   Path to Prisonfile (relative to build path)\n"
+	    " -f, --cblock-file-path=PATH   Path to Cblockfile (relative to build path)\n"
 	    " -t, --tag=NAME                Tag to use for the image build\n"
 	    " -N, --no-exec                 Do everything but submit the build context\n"
 	    " -v, --verbose                 Increase verbosity of build\n"
@@ -205,7 +205,8 @@ static int
 build_generate_context(struct build_config *bcp)
 {
 	char *argv[10], *build_context_path, *template, dst[256];
-	int ret, status, pid;
+	int status;
+	pid_t pid;
 
 	fflush(stdout);
 	template = strdup("/tmp/cblock-bcontext.XXXXXXXXX");
@@ -230,16 +231,7 @@ build_generate_context(struct build_config *bcp)
 		execve(*argv, argv, NULL);
 		err(1, "failed to exec tar for build context");
 	}
-	while (1) {
-		ret = waitpid(pid, &status, 0);
-		if (ret == -1 && errno == EINTR) {
-			continue;
-		} else if (ret == -1) {
-			err(1, "waitpid faild");
-		}
-		break;
-		assert(ret == pid);
-	}
+	waitpid_ignore_intr(pid, &status);
 	if (rename(build_context_path, dst) == -1) {
 		err(1, "could not rename build context");
 	}
@@ -279,7 +271,7 @@ build_main(int argc, char *argv [], int cltlsock)
 
 	noexec = 0;
 	bzero(&bc, sizeof(bc));
-	bc.b_cblock_file = "Prisonfile";
+	bc.b_cblock_file = "Cblockfile";
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;

@@ -95,6 +95,7 @@ struct cblock_launch {
 	char					p_term[128];
 	char					p_entry_point_args[1024];
 	char					p_volumes[2048];
+	char					p_ports[2048];
 	char					p_network[256];
 	int					p_verbose;
 };
@@ -212,6 +213,7 @@ struct vec {
 
 typedef struct vec vec_t;
 
+pid_t		waitpid_ignore_intr(pid_t, int *);
 vec_t *		vec_init(size_t);
 void		vec_append(vec_t *, char *);
 int		vec_finalize(vec_t *);
