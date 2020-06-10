@@ -280,11 +280,11 @@ do_launch()
     esac
     mount -t devfs devfs "${instance_root}/dev"
     config_devfs
-    eval `emit_mount_specification $mount_spec`
-    instance_cmd=`emit_entrypoint`
-    is_bridge=`network_is_bridge`
+    eval `emit_mount_specification "$mount_spec"`
+    instance_cmd=$(emit_entrypoint)
+    is_bridge=$(network_is_bridge)
     if [ "$is_bridge" = "TRUE" ]; then
-       netif=`get_jail_interface`
+       netif=$(get_jail_interface)
        jail -c \
           "host.hostname=${instance_hostname}" \
           "vnet" \
@@ -292,10 +292,10 @@ do_launch()
           "name=${instance_id}" \
           "osrelease=12.1-RELEASE" \
           "path=${instance_root}" \
-          command=${instance_cmd}
+          command="${instance_cmd}"
     else
-        ip4=`network_to_ip`
-        setup_port_redirects $ports $ip4
+        ip4=$(network_to_ip)
+        setup_port_redirects "$ports" "$ip4"
         #ip4=`get_default_ip`
         jail -c \
           "host.hostname=${instance_hostname}" \
@@ -303,7 +303,7 @@ do_launch()
           "name=${instance_id}" \
           "osrelease=12.1-RELEASE" \
           "path=${instance_root}" \
-          command=${instance_cmd}
+          command="${instance_cmd}"
     fi
 }
 

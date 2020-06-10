@@ -10,9 +10,9 @@ net_mask=""
 
 get_lowest_bridge_unit()
 {
-    iflist=`ifconfig -l`
+    iflist=$(ifconfig -l)
     NOMATCH="TRUE"
-    for unit in `jot 1024 0`; do
+    for unit in $(jot 1024 0); do
         ifconfig "bridge${unit}" create up 2>/dev/null
         if [ "$?" -ne 0 ]; then
             continue
@@ -33,7 +33,7 @@ do_nat_setup()
         echo "Network mask must be specified in a.b.c.d/cidr format"
         exit 1
     fi
-    iflist=`ifconfig -l`
+    iflist=$(ifconfig -l)
     NOMATCH="TRUE"
     for n in $iflist; do
         if [ "$n" = "cblock0" ]; then
@@ -48,9 +48,9 @@ do_nat_setup()
     fi
     # NB: we should be doing these under a lockf to avoid races
     while read ln; do
-        n_type=`echo $ln | awk -F: '{ print $1 }'`
-        n_name=`echo $ln | awk -F: '{ print $2 }'`
-        n_netif=`echo $ln | awk -F: '{ print $3 }'`
+        n_type=$(echo "$ln" | awk -F: '{ print $1 }')
+        n_name=$(echo "$ln" | awk -F: '{ print $2 }')
+        n_netif=$(echo "$ln" | awk -F: '{ print $3 }')
         if [ "$n_name" = "$net_name" ]; then
             echo "Network \'$net_name\' is already defined"
             echo "        $ln"
@@ -63,7 +63,7 @@ do_nat_setup()
 
 do_bridge_setup()
 {
-    unit=`get_lowest_bridge_unit`
+    unit=$(get_lowest_bridge_unit)
     if [ $? -ne 0 ]; then
         echo "Failed to calculate lowest bridge unit"
         exit 1
@@ -104,8 +104,8 @@ while getopts "m:R:t:i:n:" opt; do
     esac
 done
 
-if [ ! -f ${data_root}/networks/network_list ]; then
-    touch ${data_root}/networks/network_list
+if [ ! -f "${data_root}"/networks/network_list ]; then
+    touch "${data_root}"/networks/network_list
 fi
 
 if [ ! "$type" ] || [ ! "$netif" ] || [ ! "$net_name" ]; then
@@ -115,7 +115,7 @@ fi
 
 case "$type" in
     bridge)
-        bridgeif=`do_bridge_setup`
+        bridgeif=$(do_bridge_setup)
         if [ $? -ne 0 ]; then
             exit 1
         fi

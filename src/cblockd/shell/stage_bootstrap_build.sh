@@ -39,8 +39,8 @@ bind_devfs()
 prepare_file_system()
 {
     if [ -h "${data_dir}/images/${base_container}:latest" ]; then
-        readlnk=`readlink "${data_dir}/images/${base_container}:latest"`
-        base_root=`realpath ${readlnk}`
+        readlnk=$(readlink "${data_dir}/images/${base_container}:latest")
+        base_root=$(realpath "${readlnk}")
     else
         # Check to see if we have an ephemeral build stage
         if [ -h "${build_root}/images/${base_container}" ]; then
@@ -50,7 +50,7 @@ prepare_file_system()
                 base_root="${build_root}/images/${base_container}"
                 ;;
             zfs)
-                base_root=`readlink "${build_root}/images/${base_container}"`
+                base_root=$(readlink "${build_root}/images/${base_container}")
                 ;;
             esac
         else
@@ -68,7 +68,7 @@ prepare_file_system()
         union_dir="${data_dir}/unions/${instance_name}/${stage_index}"
         mkdir -p "${union_dir}"
         perms="RO"
-        if [ -h ${base_root} ] && [ ${stage_index} -gt 0 ]; then
+        if [ -h "${base_root}" ] && [ "${stage_index}" -gt 0 ]; then
             # NB: we should also validate that this directory matches the
             # structure of an intermediate build image (pattern)
             #
@@ -86,7 +86,7 @@ prepare_file_system()
           -o cow \
           -o use_ino \
           "${base_root}/root=${perms}:${union_dir}=RW" \
-          ${build_root}/${stage_index}/root
+          "${build_root}"/"${stage_index}"/root
         if [ $? -ne 0 ]; then
             echo "Failed to add the fuse/unionfs overlay"
             exit 1
@@ -97,7 +97,7 @@ prepare_file_system()
         # command line tool itself
         #
         # NB: add an upper bound to this loop, either time or count.
-        while `true`; do
+        while $(true); do
             df "${build_root}/${stage_index}/root/etc"
             if [ $? -eq 0 ]; then
                 break
@@ -108,15 +108,15 @@ prepare_file_system()
         fi
         ;;
     ufs)
-        mount -t unionfs -o noatime -o below ${base_root}/root \
-          ${build_root}/${stage_index}/root
+        mount -t unionfs -o noatime -o below "${base_root}"/root \
+          "${build_root}"/"${stage_index}"/root
         if [ ! -d "${build_root}/${stage_index}/root/tmp" ] ; then
             mkdir "${build_root}/${stage_index}/root/tmp"
         fi
         ;;
     zfs)
-        build_root_vol=`path_to_vol "${build_root}"`
-        base_root_vol=`path_to_vol "${base_root}"`
+        build_root_vol=$(path_to_vol "${build_root}")
+        base_root_vol=$(path_to_vol "${base_root}")
         zfs snapshot "${base_root_vol}@${instance_name}_${stage_index}"
         zfs clone "${base_root_vol}@${instance_name}_${stage_index}" \
           "${build_root_vol}/${stage_index}"
@@ -138,12 +138,12 @@ get_dep_list()
 
 extract_previous_stage_deps()
 {
-    for f in `get_dep_list`; do
-        unit=`echo $f | sed -E 's/.*_([[:xdigit:]]+)_([0-9]+).tar/\2/g'`
+    for f in $(get_dep_list); do
+        unit=$(echo "$f" | sed -E 's/.*_([[:xdigit:]]+)_([0-9]+).tar/\2/g')
         targ="${build_root}/${stage_index}/root/tmp/stage${unit}"
-        mkdir ${targ}
-        tar -C ${targ} -xpf $f
-        rm $f
+        mkdir "${targ}"
+        tar -C "${targ}" -xpf "$f"
+        rm "$f"
     done
 }
 
@@ -155,7 +155,7 @@ bootstrap()
         mkdir -p "${build_root}/${stage_index}"
         ;;
     zfs)
-        build_root_vol=`path_to_vol "${build_root}"`
+        build_root_vol=$(path_to_vol "${build_root}")
         if [ "${stage_index}" == "0" ]; then
             zfs create "${build_root_vol}"
         fi
@@ -166,16 +166,16 @@ bootstrap()
         mkdir "${build_root}/${stage_index}/root/tmp"
     fi
     extract_previous_stage_deps
-    stage_work_dir=`mktemp -d "${build_root}/${stage_index}/root/tmp/XXXXXXXX"`
+    stage_work_dir=$(mktemp -d "${build_root}/${stage_index}/root/tmp/XXXXXXXX")
     tar -C "${stage_work_dir}" -zxf "${build_context}"
     chmod +x "${build_root}.${stage_index}.sh"
     cp -p "${build_root}.${stage_index}.sh" "${build_root}/${stage_index}/root/tmp/cblock-bootstrap.sh"
 
     VARS="${build_root}/${stage_index}/root/tmp/cblock_build_variables.sh"
-    stage_tmp_dir=`echo ${stage_work_dir} | sed s,${build_root}/${stage_index}/root,,g`
+    stage_tmp_dir=$(echo "${stage_work_dir}" | sed s,"${build_root}"/"${stage_index}"/root,,g)
     printf "stage_tmp_dir=${stage_tmp_dir}\nstage_tmp_dir=${stage_tmp_dir}\n \
       \nbuild_root=${build_root} \
-      \nstage_index=${stage_index}\nstages=${stage_deps_mount}\n" > $VARS
+      \nstage_index=${stage_index}\nstages=${stage_deps_mount}\n" > "$VARS"
     bind_devfs
 
     if [ "${stage_name}" ]; then
