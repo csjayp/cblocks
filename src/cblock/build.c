@@ -190,6 +190,11 @@ build_send_context(int sock, struct build_config *bcp)
 	build_init_stage_count(bcp, &pbc);
 	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
 	build_send_stages(sock, bcp);
+	print_bold_prefix(stdout);
+	fprintf(stdout,
+	    "Transmitting build context to cblock daemon (%zu) bytes...\n",
+	    sb.st_size);
+	fflush(stdout);
 	if (sock_ipc_from_to(fd, sock, sb.st_size) == -1) {
 		err(1, "sock_ipc_from_to: failed");
 	}
@@ -208,7 +213,6 @@ build_generate_context(struct build_config *bcp)
 	int status;
 	pid_t pid;
 
-	fflush(stdout);
 	template = strdup("/tmp/cblock-bcontext.XXXXXXXXX");
 	build_context_path = mktemp(template);
 	if (build_context_path == NULL) {
@@ -216,6 +220,9 @@ build_generate_context(struct build_config *bcp)
 	}
 	snprintf(dst, sizeof(dst), "%s.tar.gz", build_context_path);
 	build_context_path = mktemp(template);
+	print_bold_prefix(stdout),
+	fprintf(stdout, "Preparing local build context...\n");
+	fflush(stdout);
 	pid = fork();
 	if (pid == -1) {
 		err(1, "fork faild");

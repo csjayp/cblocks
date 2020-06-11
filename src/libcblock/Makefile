@@ -1,13 +1,13 @@
 CC	?= cc
 CFLAGS	= -Wall -g -fstack-protector -fsanitize=address
 TARGETS	= libcblock.so
-OBJ	= vec.o
+OBJ	= vec.o print.o
 PREFIX	?= /usr/local
 
 all:	$(TARGETS)
 
 .c.o:
-	$(CC) $(CFLAGS) -c $<
+	$(CC) $(CFLAGS) -c $< -fPIC
 
 libcblock.so: $(OBJ)
 	$(CC) -fPIC -shared -o libcblock.so libcblock.c -I. $(OBJ)
