@@ -213,6 +213,8 @@ struct vec {
 
 typedef struct vec vec_t;
 
+void		print_red(FILE *, char *, ...);
+void		print_bold_prefix(FILE *);
 pid_t		waitpid_ignore_intr(pid_t, int *);
 vec_t *		vec_init(size_t);
 void		vec_append(vec_t *, char *);

@@ -56,6 +56,8 @@ get_jail_interface()
 setup_port_redirects()
 {
     _all_fields=$1
+    _ip=$2
+    _outif=$3
     for spec in `echo "${_all_fields}" | sed "s/,/ /g"`; do
         case $spec in
         none)
@@ -75,6 +77,9 @@ setup_port_redirects()
                     ;;
                 esac
             done
+            echo "rdr on $_outif inet proto tcp from any to any " \
+              "port $host_port -> $_ip port $container_port" | \
+            pfctl -a cblock-rdr/${instance_id} -f -
             ;;
         *:*)
             for field in `jot 4`; do
@@ -87,8 +92,8 @@ setup_port_redirects()
                     ;;
                 esac
             done
-            echo "rdr on lo0 inet proto tcp " \
-              "from any to any port $host_port -> $2 port $container_port" | \
+            echo "rdr on lo0 inet proto tcp from any to any " \
+              "port $host_port -> $_ip port $container_port" | \
             pfctl -a cblock-rdr/${instance_id} -f -
             ;;
         esac
@@ -247,6 +252,7 @@ network_to_ip()
                     pfctl -a cblock-nat/${instance_id} -f -
                 echo "nat:${instance_id}:${ip}" >> $data_root/networks/cur
                 echo "${ip}"
+                setup_port_redirects "$ports" "$ip" "$out_if"
                 return
             fi
         done
@@ -280,11 +286,11 @@ do_launch()
     esac
     mount -t devfs devfs "${instance_root}/dev"
     config_devfs
-    eval `emit_mount_specification $mount_spec`
-    instance_cmd=`emit_entrypoint`
-    is_bridge=`network_is_bridge`
+    eval `emit_mount_specification "$mount_spec"`
+    is_bridge=$(network_is_bridge)
+    set $(emit_entrypoint)
     if [ "$is_bridge" = "TRUE" ]; then
-       netif=`get_jail_interface`
+       netif=$(get_jail_interface)
        jail -c \
           "host.hostname=${instance_hostname}" \
           "vnet" \
@@ -292,10 +298,9 @@ do_launch()
           "name=${instance_id}" \
           "osrelease=12.1-RELEASE" \
           "path=${instance_root}" \
-          command=${instance_cmd}
+          command="$@"
     else
-        ip4=`network_to_ip`
-        setup_port_redirects $ports $ip4
+        ip4=$(network_to_ip)
         #ip4=`get_default_ip`
         jail -c \
           "host.hostname=${instance_hostname}" \
@@ -303,7 +308,7 @@ do_launch()
           "name=${instance_id}" \
           "osrelease=12.1-RELEASE" \
           "path=${instance_root}" \
-          command=${instance_cmd}
+          command="$@"
     fi
 }
 

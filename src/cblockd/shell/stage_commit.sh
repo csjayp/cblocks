@@ -19,7 +19,7 @@ path_to_vol()
 commit_image()
 {
     if [ -h "${build_root}/${build_index}/root/cellblock-root-ptr" ]; then
-        dir=`readlink "${build_root}/${build_index}/root/cellblock-root-ptr"`
+        dir=$(readlink "${build_root}/${build_index}/root/cellblock-root-ptr")
         src="${build_root}/${build_index}/root/${dir}"
         #
         # If we have root pivoting step, make sure we copy the entry point
@@ -45,8 +45,8 @@ commit_image()
     fi
     case $CBLOCK_FS in
     zfs)
-        nvol=`path_to_vol "${data_dir}/images/${image_name}.${instance}"`
-        zfs create ${nvol}
+        nvol=$(path_to_vol "${data_dir}/images/${image_name}.${instance}")
+        zfs create "${nvol}"
         ;;
     ufs)
         mkdir "${data_dir}/images/${image_name}.${instance}"

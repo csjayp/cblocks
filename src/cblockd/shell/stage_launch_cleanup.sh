@@ -12,35 +12,35 @@ path_to_vol()
 network_cleanup()
 {
     while read ln; do
-        ins=`echo $ln | awk -F: '{ print $2 }'`
+        ins=$(echo "$ln" | awk -F: '{ print $2 }')
         if [ "$ins" != "$instance" ]; then
             continue
         fi
-        type=`echo $ln | awk -F: '{ print $1 }'`
+        type=$(echo "$ln" | awk -F: '{ print $1 }')
         case $type in
         nat)
-            ip=`echo $ln | awk -F: '{ print $3 }'`
-            pfctl -a cblock-nat/${instance} -Fa
-            pfctl -a cblock-rdr/${instance} -Fa
-            ifconfig cblock0 ${ip}/32 delete
+            ip=$(echo "$ln" | awk -F: '{ print $3 }')
+            pfctl -a cblock-nat/"${instance}" -Fa
+            pfctl -a cblock-rdr/"${instance}" -Fa
+            ifconfig cblock0 "${ip}"/32 delete
             ;;
         esac
         break
-    done < $data_root/networks/cur
+    done < "$data_root"/networks/cur
 }
 
 kill_jail()
 {
-    pattern=`echo $instance | awk '{ printf("%.10s", $1) }'`
-    jail_id=`jls | grep -F "$pattern" | awk '{ print $1 }'`
+    pattern=$(echo "$instance" | awk '{ printf("%.10s", $1) }')
+    jail_id=$(jls | grep -F "$pattern" | awk '{ print $1 }')
     if [ "$jail_id" ]; then
-        jail -r $jail_id
+        jail -r "$jail_id"
     fi
 }
 
 umount_reverse_order()
 {
-    for fs in `mount -p | awk '{ print $2 }' | grep -F "${instance}" | tail -r`; do
+    for fs in $(mount -p | awk '{ print $2 }' | grep -F "${instance}" | tail -r); do
         umount -f "$fs"
     done
 }
@@ -60,7 +60,7 @@ cleanup()
         rm -fr "${data_root}/instances/${instance}.tar.gz"
         rm -fr "${data_root}/instances/${instance}.*.sh"
         rm -fr "${data_root}/instances/${instance}/images"
-        stage_list=`echo ${data_root}/instances/${instance}/[0-9]*`
+        stage_list=$(echo "${data_root}"/instances/"${instance}"/[0-9]*)
         for d in $stage_list; do
             umount -f "${d}/root/dev"
             case $CBLOCK_FS in
@@ -75,7 +75,7 @@ cleanup()
         done
         case $CBLOCK_FS in
         zfs)
-            build_root_vol=`path_to_vol "${data_root}/instances/${instance}"`
+            build_root_vol=$(path_to_vol "${data_root}/instances/${instance}")
             # Recursively remove the ZFS datasets (snapshots and file systems)
             zfs destroy -r "${build_root_vol}"
             ;;
@@ -85,8 +85,8 @@ cleanup()
         case $CBLOCK_FS in
         zfs)
             umount_reverse_order
-            build_root_vol=`path_to_vol "${data_root}/instances/${instance}"`
-            snap=`zfs_lookup_origin "${build_root_vol}"`
+            build_root_vol=$(path_to_vol "${data_root}/instances/${instance}")
+            snap=$(zfs_lookup_origin "${build_root_vol}")
             zfs destroy -R "${build_root_vol}"
             zfs destroy "${snap}"
             ;;
