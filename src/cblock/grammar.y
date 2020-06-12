@@ -36,7 +36,7 @@
 #include <err.h>
 #include <assert.h>
 
-#include <libcblock.h>
+#include <cblock/libcblock.h>
 
 #include "parser.h"
 

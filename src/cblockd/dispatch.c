@@ -56,7 +56,7 @@
 #include "sock_ipc.h"
 #include "config.h"
 
-#include <libcblock.h>
+#include <cblock/libcblock.h>
 
 TAILQ_HEAD( , cblock_peer) p_head;
 TAILQ_HEAD( , cblock_instance) pr_head;

@@ -46,7 +46,7 @@
 #include "main.h"
 #include "parser.h"
 
-#include <libcblock.h>
+#include <cblock/libcblock.h>
 
 struct build_config {
 	char			*b_name;

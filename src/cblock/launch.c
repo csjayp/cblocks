@@ -25,7 +25,6 @@
  * SUCH DAMAGE.
  */
 #include <sys/types.h>
-#include <sys/sbuf.h>
 #include <sys/ioctl.h>
 #include <sys/ttycom.h>
 
@@ -40,7 +39,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <libcblock.h>
+#include <cblock/libcblock.h>
+#include <cblock/sbuf.h>
 
 #include "main.h"
 

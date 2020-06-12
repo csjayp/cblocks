@@ -35,7 +35,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <libcblock.h>
+#include <cblock/libcblock.h>
 
 #include "main.h"
 

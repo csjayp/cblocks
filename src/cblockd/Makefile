@@ -1,5 +1,5 @@
 CC	?= cc
-CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I $(PREFIX)/include
+CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I $(PREFIX)/include -I../include
 TARGETS	= cblockd
 OBJ	= main.o sock_ipc.o dispatch.o termbuf.o build.o instances.o exec.o
 LIBS	= -lpthread -lutil -lcblock -lcrypto

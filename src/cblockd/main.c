@@ -49,7 +49,7 @@
 
 #include "config.h"
 
-#include <libcblock.h>
+#include <cblock/libcblock.h>
 
 static char *data_sub_dirs[] = {
 	"spool",
