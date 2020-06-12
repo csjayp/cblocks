@@ -54,6 +54,7 @@ struct launch_config {
 	int		 l_verbose;
 	char		*l_tag;
 	char		*l_ports;
+	int		 l_host_networking;
 };
 
 static struct option launch_options[] = {
@@ -68,6 +69,7 @@ static struct option launch_options[] = {
 	{ "no-attach",		no_argument, 0, 'A' },
 	{ "verbose",		no_argument, 0, 'v' },
 	{ "port",		required_argument, 0, 'P' },
+	{ "host-networking",	no_argument, 0, 'H' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -86,6 +88,7 @@ launch_usage(void)
 	    " -P, --port=PORTSPEC        Expose container port(s)\n"
 	    " -A, --no-attach            Do not attach to container console\n"
 	    " -v, --verbose              Launch container with verbosity enabled\n"
+	    " -H, --host-networking      Use host networking instead of NAT/bridge\n"
 	);
 	exit(1);
 }
@@ -156,19 +159,21 @@ launch_main(int argc, char *argv [], int ctlsock)
 	pb = sbuf_new_auto();
 	sbuf_cat(sb, "devfs");
 	sbuf_cat(sb, ",");
-	lc.l_network = "default";
 	lc.l_tag = "latest";
 	lc.l_attach = 1;
 	lc.l_verbose = 0;
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "P:vN:Fpn:t:V:T", launch_options,
+		c = getopt_long(argc, argv, "HP:vN:Fpn:t:V:T", launch_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'H':
+			lc.l_host_networking = 1;
+			break;
 		case 'P':
 			sbuf_cat(pb, optarg);
 			sbuf_cat(pb, ",");
@@ -232,6 +237,25 @@ launch_main(int argc, char *argv [], int ctlsock)
 	sbuf_finish(pb);
 	lc.l_ports = sbuf_data(pb);
 	lc.l_volumes = sbuf_data(sb);
+	if (lc.l_host_networking) {
+		if (sbuf_len(pb) > 0) {
+			warnx("Port mappings are not supported with host networking");
+			warnx("Create a NAT based network if you want this.");
+			exit(1);
+		}
+		if (lc.l_network) {
+			warnx("--network and --host-networking are mutually exclusive");
+			exit(1);
+		}
+		lc.l_network = "__host__";
+	}
+	if (lc.l_network == NULL) {
+		warnx("Must specify network to attach container to");
+		warnx("Use: cblock network --create ...");
+		warnx("Or use one of: --network, --host-networking");
+		exit(1);
+	}
+		
 	argc -= optind;
 	argv += optind;
 	/*

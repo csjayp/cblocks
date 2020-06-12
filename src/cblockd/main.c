@@ -51,6 +51,12 @@
 
 #include <cblock/libcblock.h>
 
+static char *banner =
+	"            __ __ __    __            __\n" \
+	".----.-----|  |  |  |--|  .-----.----|  |--.-----.\n" \
+	"|  __|  -__|  |  |  _  |  |  _  |  __|    <|__ --|\n" \
+	"|____|_____|__|__|_____|__|_____|____|__|__|_____|\n";
+
 static char *data_sub_dirs[] = {
 	"spool",
 	"lib",
@@ -193,8 +199,9 @@ main(int argc, char *argv [], char *env[])
 		    "    --fuse-unionfs\n"
                     "    --zfs");
 	}
+	fprintf(stdout, "%s\n", banner);
+	fprintf(stdout, "version %s\n", "0.0.0");
 	initialize_data_directory();
-	signal(SIGPIPE, SIG_IGN);
 	if (gcfg.c_name) {
 		sock_ipc_setup_unix(&gcfg);
 	} else {
