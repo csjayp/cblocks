@@ -42,6 +42,13 @@ network_cleanup()
         fi
         type=$(echo "$ln" | awk -F: '{ print $1 }')
         case $type in
+        bridge)
+            epair=$(echo $ln | awk -F: '{ print $3 }')
+            bridgeif=$(echo $ln | awk -F: '{ print $4 }')
+            ifconfig "${epair}a" down
+            ifconfig "$bridgeif" deletem "${epair}a"
+            ifconfig "${epair}a" destroy
+            ;;
         nat)
             ip=$(echo "$ln" | awk -F: '{ print $3 }')
             pfctl -a cblock-nat/"${instance}" -Fa

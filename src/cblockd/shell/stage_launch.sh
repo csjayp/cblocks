@@ -42,6 +42,7 @@ network_is_bridge()
             b=`ifconfig "$network" | grep groups | awk '{ print $2 }'`
             if [ "$b" = "bridge" ]; then
                 echo TRUE
+                return
             fi
         fi
     done
@@ -70,6 +71,8 @@ get_jail_interface()
             exit 1
         fi
         echo epair${epair_unit}b
+        echo "bridge:${instance_id}:epair${epair_unit}:$network" >> \
+          $data_root/networks/cur
         ;;
     *)
         echo "Only bridges are supported at this time"
@@ -187,18 +190,19 @@ config_devfs()
     devfs -m ${devfs_mount} rule applyset
     case $CBLOCK_FS in
     zfs)
+        # NB: NOTYET
         # Expose /dev/zfs for snapshotting et al
-        devfs -m ${devfs_mount} ruleset 4
-        devfs -m ${devfs_mount} rule applyset
+        # devfs -m ${devfs_mount} ruleset 4
+        # devfs -m ${devfs_mount} rule applyset
         ;;
     esac
-    V=`devfs rule showsets | grep "^5000"`
-    if [ ! "$V" ]; then
-        devfs -m ${devfs_mount} ruleset 5000
-        devfs rule -s 5000 add path 'bpf*' unhide
-    fi
     bridge=`network_is_bridge`
     if [ "$bridge" = "TRUE" ]; then
+        nrules=$(devfs rule -s 5000 show | wc -l | awk '{ print $1 }')
+        if [ "$nrules" -eq 0 ]; then
+            devfs -m ${devfs_mount} ruleset 5000
+            devfs rule -s 5000 add path 'bpf*' unhide
+        fi
         devfs -m ${devfs_mount} ruleset 5000
         devfs -m ${devfs_mount} rule applyset
     fi
@@ -249,10 +253,25 @@ is_assigned()
     for ip in `ifconfig cblock0 | grep "inet "| awk '{ print $2 }'`; do
         if [ "$ip" = "$1" ]; then
             echo yes
-            return
+            return 0
         fi
     done
     echo no
+}
+
+network_is_defined()
+{
+    if [ "$network" = "__host__" ]; then
+        return 0
+    fi
+    while read ln; do
+        n_name=$(echo $ln | awk -F: '{ print $2 }')
+        if [ "$n_name" = "$network" ]; then
+            return $(true)
+        fi
+    done < $data_root/networks/network_list
+    echo "Network $network is not defined"
+    exit 1
 }
 
 network_to_ip()
@@ -324,8 +343,11 @@ do_launch()
           "path=${instance_root}" \
           command="$@"
     else
-        ip4=$(network_to_ip)
-        #ip4=`get_default_ip`
+        if [ "$network" = "__host__" ]; then
+            ip4=$(get_default_ip)
+        else
+            ip4=$(network_to_ip)
+        fi
         jail -c \
           "host.hostname=${instance_hostname}" \
           "ip4.addr=${ip4}" \
@@ -336,4 +358,5 @@ do_launch()
     fi
 }
 
+network_is_defined
 do_launch

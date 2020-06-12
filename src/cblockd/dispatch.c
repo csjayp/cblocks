@@ -276,8 +276,8 @@ cblock_reap_children(void)
 		}
 		pi->p_state |= STATE_DEAD;
 		printf("collected exit status from proc %d\n", pi->p_pid);
-		printf("dumping TTY buffer:\n");
-		termbuf_print_queue(&pi->p_ttybuf.t_head);
+		//printf("dumping TTY buffer:\n");
+		//termbuf_print_queue(&pi->p_ttybuf.t_head);
 		cblock_remove(pi);
 	}
 	pthread_mutex_unlock(&cblock_mutex);
