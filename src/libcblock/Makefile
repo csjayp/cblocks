@@ -1,7 +1,7 @@
 CC	?= cc
-CFLAGS	= -Wall -g -fstack-protector -fsanitize=address
+CFLAGS	= -Wall -g -fstack-protector -fsanitize=address -I../include
 TARGETS	= libcblock.so
-OBJ	= vec.o print.o
+OBJ	= vec.o print.o sbuf.o
 PREFIX	?= /usr/local
 
 all:	$(TARGETS)
@@ -15,7 +15,9 @@ libcblock.so: $(OBJ)
 install:
 	[ -d $(PREFIX)/lib ] || mkdir -p $(PREFIX)/lib
 	install -m 0555 $(TARGETS) $(PREFIX)/lib
-	cp libcblock.h $(PREFIX)/include
+	[ -d $(PREFIX)/include/cblock ] ||  mkdir -p $(PREFIX)/include/cblock
+	cp cblock/libcblock.h $(PREFIX)/include/cblock
+	cp sbuf.h $(PREFIX)/include/cblock
 	ldconfig -m
 
 clean:

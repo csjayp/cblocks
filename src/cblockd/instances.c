@@ -43,7 +43,7 @@
 #include "sock_ipc.h"
 #include "config.h"
 
-#include <libcblock.h>
+#include <cblock/libcblock.h>
 
 int
 dispatch_get_instances(sock)

@@ -28,7 +28,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "libcblock.h"
+#include <cblock/libcblock.h>
 
 char *
 vec_marshal(vec_t *vec)
