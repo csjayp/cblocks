@@ -11,7 +11,7 @@ all:	$(TARGETS)
 	$(CC) $(CFLAGS) -c $<
 
 cblockd: $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib
+	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib -L../libcblock
 
 clean:
 	rm -fr *.o $(TARGETS) *.core *.plist

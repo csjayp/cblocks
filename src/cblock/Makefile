@@ -20,10 +20,11 @@ lex.yy.o: y.tab.h token.l
 	$(CC) $(CFLAGS) -c lex.yy.c
 
 cblock:	$(OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib
+	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib -L../libcblock
 
 clean:
 	rm -fr *.o $(TARGETS) *.out y.tab.c y.tab.h y.output lex.yy.c
 
 install:
-	cp $(TARGETS) $(PREFIX)/bin/cblock
+	[ -d $(PREFIX)/bin ] || mkdir -p $(PREFIX)/bin
+	install -m 0555 $(TARGETS) $(PREFIX)/bin
