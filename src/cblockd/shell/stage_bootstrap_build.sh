@@ -24,8 +24,6 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
-set -e
-
 build_root=$1
 stage_index=$2
 base_container=$3
@@ -33,9 +31,10 @@ data_dir=$4
 build_context=$5
 stage_deps=$6
 instance_name=$7
+mint_state=$8
 stage_name=""
-if [ "$8" ]; then
-    stage_name=$8
+if [ "$9" ]; then
+    stage_name=$9
 fi
 
 stage_deps_dir=""
@@ -210,4 +209,24 @@ bootstrap()
     fi
 }
 
+handle_minting()
+{
+    if [ "${mint_state}" != "minting" ]; then
+        return
+    fi
+    printf "\033[1m--\033[0m %s\n" \
+      "Created minting instance ${instance_name}. Extracting build context..."
+    mkdir -p "${build_root}/${stage_index}/root"
+    tar -C "${build_root}/${stage_index}" -zxf "${build_context}"
+    if [ ! -d "${build_root}/${stage_index}/root/tmp" ]; then
+        mkdir "${build_root}/${stage_index}/root/tmp"
+        chmod 1777 "${build_root}/${stage_index}/roo/tmp"
+    fi
+    printf '#!/bin/sh\n\nexit 0' > \
+      "${build_root}/${stage_index}/root/tmp/cblock-bootstrap.sh"
+    chmod +x "${build_root}/${stage_index}/root/tmp/cblock-bootstrap.sh"
+    exit 0
+}
+
+handle_minting
 bootstrap

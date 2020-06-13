@@ -57,6 +57,7 @@ struct build_config {
 	struct build_manifest	*b_bmp;
 	int			 b_verbose;
 	int			 b_fim_spec;
+	int			 b_mint;
 };
 
 static struct option build_options[] = {
@@ -67,6 +68,7 @@ static struct option build_options[] = {
 	{ "help",		no_argument, 0, 'h' },
 	{ "verbose",		no_argument, 0, 'v' },
 	{ "file-integrity",	no_argument, 0, 'F' },
+	{ "mint",		no_argument, 0, 'm' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -108,7 +110,8 @@ build_usage(void)
 	    " -t, --tag=NAME                Tag to use for the image build\n"
 	    " -N, --no-exec                 Do everything but submit the build context\n"
 	    " -v, --verbose                 Increase verbosity of build\n"
-	    " -F, --file-integrity          Create file integrity spec\n");
+	    " -F, --file-integrity          Create file integrity spec\n"
+	    " -m, --mint                    Mint a new image\n");
 	exit(1);
 }
 
@@ -174,6 +177,7 @@ build_send_context(int sock, struct build_config *bcp)
 	pbc.p_build_fim_spec = bcp->b_fim_spec;
 	pbc.p_context_size = sb.st_size;
 	pbc.p_verbose = bcp->b_verbose;
+	pbc.p_mint_build = bcp->b_mint;
 	strlcpy(pbc.p_term, term, sizeof(pbc.p_term));
 	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
 	strlcpy(pbc.p_cblock_file, bcp->b_cblock_file,
@@ -282,12 +286,15 @@ build_main(int argc, char *argv [], int cltlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "FNhf:n:t:v", build_options,
+		c = getopt_long(argc, argv, "mFNhf:n:t:v", build_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'm':
+			bc.b_mint = 1;
+			break;
 		case 'F':
 			bc.b_fim_spec = 1;
 			break;

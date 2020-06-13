@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/select.h>
 #include <sys/param.h>
 #include <sys/un.h>
@@ -43,6 +44,7 @@
 #include <errno.h>
 #include <string.h>
 #include <err.h>
+#include <pwd.h>
 
 #include "main.h"
 #include "sock_ipc.h"
@@ -51,6 +53,7 @@ int
 sock_ipc_setup_unix(struct global_params *cmd)
 {
 	struct sockaddr_un addr;
+	struct passwd *pwd;
 
 	(void) unlink(cmd->c_name);
 	cmd->c_socks[0] = socket(PF_UNIX, SOCK_STREAM, PF_UNSPEC);
@@ -66,6 +69,19 @@ sock_ipc_setup_unix(struct global_params *cmd)
 	}
 	if (listen(cmd->c_socks[0], 100) == -1) {
 		err(1, "listen(PF_UNIX) failed");
+	}
+	if (cmd->c_sock_owner == NULL) {
+		return (0);
+	}
+	pwd = getpwnam(cmd->c_sock_owner);
+	if (pwd == NULL) {
+		err(1, "could not lookup user %s", cmd->c_sock_owner);
+	}
+	if (chown(cmd->c_name, pwd->pw_uid, pwd->pw_gid) == -1) {
+		err(1, "failed to change socket ownership");
+	}
+	if (chmod(cmd->c_name, S_IRWXU | S_IRWXG) == -1) {
+		err(1, "chmod failed");
 	}
 	return (0);
 }

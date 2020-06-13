@@ -35,6 +35,8 @@
 
 #include <stdio.h>
 #include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <termios.h>
 #include <getopt.h>
 #include <stdlib.h>
@@ -81,6 +83,9 @@ static struct option long_options[] = {
 	{ "zfs",		no_argument, 0, 'z' },
 	{ "fuse-unionfs",	no_argument, 0, 'N' },
 	{ "verbose",		no_argument, 0, 'v' },
+	{ "background",		no_argument, 0, 'b' },
+	{ "sock-owner",		required_argument, 0, 'o' },
+	{ "logfile",		required_argument, 0, 'l' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -101,6 +106,9 @@ usage(void)
 	    " -z, --zfs                   ZFS as the underlying file system\n"
 	    " -N, --fuse-unionfs          FUSE unionfs as the underlying file system\n"
 	    " -v, --verbose               Increase verbosity\n"
+	    " -b, --background            Launch daemon into the background\n"
+	    " -o, --sock-owner=USER       Allow user/groups to connect to socket\n"
+	    " -l, --logfile=FILE          Path to cblock daemon log\n"
 	);
 	exit(1);
 }
@@ -129,6 +137,36 @@ initialize_data_directory(void)
 	}
 }
 
+static void
+daemonize(struct global_params *gcp)
+{
+	pid_t pid;
+	int fd;
+
+	if (gcp->c_logfile) {
+		fd = open(gcp->c_logfile, O_WRONLY | O_CREAT, 0700);
+	} else {
+		gcp->c_logfile = "/dev/null";
+		fd = open("/dev/null", O_WRONLY);
+	}
+	if (fd == -1) {
+		err(1, "failed to open log: %s", gcp->c_logfile);
+	}
+	pid = fork();
+	if (pid == -1) {
+		err(1, "fork failed");
+	}
+	if (pid == 0) {
+		dup2(fd, STDOUT_FILENO);
+		dup2(fd, STDERR_FILENO);
+		return;
+	}
+	close(fd);
+	(void) fprintf(stderr,
+	    "cblockd: launched into the background: %d\n", pid);
+	exit(0);
+}
+
 int
 main(int argc, char *argv [], char *env[])
 {
@@ -144,12 +182,21 @@ main(int argc, char *argv [], char *env[])
 	gcfg.c_tty_buf_size = 5 * 4096;
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "d:T:46U:s:p:huzNv", long_options,
+		c = getopt_long(argc, argv, "l:o:bd:T:46U:s:p:huzNv", long_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'l':
+			gcfg.c_logfile = optarg;
+			break;
+		case 'o':
+			gcfg.c_sock_owner = optarg;
+			break;
+		case 'b':
+			gcfg.c_background = 1;
+			break;
 		case 'd':
 			gcfg.c_data_dir = optarg;
 			break;
@@ -206,6 +253,9 @@ main(int argc, char *argv [], char *env[])
 		sock_ipc_setup_unix(&gcfg);
 	} else {
 		sock_ipc_setup_inet(&gcfg);
+	}
+	if (gcfg.c_background) {
+		daemonize(&gcfg);
 	}
 	if (pthread_create(&thr, NULL, tty_io_queue_loop, NULL) == -1) {
 		err(1, "pthread_create(tty_io_queue_loop)");
