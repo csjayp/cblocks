@@ -1,0 +1,53 @@
+#!/bin/sh
+
+# $FreeBSD: branches/2020Q2/emulators/tpm-emulator/files/cblockd.in 415449 2016-05-18 13:53:45Z hrs $
+#
+# PROVIDE: cblockd
+# REQUIRE: SERVERS
+# KEYWORD: shutdown
+#
+# cblockd_enable (bool):        Set to NO by default.
+#                       Set it to YES to enable cblockd.
+
+. /etc/rc.subr
+
+name=cblockd
+rcvar="${name}_enable"
+command="/usr/local/bin/${name}"
+
+load_rc_config $name
+
+: ${cblockd_enable:="NO"}
+: ${cblockd_data_dir:=""}
+: ${cblockd_fs:="ufs"}
+: ${cblockd_sock_path:=""}
+: ${cblockd_sock_owner:=""}
+: ${cblockd_logfile:="/var/log/cblockd.log"}
+
+if [ ! "$cblockd_data_dir" ]; then
+    echo "cblockd: data directory must be specified"
+    exit 1
+fi
+
+case "$cblockd_fs" in
+ufs)
+    fs="--ufs"
+    ;;
+zfs)
+    fs="--zfs"
+    ;;
+*)
+    echo "cblockd: invalid file system"
+    exit 1
+esac
+
+command_args="--unix-sock $cblockd_sock_path $fs --background --data-directory $cblockd_data_dir"
+if [ "$cblockd_sock_owner" ]; then
+    command_args="$command_args --sock-owner $cblockd_sock_owner"
+fi
+if [ "$cblockd_logfile" ]; then
+    command_args="$command_args --logfile $cblockd_logfile"
+fi
+unset cblockd_data_dir cblockd_fs cblockd_sock_path cblockd_sock_owner
+
+run_rc_command "$1"
