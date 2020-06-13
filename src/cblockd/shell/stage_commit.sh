@@ -77,7 +77,7 @@ commit_image()
         ;;
     esac
     #bytes=`du -sk "${src}" | awk '{ print $1 }'`
-    lockf -k "${data_dir}/images/${image_name}.tar.zst" \
+    lockf -k "${data_dir}/images/${image_name}.lock" \
       tar -C "${src}" --exclude="/tmp" \
       --no-xattrs \
       --exclude="/dev" \

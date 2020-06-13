@@ -351,6 +351,11 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 	vec_append(vec, context_archive);
 	vec_append(vec, build_get_stage_deps(bcp, stage->bs_index));
 	vec_append(vec, bcp->instance);
+	if (bcp->pbc.p_mint_build) {
+		vec_append(vec, "minting");
+	} else {
+		vec_append(vec, "notminting");
+	}
 	if (stage->bs_name[0] != '\0') {
 		vec_append(vec, stage->bs_name);
 	}
@@ -595,6 +600,7 @@ dispatch_build_recieve(int sock)
 {
 	struct cblock_response resp;
 	struct build_context bctx;
+	char *build_type;
 	ssize_t cc;
 	int fd;
 
@@ -603,6 +609,11 @@ dispatch_build_recieve(int sock)
 	if (cc == 0) {
 		printf("didn't get proper build context headers\n");
 		return (0);
+	}
+	if (bctx.pbc.p_mint_build) {
+		build_type = "mint";
+	} else {
+		build_type = "build";
 	}
 	if (bctx.pbc.p_nstages > MAX_BUILD_STAGES ||
 	    bctx.pbc.p_nsteps > MAX_BUILD_STEPS) {
@@ -665,7 +676,7 @@ dispatch_build_recieve(int sock)
 	    "Bootstrapping build stages 1 through %d\n", bctx.pbc.p_nstages); 
 	fflush(bctx.peer_sock_fp);
 	if (build_run_build_stage(&bctx) != 0) {
-		cblock_fork_cleanup(bctx.instance, "build", sock,
+		cblock_fork_cleanup(bctx.instance, build_type, sock,
 		    bctx.pbc.p_verbose);
 		free(bctx.instance);
 		return (-1);
@@ -675,7 +686,7 @@ dispatch_build_recieve(int sock)
 	    "Build Stage(s) complete. Writing container image...\n");
 	fflush(bctx.peer_sock_fp);
 	if (build_commit_image(&bctx) != 0) {
-		cblock_fork_cleanup(bctx.instance, "build", sock,
+		cblock_fork_cleanup(bctx.instance, build_type, sock,
 		    bctx.pbc.p_verbose);
 		free(bctx.instance);
 		return (-1);
@@ -684,7 +695,7 @@ dispatch_build_recieve(int sock)
 	fprintf(bctx.peer_sock_fp,
 	    "Cleaning up ephemeral images and build artifacts\n");
 	fflush(bctx.peer_sock_fp);
-	cblock_fork_cleanup(bctx.instance, "build", sock, bctx.pbc.p_verbose);
+	cblock_fork_cleanup(bctx.instance, build_type, sock, bctx.pbc.p_verbose);
 	free(bctx.instance);
 	return (1);
 }

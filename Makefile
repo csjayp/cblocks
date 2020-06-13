@@ -11,6 +11,7 @@ install:
 	make -C src/libcblock install
 	make -C src/cblockd install
 	make -C src/cblock install
+	cp src/rc/cblockd /usr/local/etc/rc.d
 
 clean:
 	make -C src/libcblock clean

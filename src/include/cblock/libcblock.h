@@ -82,6 +82,7 @@ struct cblock_build_context {
 	char					p_entry_point_args[1024];
 	int					p_verbose;
 	int					p_build_fim_spec;
+	int					p_mint_build;
 };
 
 struct cblock_response {

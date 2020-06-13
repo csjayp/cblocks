@@ -42,6 +42,9 @@ struct global_params {
 	char		*c_data_dir;
 	char		*c_underlying_fs;
 	int		 c_verbose;
+	int		 c_background;
+	char		*c_sock_owner;
+	char		*c_logfile;
 };
 
 struct global_params gcfg;
