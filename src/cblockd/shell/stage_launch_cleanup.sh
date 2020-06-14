@@ -87,20 +87,6 @@ zfs_lookup_origin()
 cleanup()
 {
     case "$type" in
-    mint)
-        # All mint builds are directories, regardless of the underlying
-        # file system. We just need to clean them up. We should proably
-        # assert that the instance directory does not have any file
-        # systems attached on or below it to be certain though.
-        #
-        rm -fr "${data_root}/instances/${instance}.tar.gz"
-        rm -fr "${data_root}/instances/${instance}.*.sh"
-        #
-        # FreeBSD base distfiles have certain files which have been immutable
-        # so we need to strip these flags before we purge the directory.
-        chflags -R noschg "${data_root}/instances/${instance}"
-        rm -fr "${data_root}/instances/${instance}"
-        ;;
     build)
         #
         # Clean up build contexts and bootstrap scripts
