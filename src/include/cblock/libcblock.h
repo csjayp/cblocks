@@ -82,7 +82,6 @@ struct cblock_build_context {
 	char					p_entry_point_args[1024];
 	int					p_verbose;
 	int					p_build_fim_spec;
-	int					p_mint_build;
 };
 
 struct cblock_response {
@@ -126,6 +125,7 @@ struct build_step_add {
 #define	ADD_TYPE_FILE		1
 #define	ADD_TYPE_ARCHIVE	2
 #define	ADD_TYPE_URL		3
+#define	ADD_TYPE_ARCHIVE_URL	4
 	char					sa_source[MAXPATHLEN];
 	char					sa_dest[MAXPATHLEN];
 };

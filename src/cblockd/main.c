@@ -29,6 +29,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/ttycom.h>
+#include <sys/wait.h>
 #include <sys/param.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -86,6 +87,7 @@ static struct option long_options[] = {
 	{ "background",		no_argument, 0, 'b' },
 	{ "sock-owner",		required_argument, 0, 'o' },
 	{ "logfile",		required_argument, 0, 'l' },
+	{ "create-forge",	required_argument, 0, 'f' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -109,8 +111,53 @@ usage(void)
 	    " -b, --background            Launch daemon into the background\n"
 	    " -o, --sock-owner=USER       Allow user/groups to connect to socket\n"
 	    " -l, --logfile=FILE          Path to cblock daemon log\n"
+	    " -f, --create-forge=FILE     Create the base image to forge containers\n"
 	);
 	exit(1);
+}
+
+static int
+create_forge(char *forge_path)
+{
+	char exec_path[MAXPATHLEN], buf[32];
+	char **argv, **envp;
+	vec_t *cmd, *env;
+	int status;
+	pid_t pid;
+
+	(void) fprintf(stderr,
+	    "-- Constructing the base forge image for future forging operations\n");
+	pid = fork();
+	if (pid == -1) {
+		err(1, "fork failed");
+	}
+	if (pid != 0) {
+		waitpid_ignore_intr(pid, &status);
+		fprintf(stderr, "-- Forge creation returned %d\n",
+		    WEXITSTATUS(status));
+		return (status);
+	}
+	cmd = vec_init(16);
+	vec_append(cmd, "/bin/sh");
+	if (gcfg.c_verbose) {
+		vec_append(cmd, "-x");
+	}
+	snprintf(exec_path, sizeof(exec_path), "%s/lib/create_forge.sh",
+	    gcfg.c_data_dir);
+	vec_append(cmd, exec_path);
+	vec_append(cmd, gcfg.c_data_dir);
+	vec_append(cmd, forge_path);
+	vec_finalize(cmd);
+	argv = vec_return(cmd);
+	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
+	env = vec_init(8);
+	vec_append(env, DEFAULT_PATH);
+	vec_append(env, buf);
+	vec_finalize(env);
+	envp = vec_return(env);
+	execve(*argv, argv, envp);
+	err(1, "execve failed");
+	return (-1);
 }
 
 static void
@@ -127,6 +174,10 @@ initialize_data_directory(void)
 	if ((sb.st_mode & S_IFDIR) == 0) {
 		errx(1, "%s: is not a directory", gcfg.c_data_dir);
 	}
+	/*
+	 * NB: we need a chck for ZFS. The scripts depend on these directories
+	 * actually being file system roots.
+	 */
 	dir_list = data_sub_dirs;
 	while ((dir = *dir_list++)) {
 		(void) snprintf(path, sizeof(path), "%s/%s",
@@ -182,12 +233,15 @@ main(int argc, char *argv [], char *env[])
 	gcfg.c_tty_buf_size = 5 * 4096;
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "l:o:bd:T:46U:s:p:huzNv", long_options,
+		c = getopt_long(argc, argv, "f:l:o:bd:T:46U:s:p:huzNv", long_options,
 		    &option_index);
 		if (c == -1) {
 			break;
 		}
 		switch (c) {
+		case 'f':
+			gcfg.c_forge_path = optarg;
+			break;
 		case 'l':
 			gcfg.c_logfile = optarg;
 			break;
@@ -249,6 +303,9 @@ main(int argc, char *argv [], char *env[])
 	fprintf(stdout, "%s\n", banner);
 	fprintf(stdout, "version %s\n", "0.0.0");
 	initialize_data_directory();
+	if (gcfg.c_forge_path != NULL) {
+		return (create_forge(gcfg.c_forge_path));
+	}
 	if (gcfg.c_name) {
 		sock_ipc_setup_unix(&gcfg);
 	} else {

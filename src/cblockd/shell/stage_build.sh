@@ -30,7 +30,17 @@ build_root=$1
 
 init_build()
 {
-    chroot "${build_root}" /tmp/cblock-bootstrap.sh
+    #
+    # Check to see if this is a forge build. If so, change the path to the
+    # interpreter. We ought to just use PATH for this.
+    #
+    if [ -f "${build_root}/tmp/cblock_forge/bin/sh" ]; then
+        chroot "${build_root}" \
+          /tmp/cblock_forge/bin/sh /tmp/cblock-bootstrap.sh
+    else
+        chroot "${build_root}" \
+          /bin/sh /tmp/cblock-bootstrap.sh
+    fi
     #
     # Cleanup artifacts that were in /tmp just in case subsequent stages want
     # to create directories etc (e.g.: like stage dependecies). Also we don't

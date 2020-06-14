@@ -15,9 +15,6 @@ libcblock.so: $(OBJ)
 install:
 	[ -d $(PREFIX)/lib ] || mkdir -p $(PREFIX)/lib
 	install -m 0555 $(TARGETS) $(PREFIX)/lib
-	[ -d $(PREFIX)/include/cblock ] ||  mkdir -p $(PREFIX)/include/cblock
-	cp ../include/cblock/libcblock.h $(PREFIX)/include/cblock
-	cp ../include/cblock/sbuf.h $(PREFIX)/include/cblock
 	ldconfig -m
 
 clean:

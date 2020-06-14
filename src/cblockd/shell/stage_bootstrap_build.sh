@@ -31,10 +31,9 @@ data_dir=$4
 build_context=$5
 stage_deps=$6
 instance_name=$7
-mint_state=$8
 stage_name=""
 if [ "$9" ]; then
-    stage_name=$9
+    stage_name=$8
 fi
 
 stage_deps_dir=""
@@ -61,8 +60,16 @@ bind_devfs()
 
 prepare_file_system()
 {
-    if [ -h "${data_dir}/images/${base_container}:latest" ]; then
-        readlnk=$(readlink "${data_dir}/images/${base_container}:latest")
+    # Check to see if the tag has been specified. If not, then prepend latest
+
+    dc=$(echo "${base_container}" | grep -Fc :)
+    if [ "$dc" -ne 0 ]; then
+        _base="${data_dir}/images/${base_container}"
+    else
+        _base="${data_dir}/images/${base_container}:latest"
+    fi
+    if [ -h "$_base" ]; then
+        readlnk=$(readlink "$_base")
         base_root=$(realpath "${readlnk}")
     else
         # Check to see if we have an ephemeral build stage
@@ -191,9 +198,9 @@ bootstrap()
     extract_previous_stage_deps
     stage_work_dir=$(mktemp -d "${build_root}/${stage_index}/root/tmp/XXXXXXXX")
     tar -C "${stage_work_dir}" -zxf "${build_context}"
+
     chmod +x "${build_root}.${stage_index}.sh"
     cp -p "${build_root}.${stage_index}.sh" "${build_root}/${stage_index}/root/tmp/cblock-bootstrap.sh"
-
     VARS="${build_root}/${stage_index}/root/tmp/cblock_build_variables.sh"
     stage_tmp_dir=$(echo "${stage_work_dir}" | sed s,"${build_root}"/"${stage_index}"/root,,g)
     printf "stage_tmp_dir=${stage_tmp_dir}\nstage_tmp_dir=${stage_tmp_dir}\n \
@@ -209,24 +216,4 @@ bootstrap()
     fi
 }
 
-handle_minting()
-{
-    if [ "${mint_state}" != "minting" ]; then
-        return
-    fi
-    printf "\033[1m--\033[0m %s\n" \
-      "Created minting instance ${instance_name}. Extracting build context..."
-    mkdir -p "${build_root}/${stage_index}/root"
-    tar -C "${build_root}/${stage_index}" -zxf "${build_context}"
-    if [ ! -d "${build_root}/${stage_index}/root/tmp" ]; then
-        mkdir "${build_root}/${stage_index}/root/tmp"
-        chmod 1777 "${build_root}/${stage_index}/roo/tmp"
-    fi
-    printf '#!/bin/sh\n\nexit 0' > \
-      "${build_root}/${stage_index}/root/tmp/cblock-bootstrap.sh"
-    chmod +x "${build_root}/${stage_index}/root/tmp/cblock-bootstrap.sh"
-    exit 0
-}
-
-handle_minting
 bootstrap

@@ -45,6 +45,7 @@ struct global_params {
 	int		 c_background;
 	char		*c_sock_owner;
 	char		*c_logfile;
+	char		*c_forge_path;
 };
 
 struct global_params gcfg;

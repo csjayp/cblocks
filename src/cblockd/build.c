@@ -94,11 +94,22 @@ build_emit_add_instruction(struct build_step *bsp, FILE *fp)
 		    sap->sa_source, sap->sa_dest);
 		break;
 	case ADD_TYPE_ARCHIVE:
-		fprintf(fp, "tar -C %s -zxf \"${stage_tmp_dir}/%s\"\n",
+		fprintf(fp, "tar -C %s -zpxf \"${stage_tmp_dir}/%s\"\n",
 		    sap->sa_dest, sap->sa_source);
 		break;
 	case ADD_TYPE_URL:
-		fprintf(fp, "fetch -q -o %s %s\n", sap->sa_dest, sap->sa_source);
+		fprintf(fp,
+		    "fetch --ca-cert=/tmp/cblock_forge/etc/ca-root-nss.crt "
+		    "-q -o %s %s\n", sap->sa_dest, sap->sa_source);
+		break;
+	case ADD_TYPE_ARCHIVE_URL:
+		fprintf(fp,
+		    "_archive=$(mktemp)\n"
+		    "fetch --ca-cert=/tmp/cblock_forge/etc/ca-root-nss.crt "
+		    "-q -o $_archive %s\n", sap->sa_source);
+		fprintf(fp,
+		    "tar -C %s -zpxf \"$_archive\"\n"
+		    "rm -fr \"$_archive\"\n", sap->sa_dest);
 		break;
 	default:
 		warnx("invalid ADD operand %d", sap->sa_op);
@@ -351,11 +362,6 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 	vec_append(vec, context_archive);
 	vec_append(vec, build_get_stage_deps(bcp, stage->bs_index));
 	vec_append(vec, bcp->instance);
-	if (bcp->pbc.p_mint_build) {
-		vec_append(vec, "minting");
-	} else {
-		vec_append(vec, "notminting");
-	}
 	if (stage->bs_name[0] != '\0') {
 		vec_append(vec, stage->bs_name);
 	}
@@ -610,11 +616,7 @@ dispatch_build_recieve(int sock)
 		printf("didn't get proper build context headers\n");
 		return (0);
 	}
-	if (bctx.pbc.p_mint_build) {
-		build_type = "mint";
-	} else {
-		build_type = "build";
-	}
+	build_type = "build";
 	if (bctx.pbc.p_nstages > MAX_BUILD_STAGES ||
 	    bctx.pbc.p_nsteps > MAX_BUILD_STEPS) {
 		resp.p_ecode = -1;

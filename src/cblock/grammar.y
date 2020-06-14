@@ -324,7 +324,11 @@ op_spec:
 			}
 		}
 		if (match) {
-			b_step->step_data.step_add.sa_op = ADD_TYPE_ARCHIVE;
+			if (b_step->step_data.step_add.sa_op == ADD_TYPE_URL) {
+				b_step->step_data.step_add.sa_op = ADD_TYPE_ARCHIVE_URL;
+			} else {
+				b_step->step_data.step_add.sa_op = ADD_TYPE_ARCHIVE;
+			}
 		}
 		cur_build_step->stage_index = stage_counter;
 		TAILQ_INSERT_HEAD(&bsp->step_head, b_step, step_glue);
