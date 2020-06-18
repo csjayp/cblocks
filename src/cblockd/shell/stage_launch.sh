@@ -315,6 +315,37 @@ do_launch()
     instance_hostname=`printf "%10.10s" ${instance_id}`
     instance_root="${data_root}/instances/${instance_id}/root"
     case $CBLOCK_FS in
+    fuse-unionfs)
+        mkdir -p "${instance_root}"
+        union_dir="${data_dir}/unions/${instance_name}/${stage_index}"
+        mkdir -p "${union_dir}"
+        perms="RO"
+        unionfs \
+          -o big_writes \
+          -o intr \
+          -o default_permissions \
+          -o allow_other \
+          -o cow \
+          -o use_ino \
+          "${image_dir}/root:${union_dir}=RW" \
+          "${instance_root}"
+        if [ $? -ne 0 ]; then
+            echo "Failed to add the fuse/unionfs overlay"
+            exit 1
+        fi
+        # This is a bit hackisk, but we need to wait for the unionfs mount to
+        # register in the mount points. This operation is occuring async to
+        # this shell script. This might be better handled by the unionfs
+        # command line tool itself
+        #
+        # NB: add an upper bound to this loop, either time or count.
+        #while $(true); do
+        #    df "${instance_root}/etc"
+        #    if [ $? -eq 0 ]; then
+        #        break
+        #    fi
+        #done
+        ;;
     zfs)
         volname=`path_to_vol "${image_dir}"`
         dest_volname=`path_to_vol "${data_root}/instances/${instance_id}"`

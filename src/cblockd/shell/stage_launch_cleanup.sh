@@ -113,6 +113,11 @@ cleanup()
         ;;
     regular)
         case $CBLOCK_FS in
+        fuse-unionfs)
+            umount_reverse_order
+            chflags -R noschg "${data_root}/unions/${instance}"
+            rm -fr "${data_root}/unions/${instance}"
+            ;;
         zfs)
             umount_reverse_order
             build_root_vol=$(path_to_vol "${data_root}/instances/${instance}")

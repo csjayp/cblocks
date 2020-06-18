@@ -99,14 +99,12 @@ build_emit_add_instruction(struct build_step *bsp, FILE *fp)
 		break;
 	case ADD_TYPE_URL:
 		fprintf(fp,
-		    "fetch --ca-cert=/tmp/cblock_forge/etc/ca-root-nss.crt "
-		    "-q -o %s %s\n", sap->sa_dest, sap->sa_source);
+		    "fetch -q -o %s %s\n", sap->sa_dest, sap->sa_source);
 		break;
 	case ADD_TYPE_ARCHIVE_URL:
 		fprintf(fp,
 		    "_archive=$(mktemp)\n"
-		    "fetch --ca-cert=/tmp/cblock_forge/etc/ca-root-nss.crt "
-		    "-q -o $_archive %s\n", sap->sa_source);
+		    "fetch -q -o $_archive %s\n", sap->sa_source);
 		fprintf(fp,
 		    "tar -C %s -zpxf \"$_archive\"\n"
 		    "rm -fr \"$_archive\"\n", sap->sa_dest);
