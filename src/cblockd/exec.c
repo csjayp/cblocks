@@ -53,6 +53,7 @@ struct command_ent {
 static struct command_ent command_list[] = {
 	{ "instance_prune",	"cmd_prune.sh" },
 	{ "network-create",	"network_create.sh" },
+	{ "image_list",		"cmd_image.sh" },
 	{ NULL,			NULL }
 };
 
@@ -112,7 +113,7 @@ dispatch_generic_command(int sock)
 	}
 	if (pid == 0) {
 		char script_path[1024], **argv;
-		vec_t *cmd_vec;
+		vec_t *cmd_vec, *vec_env;
 		int e;
 
 		close(pipefds[0]);
@@ -126,10 +127,16 @@ dispatch_generic_command(int sock)
 			err(1, "error argv vectors: HINT: increase cmd_vec");
 		}
 		vec_finalize(cmd_vec);
+		vec_env = vec_init(16);
+		vec_append(vec_env, DEFAULT_PATH);
+		char buf[128];
+		sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
+		vec_append(vec_env, buf);
+		vec_finalize(vec_env);
 		argv = vec_return(cmd_vec);
 		dup2(sock, STDERR_FILENO);
 		dup2(sock, STDOUT_FILENO);
-		execve(*argv, argv, NULL);
+		execve(*argv, argv, vec_return(vec_env));
 		e = errno;
 		write(pipefds[1], &e, sizeof(e));
 		_exit(1);

@@ -24,31 +24,122 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
-data_dir=$1
+data_dir=""
+obliterate="no"
+
+get_vol()
+{
+    printf "%s" "$1" | sed -E "s,^/(.*),\1,g"
+}
+
+instances()
+{
+    find "${data_dir}/instances" \
+      -mindepth 1 \
+      -maxdepth  1 \
+      -type d
+}
+
+images()
+{
+    find "${data_dir}/images" \
+      -mindepth 1 -maxdepth  1 -type d
+}
+
+symlinks()
+{
+    find "${data_dir}/images" \
+      -mindepth 1 -maxdepth  1 -type l
+}
+
+do_image_purge()
+{
+    for image in $(images); do
+        match="no"
+        for link in $(symlinks); do
+            target=$(readlink "$link")
+            if [ "$target" = "$image" ]; then
+                match="$link"
+                break
+            fi
+            if [ "$obliterate" = "yes" ]; then
+                rm $link
+            fi
+        done
+        if [ "$obliterate" = "yes" ]; then
+            match="no"
+        fi
+        if [ "$match" != "no" ]; then
+            continue
+        fi
+        printf "Removing image: %s\n" $(basename $image)
+        case $CBLOCK_FS in
+        zfs)
+            vol=$(get_vol $image)
+            zfs destroy -r "$vol"
+            rm -fr "$vol"
+            ;;
+        ufs)
+            chflags -R noschg "$image"
+            rm -fr "$image"
+            ;;
+        *)
+            echo "No match on CBLOCK_FS"
+        esac
+    done
+}
 
 do_instance_purge()
 {
-    for instance_path in `find ${data_dir}/instances -mindepth 1 -maxdepth  1 -type d`; do
+    for instance_path in $(instances); do
         echo checking $instance_path
         instance=`basename "${instance_path}"`
         if [ -f "${data_dir}/locks/${instance}.pid" ]; then
-            lockf -t 0 "${data_dir}/locks/${instance}.pid" true > /dev/null 2>&1
+            lockf -t 0 "${data_dir}/locks/${instance}.pid" true > \
+              /dev/null 2>&1
             if [ $? -ne 0 ]; then
                 continue
             fi 
         fi
         echo Removing "$instance"
-        chflags -R noschg "${instance_path}"/*
-        rm -fr "${instance_path}"
+        case $CBLOCK_FS in
+        zfs)
+            vol=$(get_vol $instance_path)
+            zfs destroy -r "$vol" > /dev/null 2>&1
+            rm -fr "${instance_path}"
+            ;;
+        ufs)
+            chflags -R noschg "${instance_path}"/*
+            rm -fr "${instance_path}"
+            ;;
+        esac
     done
 }
 
-while getopts "R:t:i:n:" opt; do
+while getopts "R:o" opt; do
     case $opt in
+        o)
+            echo "WARNING: You have selected to obliterate everything"
+            echo -n "Are you sure you know what you are doing? (yes/no): "
+            read answer
+            case $answer in
+            yes|YES)
+                obliterate="yes"
+                ;;
+            *)
+                exit 0
+                ;;
+            esac
+            ;;
         R)
             data_dir="$OPTARG"
             ;;  
     esac
 done
 
+if [ ! "$data_dir" ]; then
+    echo "Must specify cblock data directory -R"
+    exit 1
+fi
 do_instance_purge
+do_image_purge

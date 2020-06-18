@@ -76,12 +76,15 @@ commit_image()
         mkdir "${data_dir}/images/${image_name}.${instance}"
         ;;
     esac
-    #bytes=`du -sk "${src}" | awk '{ print $1 }'`
+    dest="${data_dir}/images/${image_name}.${instance}"
+    if [ -f "${build_root}/${build_index}/TOTALS" ]; then
+        rm "${build_root}/${build_index}/TOTALS"
+    fi
     lockf -k "${data_dir}/images/${image_name}.lock" \
       tar -C "${src}" --exclude="/tmp" \
       --no-xattrs \
       --exclude="/dev" \
-      -cf - . | \
+      -cf - . | dd bs=4096 2> ${dest}/TOTALS | \
     tar -xpf - -C "${data_dir}/images/${image_name}.${instance}"
     # NB: we need to do this atomically
     #

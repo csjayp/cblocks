@@ -142,7 +142,6 @@ build_send_stages(int sock, struct build_config *bcp)
 	}
 	TAILQ_FOREACH_REVERSE(stage, &bcp->b_bmp->stage_head,
 	    tailhead_stage, stage_glue) {
-		printf("DEBUG: %s\n", stage->bs_base_container);
 		TAILQ_FOREACH_REVERSE(step, &stage->step_head,
 		    tailhead_step, step_glue) {
 			sock_ipc_must_write(sock, step, sizeof(*step));

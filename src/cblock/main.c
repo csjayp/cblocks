@@ -62,6 +62,7 @@ static struct sub_command sub_command_list[] = {
 	{ "build",	build_main, "Build a new container image" },
 	{ "instance",	instance_main, "Get information about running instances" },
 	{ "network",    network_main, "Configure networking parameters" },
+	{ "image",	image_main, "Manage cblock images" },
 	{ NULL,		NULL, NULL }
 };
 
