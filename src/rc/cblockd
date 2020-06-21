@@ -1,13 +1,11 @@
 #!/bin/sh
-
-# $FreeBSD: branches/2020Q2/emulators/tpm-emulator/files/cblockd.in 415449 2016-05-18 13:53:45Z hrs $
 #
 # PROVIDE: cblockd
 # REQUIRE: SERVERS
 # KEYWORD: shutdown
 #
-# cblockd_enable (bool):        Set to NO by default.
-#                       Set it to YES to enable cblockd.
+# cblockd_enable (bool):  Set to NO by default.
+#                         Set it to YES to enable cblockd.
 
 . /etc/rc.subr
 
