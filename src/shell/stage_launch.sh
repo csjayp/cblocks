@@ -105,8 +105,7 @@ setup_port_redirects()
                 esac
             done
             echo "rdr on $_outif inet proto tcp from any to any " \
-              "port $host_port -> $_ip port $container_port" | \
-            pfctl -a cblock-rdr/${instance_id} -f -
+              "port $host_port -> $_ip port $container_port"
             ;;
         *:*)
             for field in `jot 4`; do
@@ -120,8 +119,7 @@ setup_port_redirects()
                 esac
             done
             echo "rdr on lo0 inet proto tcp from any to any " \
-              "port $host_port -> $_ip port $container_port" | \
-            pfctl -a cblock-rdr/${instance_id} -f -
+              "port $host_port -> $_ip port $container_port"
             ;;
         esac
     done
@@ -296,7 +294,8 @@ network_to_ip()
                 echo "nat:${instance_id}:${ip}:$network" >> \
                   $data_root/networks/cur
                 echo "${ip}"
-                setup_port_redirects "$ports" "$ip" "$out_if"
+                setup_port_redirects "$ports" "$ip" "$out_if" | \
+                  pfctl -a cblock-rdr/${instance_id} -f -
                 return
             fi
         done
