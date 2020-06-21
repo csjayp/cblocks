@@ -119,7 +119,7 @@ network_destroy(int ctlsock, struct network_config *nc)
 	if (nc->n_name == NULL) {
 		errx(1, "--name must be specified for destroy operation");
 	}
-        vec = vec_init(32);
+	vec = vec_init(32);
 	cmd = PRISON_IPC_GENERIC_COMMAND;
 	snprintf(arg.p_cmdname, sizeof(arg.p_cmdname), "network-destroy");
 	vec_append(vec, "-o");
