@@ -38,9 +38,11 @@ network_cleanup()
     if [ ! -f "$data_root"/networks/cur ]; then
         return 0
     fi
+    newdb=$(mktemp)
     while read ln; do
         ins=$(echo "$ln" | awk -F: '{ print $2 }')
         if [ "$ins" != "$instance" ]; then
+            echo $ln >> $newdb
             continue
         fi
         type=$(echo "$ln" | awk -F: '{ print $1 }')
@@ -59,8 +61,9 @@ network_cleanup()
             ifconfig cblock0 "${ip}"/32 delete
             ;;
         esac
-        break
     done < "$data_root"/networks/cur
+    rm "$data_root"/networks/cur
+    mv $newdb "$data_root"/networks/cur
 }
 
 kill_jail()
@@ -135,4 +138,5 @@ cleanup()
 
 kill_jail
 cleanup
+
 network_cleanup

@@ -52,7 +52,9 @@ struct command_ent {
 
 static struct command_ent command_list[] = {
 	{ "instance_prune",	"cmd_prune.sh" },
-	{ "network-create",	"network_create.sh" },
+	{ "network-create",	"network.sh" },
+	{ "network-destroy",	"network.sh" },
+	{ "network-list",	"network.sh" },
 	{ "image_list",		"cmd_image.sh" },
 	{ NULL,			NULL }
 };
@@ -120,6 +122,9 @@ dispatch_generic_command(int sock)
 		sprintf(script_path, "%s/lib/%s", gcfg.c_data_dir, script);
 		cmd_vec = vec_init(64);
 		vec_append(cmd_vec, "/bin/sh");
+		if (arg.p_verbose > 0) {
+			vec_append(cmd_vec, "-x");
+		}
 		vec_append(cmd_vec, script_path);
 		vec_append(cmd_vec, "-R");
 		vec_append(cmd_vec, gcfg.c_data_dir);

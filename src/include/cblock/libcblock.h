@@ -68,6 +68,7 @@ struct instance_ent {
 struct cblock_generic_command {
 	char					p_cmdname[512];
 	size_t					p_mlen;
+	int					p_verbose;
 };
 
 struct cblock_build_context {
