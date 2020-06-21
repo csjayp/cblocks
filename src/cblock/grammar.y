@@ -112,11 +112,17 @@ cmd_def:
 		bmp = get_current_build_manifest();
 		vec_finalize(vec);
 		cmd_string = vec_join(vec, ' ');
-		bmp->entry_point_args = strdup(cmd_string);
+		if (cmd_string == NULL) {
+			bmp->entry_point_args = "";
+		} else {
+			bmp->entry_point_args = strdup(cmd_string);
+		}
 		if (bmp->entry_point_args == NULL) {
 			err(1, "strdup: entrypoint failed");
 		}
-		free(cmd_string);
+		if (cmd_string != NULL) {
+			free(cmd_string);
+		}
 		vec_free(vec);
 		vec = NULL;
 	}
