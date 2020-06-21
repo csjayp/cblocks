@@ -55,7 +55,7 @@ create_forge()
     mkdir -p "$data_dir/images/forge/root/dev"
     mkdir -p "$data_dir/images/forge/root/tmp/cblock_forge"
     gunzip -c "$forge_path" | dd bs=4096 2> "$data_dir/images/forge/TOTALS" | \
-        tar -C "$data_dir/images/forge/root/tmp/cblock_forge" -xpf -
+        tar -C "$data_dir/images/forge/root/" -xpf -
     ln -s "$data_dir/images/forge" "$data_dir/images/forge:latest"
 }
 

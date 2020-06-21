@@ -95,7 +95,7 @@ do_instance_purge()
         echo checking $instance_path
         instance=`basename "${instance_path}"`
         if [ -f "${data_dir}/locks/${instance}.pid" ]; then
-            lockf -t 0 "${data_dir}/locks/${instance}.pid" true > \
+            lockf -k -t 0 "${data_dir}/locks/${instance}.pid" true > \
               /dev/null 2>&1
             if [ $? -ne 0 ]; then
                 continue
