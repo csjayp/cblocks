@@ -78,6 +78,7 @@ dispatch_generic_command(int sock)
 	struct cblock_generic_command arg;
 	char *marshalled,*script;
 	int pipefds[2], error;
+	ssize_t cc;
 	vec_t *vec;
 	pid_t pid;
 
@@ -146,10 +147,9 @@ dispatch_generic_command(int sock)
 		write(pipefds[1], &e, sizeof(e));
 		_exit(1);
 	}
+	vec_free(vec);
 	close(pipefds[1]);
 	while (1) {
-		ssize_t cc;
-
 		cc = read(pipefds[0], &error, sizeof(error));
 		if (cc == 0) {
 			break;
@@ -164,19 +164,6 @@ dispatch_generic_command(int sock)
 		warn("execve failed %d", error);
 		break;
 	}
-	while (1) {
-		error = waitpid(pid, NULL, 0);
-		if (error == pid) {
-			break;
-		}
-		if (error == -1 && errno == EINTR) {
-			continue;
-		}
-		if (error == -1) {
-			warn("waitpid failed");
-			return (1);
-		}
-	}
-	vec_free(vec);
-	return (1);
+	waitpid_ignore_intr(pid, &error);
+	return (error);
 }

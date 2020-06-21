@@ -28,37 +28,48 @@
 #include <sys/queue.h>
 
 #include <stdio.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <err.h>
-#include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <openssl/sha.h>
+
 #include "termbuf.h"
 #include "main.h"
 #include "dispatch.h"
-#include "sock_ipc.h"
-#include "cblock.h"
 #include "config.h"
 
 #include <cblock/libcblock.h>
 
-int
-dispatch_get_instances(sock)
+void
+gen_sha256_string(unsigned char *hash, char *output)
 {
-	struct instance_ent *ents;
-	size_t count;
+	int k;
 
-	count = cblock_instance_get_count();
-	sock_ipc_must_write(sock, &count, sizeof(count));
-	if (count == 0) {
-		return (1);
+	for (k = 0; k < SHA256_DIGEST_LENGTH; k++) {
+		sprintf(output + (k * 2), "%02x", hash[k]);
 	}
-	ents = cblock_populate_instance_entries(count);
-	sock_ipc_must_write(sock, ents, count * sizeof(struct instance_ent));
-	free(ents);
-	return (1);
+	output[64] = '\0';
+}
+
+char *
+gen_sha256_instance_id(char *instance_name)
+{
+	u_char hash[SHA256_DIGEST_LENGTH];
+	char inbuf[128], *ret;
+	char outbuf[128+1];
+	SHA256_CTX sha256;
+	char buf[32];
+
+	bzero(inbuf, sizeof(inbuf));
+	arc4random_buf(inbuf, sizeof(inbuf) - 1);
+	bzero(outbuf, sizeof(outbuf));
+	SHA256_Init(&sha256);
+	SHA256_Update(&sha256, inbuf, strlen(inbuf));
+	SHA256_Final(hash, &sha256);
+	gen_sha256_string(&hash[0], outbuf);
+	sprintf(buf, "%.10s", outbuf);
+	ret = strdup(buf);
+	return (ret);
 }

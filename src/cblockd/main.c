@@ -51,6 +51,7 @@
 #include "dispatch.h"
 
 #include "config.h"
+#include "cblock.h"
 
 #include <cblock/libcblock.h>
 

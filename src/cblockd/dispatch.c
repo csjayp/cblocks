@@ -55,233 +55,17 @@
 #include "dispatch.h"
 #include "sock_ipc.h"
 #include "config.h"
+#include "cblock.h"
 
 #include <cblock/libcblock.h>
 
-TAILQ_HEAD( , cblock_peer) p_head;
-TAILQ_HEAD( , cblock_instance) pr_head;
-
 static int reap_children;
-
-pthread_mutex_t peer_mutex;
-pthread_mutex_t cblock_mutex;
-
-int
-cblock_create_pid_file(struct cblock_instance *p)
-{
-	char pid_path[1024], pid_buf[32];
-	mode_t mode;
-	int flags;
-
-	mode = S_IRUSR | S_IWUSR;
-	flags = O_WRONLY | O_EXCL | O_EXLOCK | O_CREAT;
-	snprintf(pid_path, sizeof(pid_path), "%s/locks/%s.pid",
-	    gcfg.c_data_dir, p->p_instance_tag);
-	snprintf(pid_buf, sizeof(pid_buf), "%d", p->p_pid);
-	p->p_pid_file = open(pid_path, flags, mode);
-	if (p->p_pid_file == -1) {
-		warn("open(%s)", pid_path);
-		return (-1);
-	}
-	if (write(p->p_pid_file, pid_buf, strlen(pid_buf)) == -1) {
-		warn("write pid file failed");
-		return (-1);
-	}
-	return (0);
-}
-
-size_t
-cblock_instance_get_count(void)
-{
-	struct cblock_instance *p;
-	size_t count;
-
-	if (TAILQ_EMPTY(&pr_head)) {
-		return (0);
-	}
-	count = 0;
-	pthread_mutex_lock(&cblock_mutex);
-	TAILQ_FOREACH(p, &pr_head, p_glue) {
-		count++;
-	}
-	pthread_mutex_unlock(&cblock_mutex);
-	return (count);
-}
-
-struct instance_ent *
-cblock_populate_instance_entries(size_t max_ents)
-{
-	struct instance_ent *vec, *cur;
-	struct cblock_instance *p;
-	int counter;
-
-	vec = calloc(max_ents, sizeof(*vec));
-	if (vec == NULL) {
-		return (NULL);
-	}
-	counter = 0;
-	pthread_mutex_lock(&cblock_mutex);
-	TAILQ_FOREACH(p, &pr_head, p_glue) {
-		cur = &vec[counter];
-		strlcpy(cur->p_instance_name, p->p_instance_tag,
-		    sizeof(cur->p_instance_name));
-		strlcpy(cur->p_image_name, p->p_image_name,
-		    sizeof(cur->p_image_name));
-		cur->p_pid = p->p_pid;
-		strlcpy(cur->p_tty_line, p->p_ttyname,
-		    sizeof(cur->p_tty_line));
-		cur->p_start_time = p->p_launch_time;
-		if (counter == max_ents) {
-			break;
-		}
-		counter++;
-	}
-	pthread_mutex_unlock(&cblock_mutex);
-	return (vec);
-}
-
-static int
-cblock_instance_match(char *full_instance_name, const char *user_supplied)
-{
-	size_t slen;
-
-	slen = strlen(user_supplied);
-	if (slen == 10) {
-		if (strncmp(full_instance_name, user_supplied, 10) == 0) {
-			return (1);
-		}
-		return (0);
-	}
-	return (strcmp(full_instance_name, user_supplied) == 0);
-}
 
 static void
 handle_reap_children(int sig)
 {
 
 	reap_children = 1;
-}
-
-void
-cblock_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
-{
-        char buf[128], **argv;
-        vec_t *vec, *vec_env;
-        int status, ret;
-
-        pid_t pid = fork();
-        if (pid == -1) {
-                err(1, "cblock_remove: failed to execute cleanup handlers");
-        }
-        if (pid == 0) {
-		vec_env = vec_init(8);
-		sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
-		vec_append(vec_env, buf);
-		vec_finalize(vec_env);
-
-		vec = vec_init(16);
-		vec_append(vec, "/bin/sh");
-		if (verbose > 0) {
-			vec_append(vec, "-x");
-		}
-		sprintf(buf, "%s/lib/stage_launch_cleanup.sh", gcfg.c_data_dir);
-		vec_append(vec, buf);
-		vec_append(vec, gcfg.c_data_dir);
-		vec_append(vec, instance);
-		sprintf(buf, "%s", type);
-		vec_append(vec, buf);
-		vec_finalize(vec);
-                argv = vec_return(vec);
-		if (dup_sock >= 0) {
-			dup2(dup_sock, STDOUT_FILENO);
-			dup2(dup_sock, STDERR_FILENO);
-		}
-                execve(*argv, argv, vec_return(vec_env));
-                err(1, "cblock_remove: execve failed");
-        }
-        while (1) {
-                ret = waitpid(pid, &status, 0);
-                if (ret == -1 && errno == EINTR) {
-                        continue;
-                }
-                if (ret == -1) {
-                        err(1, "waitpid failed");
-                }
-                break;
-        }
-}
-
-void
-cblock_remove(struct cblock_instance *pi)
-{
-	uint32_t cmd;
-	size_t cur;
-
-	/*
-	 * Tell the remote side to dis-connect.
-	 *
-	 * NB: we are holding a lock here. We need to re-factor this a bit
-	 * so we aren't performing socket io while this lock is held.
-	 */
-	if ((pi->p_state & STATE_CONNECTED) != 0) {
-		cmd = PRISON_IPC_CONSOLE_SESSION_DONE;
-		sock_ipc_must_write(pi->p_peer_sock, &cmd, sizeof(cmd));
-	}
-	cblock_fork_cleanup(pi->p_instance_tag, "regular", -1, gcfg.c_verbose);
-	assert(pi->p_ttyfd != 0);
-	(void) close(pi->p_ttyfd);
-	TAILQ_REMOVE(&pr_head, pi, p_glue);
-	cur = pi->p_ttybuf.t_tot_len;
-	while (cur > 0) {
-		cur = termbuf_remove_oldest(&pi->p_ttybuf);
-	}
-	close(pi->p_pid_file);
-	free(pi);
-}
-
-static void
-cblock_detach_console(const char *instance)
-{
-	struct cblock_instance *pi;
-
-	pthread_mutex_lock(&cblock_mutex);
-	TAILQ_FOREACH(pi, &pr_head, p_glue) {
-		if (!cblock_instance_match(pi->p_instance_tag, instance)) {
-			continue;
-		}
-		pi->p_state &= ~STATE_CONNECTED;
-		pi->p_peer_sock = -1;
-		pthread_mutex_unlock(&cblock_mutex);
-		return;
-	}
-	pthread_mutex_unlock(&cblock_mutex);
-	/*
-	 * If we are here, the process was non-interactive (build job) and
-	 * has completed already.
-	 */
-}
-
-static void
-cblock_reap_children(void)
-{
-	struct cblock_instance *pi, *p_temp;
-	int status;
-	pid_t pid;
-
-	pthread_mutex_lock(&cblock_mutex);
-	TAILQ_FOREACH_SAFE(pi, &pr_head, p_glue, p_temp) {
-		pid = waitpid(pi->p_pid, &status, WNOHANG);
-		if (pid != pi->p_pid) {
-			continue;
-		}
-		pi->p_state |= STATE_DEAD;
-		printf("collected exit status from proc %d\n", pi->p_pid);
-		//printf("dumping TTY buffer:\n");
-		//termbuf_print_queue(&pi->p_ttybuf.t_head);
-		cblock_remove(pi);
-	}
-	pthread_mutex_unlock(&cblock_mutex);
-	reap_children = 0;
 }
 
 static int
@@ -362,132 +146,6 @@ tty_io_queue_loop(void *arg)
 	}
 }
 
-static int
-cblock_instance_is_dead(const char *instance)
-{
-	struct cblock_instance *pi;
-	int isdead;
-
-	isdead = 0;
-	pthread_mutex_lock(&cblock_mutex);
-	TAILQ_FOREACH(pi, &pr_head, p_glue) {
-		if (!cblock_instance_match(pi->p_instance_tag, instance)) {
-			continue;
-		}
-		isdead = ((pi->p_state & STATE_DEAD) != 0);
-		pthread_mutex_unlock(&cblock_mutex);
-		return (isdead);
-        }
-        pthread_mutex_unlock(&cblock_mutex);
-	/*
-	 * The console was non-interactive (i.e.: a build job) and it is
-	 * complete and the process(s) have been reaped. We might want
-	 * to assert that this is the case some place.
-	 */
-        return (1);
-}
-
-void
-dispatch_handle_resize(int ttyfd, char *buf)
-{
-	struct winsize *wsize;
-	char *vptr;
-
-	vptr = buf;
-	vptr += sizeof(uint32_t);
-	wsize = (struct winsize *)vptr;
-	if (ioctl(ttyfd, TIOCSWINSZ, wsize) == -1) {
-		err(1, "ioctl(TIOCSWINSZ): failed");
-	}
-}
-
-void
-tty_console_session(const char *instance, int sock, int ttyfd)
-{
-	char buf[1024], *vptr;
-	uint32_t *cmd;
-	ssize_t bytes;
-
-	printf("tty_console_session: enter, reading commands from client\n");
-	for (;;) {
-		bzero(buf, sizeof(buf));
-		ssize_t cc = read(sock, buf, sizeof(buf));
-		if (cc == 0) {
-			printf("read EOF from socket\n");
-			break;
-		}
-		if (cc == -1 && errno == EINTR) {
-			continue;
-		}
-		if (cc == -1) {
-			err(1, "%s: read failed", __func__);
-		}
-		/*
-		 * NB: There probably needs to be a better way to do this 
-		 * rather than iterating through the jail list for read input
-		 * from the console.
-		 */
-		if (cblock_instance_is_dead(instance)) {
-			break;
-		}
-		vptr = buf;
-		cmd = (uint32_t *)vptr;
-		switch (*cmd) {
-		case PRISON_IPC_CONSOL_RESIZE:
-			dispatch_handle_resize(ttyfd, buf);
-			break;
-		case PRISON_IPC_CONSOLE_DATA:
-			vptr += sizeof(uint32_t);
-			cc -= sizeof(uint32_t);
-			bytes = write(ttyfd, vptr, cc);
-			if (bytes != cc) {
-				err(1, "tty_write failed");
-			}
-			break;
-		default:
-			errx(1, "unknown console instruction");
-		}
-	}
-	printf("console dis-connected\n");
-}
-
-struct cblock_instance *
-cblock_lookup_instance(const char *instance)
-{
-	struct cblock_instance *pi;
-
-	TAILQ_FOREACH(pi, &pr_head, p_glue) {
-		if (!cblock_instance_match(pi->p_instance_tag, instance)) {
-			continue;
-		}
-		return (pi);
-	}
-	return (NULL);
-}
-
-static char *
-trim_tty_buffer(char *input, size_t len, size_t *newlen)
-{
-	uintptr_t old, new;
-	char  *ep;
-
-	new = 0;
-	ep = input + len - 1;
-	old = (uintptr_t) ep;
-	while (ep > input) {
-		if (isspace(*ep) || *ep == '\0') {
-			ep--;
-			continue;
-		}
-		new = (uintptr_t) ep;
-		ep++;
-		*ep = '\0';
-		break;
-	}
-	*newlen = len - (old - new);
-	return (input);
-}
-
 int
 dispatch_connect_console(int sock)
 {
@@ -529,7 +187,7 @@ dispatch_connect_console(int sock)
 	if (tty_block) {
 		cmd = PRISON_IPC_CONSOLE_TO_CLIENT;
 		sock_ipc_must_write(sock, &cmd, sizeof(cmd));
-		trimmed = trim_tty_buffer(tty_block, tty_buflen, &len);
+		trimmed = tty_trim_buffer(tty_block, tty_buflen, &len);
 		sock_ipc_must_write(sock, &len, sizeof(len));
 		sock_ipc_must_write(sock, trimmed, len);
 		free(tty_block);
@@ -543,38 +201,6 @@ dispatch_connect_console(int sock)
 	tty_console_session(pcc.p_instance, sock, ttyfd);
 	cblock_detach_console(pcc.p_instance);
 	return (1);
-}
-
-void
-gen_sha256_string(unsigned char *hash, char *output)
-{
-	int k;
-
-	for (k = 0; k < SHA256_DIGEST_LENGTH; k++) {
-		sprintf(output + (k * 2), "%02x", hash[k]);
-	}
-	output[64] = '\0';
-}
-
-char *
-gen_sha256_instance_id(char *instance_name)
-{
-	u_char hash[SHA256_DIGEST_LENGTH];
-	char inbuf[128], *ret;
-	SHA256_CTX sha256;
-	char outbuf[128+1];
-	char buf[32];
-
-	bzero(inbuf, sizeof(inbuf));
-	arc4random_buf(inbuf, sizeof(inbuf) - 1);
-	bzero(outbuf, sizeof(outbuf));
-	SHA256_Init(&sha256);
-	SHA256_Update(&sha256, inbuf, strlen(inbuf));
-	SHA256_Final(hash, &sha256);
-	gen_sha256_string(&hash[0], outbuf);
-	sprintf(buf, "%.10s", outbuf);
-	ret = strdup(buf);
-	return (ret);
 }
 
 int
@@ -710,20 +336,5 @@ dispatch_work(void *arg)
 	TAILQ_REMOVE(&p_head, p, p_glue);
 	pthread_mutex_unlock(&peer_mutex);
 	free(p);
-	return (NULL);
-}
-
-void *
-cblock_handle_request(void *arg)
-{
-	struct cblock_peer *p;
-
-	p = (struct cblock_peer *)arg;
-	if (pthread_create(&p->p_thr, NULL, dispatch_work, arg) != 0) {
-		err(1, "pthread_create(dispatch_work) failed");
-	}
-	pthread_mutex_lock(&peer_mutex);
-	TAILQ_INSERT_HEAD(&p_head, p, p_glue);
-	pthread_mutex_unlock(&peer_mutex);
 	return (NULL);
 }

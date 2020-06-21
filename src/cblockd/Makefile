@@ -1,7 +1,7 @@
 CC	?= cc
 CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I $(PREFIX)/include -I../include/
 TARGETS	= cblockd
-OBJ	= main.o sock_ipc.o dispatch.o termbuf.o build.o instances.o exec.o
+OBJ	= main.o sock_ipc.o dispatch.o termbuf.o build.o instances.o exec.o tty.o util.o cblock.o
 LIBS	= -lpthread -lutil -lcblock -lcrypto
 PREFIX	?= /usr/local
 

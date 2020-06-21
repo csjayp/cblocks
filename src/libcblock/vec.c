@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include <cblock/libcblock.h>
 
@@ -215,6 +216,7 @@ char **
 vec_return(vec_t *vec)
 {
 
+	assert(vec->vec_flag == 0);
 	return (vec->vec);
 }
 
