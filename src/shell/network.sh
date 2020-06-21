@@ -29,6 +29,7 @@ type=""
 netif=""
 net_name=""
 net_mask=""
+op=""
 
 get_lowest_bridge_unit()
 {
@@ -106,8 +107,96 @@ do_bridge_setup()
     printf "${net_name}"
 }
 
-while getopts "m:R:t:i:n:" opt; do
+net_in_use()
+{
+    while read ln; do
+        _name=$(echo $ln | cut -f 4 -d:)
+        if [ "$_name" = "$net_name" ]; then
+            return 1
+        fi
+    done < $data_root/networks/cur
+    return 0
+}
+
+net_destroy()
+{
+    net_in_use
+    if [ $? -ne 0 ]; then
+        echo Network is currently in use
+        exit 1
+    fi
+    netdb=$(mktemp)
+    while read ln; do
+        _type=$(echo $ln | cut -f 1 -d:)
+        _name=$(echo $ln | cut -f 2 -d:)
+        if [ "$_name" != "$net_name" ]; then
+            echo $ln >> $netdb
+            continue
+        fi
+        case $_type in
+        bridge)
+            ifconfig $_name destroy
+            ;;
+        esac
+    done < ${data_root}/networks/network_list
+    rm ${data_root}/networks/network_list
+    mv $netdb ${data_root}/networks/network_list
+}
+
+net_list()
+{
+    printf "%7.7s %10.10s  %5.5s   %-20.20s\n" "TYPE" "NAME" "NETIF" "NET"
+    while read ln; do
+        type=$(echo $ln | cut -f 1 -d:)
+        name=$(echo $ln | cut -f 2 -d:)
+        netif=$(echo $ln | cut -f 3 -d:)
+        net="-"
+        if [ "$type" != "bridge" ]; then
+            net=$(echo $ln | cut -f 4 -d:)
+        fi
+        printf "%7.7s %10.10s  %5.5s   %-20.20s\n" $type $name $netif $net
+    done < ${data_root}/networks/network_list
+}
+
+net_create()
+{
+    case "$type" in
+        bridge)
+            bridgeif=$(do_bridge_setup)
+            if [ $? -ne 0 ]; then
+                exit 1
+            fi
+            echo "Bridge $bridgeif configured and ready for containers"
+            ifconfig "$bridgeif"
+            ;;
+        nat)
+            do_nat_setup
+            ;;
+        *)
+            echo "Un-supported network type $type"
+            exit 1
+            ;;
+    esac
+}
+
+while getopts "o:m:R:t:i:n:" opt; do
     case $opt in
+        o)
+            case $OPTARG in
+            list)
+                op="list"
+                ;;
+            create)
+                op="create"
+                ;;
+            destroy)
+                op="destroy"
+                ;;
+            *)
+                echo FATAL: invalid operation $OPTARG
+                ;;
+            esac
+            ;;
         m)
             net_mask=$OPTARG
             ;;
@@ -126,29 +215,27 @@ while getopts "m:R:t:i:n:" opt; do
     esac
 done
 
+if [ ! "$op" ]; then
+    echo "Must specify operation"
+    exit 1
+fi
+
 if [ ! -f "${data_root}"/networks/network_list ]; then
     touch "${data_root}"/networks/network_list
 fi
 
-if [ ! "$type" ] || [ ! "$netif" ] || [ ! "$net_name" ]; then
-    echo "Network type, name and parent interface must be specified"
-    exit 1
-fi
-
-case "$type" in
-    bridge)
-        bridgeif=$(do_bridge_setup)
-        if [ $? -ne 0 ]; then
-            exit 1
-        fi
-        echo "Bridge $bridgeif configured and ready for containers"
-        ifconfig "$bridgeif"
-        ;;
-    nat)
-        do_nat_setup
-        ;;
-    *)
-        echo "Un-supported network type $type"
+case $op in
+create)
+    if [ ! "$type" ] || [ ! "$netif" ] || [ ! "$net_name" ]; then
+        echo "Network type, name and parent interface must be specified"
         exit 1
-        ;;
+    fi
+    net_create
+    ;;
+destroy)
+    net_destroy
+    ;;
+list)
+    net_list
+    ;;
 esac

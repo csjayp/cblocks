@@ -293,7 +293,8 @@ network_to_ip()
                 ifconfig cblock0 inet "${ip}/32" alias
                 echo "nat on $out_if from ${ip}/32 to any -> ($out_if)" | \
                     pfctl -a cblock-nat/${instance_id} -f -
-                echo "nat:${instance_id}:${ip}" >> $data_root/networks/cur
+                echo "nat:${instance_id}:${ip}:$network" >> \
+                  $data_root/networks/cur
                 echo "${ip}"
                 setup_port_redirects "$ports" "$ip" "$out_if"
                 return
@@ -389,5 +390,10 @@ do_launch()
     fi
 }
 
-network_is_defined
-do_launch
+launch_block()
+{
+    network_is_defined
+    do_launch
+}
+
+launch_block
