@@ -45,16 +45,25 @@ struct cblock_instance {
 	char				p_image_name[256];
 	int				p_pid_file;
 };
+typedef TAILQ_HEAD( , cblock_peer) cblock_peer_head_t;
+typedef TAILQ_HEAD( , cblock_instance) cblock_instance_head_t;
 
-size_t		cblock_instance_get_count(void);
-struct instance_ent *
-		cblock_populate_instance_entries(size_t);
-void *		cblock_handle_request(void *);
 int		dispatch_get_instances(int);
 int		dispatch_generic_command(int);
 void *		tty_io_queue_loop(void *);
 int		dispatch_build_recieve(int);
 char *		gen_sha256_instance_id(char *instance_name);
 void		cblock_fork_cleanup(char *instance, char *, int, int);
+void		tty_handle_resize(int, char *);
+void		tty_console_session(const char *, int, int);
+char *		tty_trim_buffer(char *, size_t, size_t *);
+void		gen_sha256_string(unsigned char *, char *);
+char *		gen_sha256_instance_id(char *);
+void *		dispatch_work(void *);
+
+cblock_peer_head_t p_head;
+cblock_instance_head_t pr_head;
+pthread_mutex_t peer_mutex;
+pthread_mutex_t cblock_mutex;
 
 #endif

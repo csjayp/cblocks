@@ -32,12 +32,21 @@
 #include <sys/queue.h>
 #include <sys/ttycom.h>
 
+#ifdef __FreeBSD__
+#include <net/if.h>
+#else
+#define IF_NAMESIZE 16
+#endif
+
 #include <termios.h>
 
 struct tailhead_stage;
 struct tailhead_step;
 
 #define	MAX_PRISON_NAME	512
+#define	MAX_ERR_BUF	512
+#define	MAX_ARG_STRING	2048
+#define	MAX_TERM_NAME	512
 
 enum {
         PRISON_TYPE_NONE,
@@ -58,46 +67,46 @@ enum {
 #define	PRISON_IPC_NETWORK_CTL		11
 
 struct instance_ent {
-	char					p_instance_name[512];
-	char					p_image_name[512];
+	char					p_instance_name[MAX_PRISON_NAME];
+	char					p_image_name[MAXPATHLEN];
 	pid_t					p_pid;
-	char					p_tty_line[64];
+	char					p_tty_line[MAXPATHLEN];
 	time_t					p_start_time;
 };
 
 struct cblock_generic_command {
-	char					p_cmdname[512];
+	char					p_cmdname[MAXPATHLEN];
 	size_t					p_mlen;
 	int					p_verbose;
 };
 
 struct cblock_build_context {
-	char					p_image_name[1024];
-	char					p_cblock_file[1024];
+	char					p_image_name[MAXPATHLEN];
+	char					p_cblock_file[MAXPATHLEN];
 	off_t					p_context_size;
-	char					p_tag[1024];
+	char					p_tag[MAXPATHLEN];
 	int					p_nstages;
 	int					p_nsteps;
-	char					p_term[128];
-	char					p_entry_point[1024];
-	char					p_entry_point_args[1024];
+	char					p_term[MAX_TERM_NAME];
+	char					p_entry_point[MAXPATHLEN];
+	char					p_entry_point_args[MAXPATHLEN];
 	int					p_verbose;
 	int					p_build_fim_spec;
 };
 
 struct cblock_response {
 	int					p_ecode;
-	char					p_errbuf[1024];
+	char					p_errbuf[MAX_ERR_BUF];
 };
 
 struct cblock_launch {
 	char					p_name[MAX_PRISON_NAME];
-	char					p_tag[1024];
-	char					p_term[128];
-	char					p_entry_point_args[1024];
-	char					p_volumes[2048];
-	char					p_ports[2048];
-	char					p_network[256];
+	char					p_tag[MAXPATHLEN];
+	char					p_term[MAX_TERM_NAME];
+	char					p_entry_point_args[MAXPATHLEN];
+	char					p_volumes[MAX_ARG_STRING];
+	char					p_ports[MAX_ARG_STRING];
+	char					p_network[IF_NAMESIZE];
 	int					p_verbose;
 };
 
@@ -106,7 +115,7 @@ struct cblock_console_connect {
 	char					p_instance[MAX_PRISON_NAME];
 	struct winsize				p_winsize;
 	struct termios				p_termios;
-	char					p_term[64];
+	char					p_term[MAX_TERM_NAME];
 };
 
 struct build_step_root_pivot {
@@ -164,7 +173,7 @@ struct build_step {
 		 * getcnf(ARG_MAX) but we will re-visit this in the
 		 * future if need be.
 		 */
-		char				 step_cmd[2048];
+		char				 step_cmd[MAXPATHLEN];
 		struct build_step_copy		 step_copy;
 		struct build_step_add		 step_add;
 		struct build_step_workdir	 step_workdir;
@@ -172,16 +181,16 @@ struct build_step {
 		struct build_step_root_pivot	 step_root_pivot;
 		struct build_step_env		 step_env;
 	} step_data;
-	char					 step_string[1024];
+	char					 step_string[MAXPATHLEN];
 };
 
 struct build_stage {
-	char					 bs_name[1024];
-	int					 bs_index;
-	char					 bs_base_container[1024];
+	char					bs_name[MAXPATHLEN];
+	int					bs_index;
+	char					bs_base_container[MAXPATHLEN];
 	TAILQ_HEAD(tailhead_step, build_step)	step_head;
 	TAILQ_ENTRY(build_stage)		stage_glue;
-	int					 bs_is_last;
+	int					bs_is_last;
 };
 
 struct build_manifest {
@@ -192,13 +201,13 @@ struct build_manifest {
 };
 
 struct build_context {
-	struct cblock_build_context		pbc;
+	struct cblock_build_context		 pbc;
 	struct build_step			*steps;
 	struct build_stage			*stages;
 	char					 build_root[MAXPATHLEN];
-	TAILQ_ENTRY(build_context)		bc_glue;
+	TAILQ_ENTRY(build_context)		 bc_glue;
 	char					*instance;
-	int					peer_sock;
+	int					 peer_sock;
 	FILE					*peer_sock_fp;
 };
 

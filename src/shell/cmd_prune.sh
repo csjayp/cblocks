@@ -52,6 +52,13 @@ symlinks()
       -mindepth 1 -maxdepth  1 -type l
 }
 
+#
+# NB: We need to loop through the mounted file systems and see
+# If the image has any active snap shots
+#
+# ssdvol0/cblock/instances/4428f0b45b/0  origin                  ssdvol0/cblock/images/builder.1e21cdc30f@4428f0b45b_0  -
+# We can do this by checking the origin
+#
 do_image_purge()
 {
     for image in $(images); do
