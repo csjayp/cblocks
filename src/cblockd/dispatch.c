@@ -164,14 +164,16 @@ dispatch_connect_console(int sock)
 	pi = cblock_lookup_instance(pcc.p_instance);
 	if (pi == NULL) {
 		pthread_mutex_unlock(&cblock_mutex);
-		sprintf(resp.p_errbuf, "%s invalid container", pcc.p_instance);
+		snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
+		    "%s invalid container", pcc.p_instance);
 		resp.p_ecode = 1;
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
 	}
 	if ((pi->p_state & STATE_CONNECTED) != 0) {
 		pthread_mutex_unlock(&cblock_mutex);
-		sprintf(resp.p_errbuf, "%s console already attached", pcc.p_instance);
+		snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
+		    "%s console already attached", pcc.p_instance);
 		resp.p_ecode = 1;
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
@@ -222,10 +224,6 @@ dispatch_launch_cblock(int sock)
 	if (pi == NULL) {
 		err(1, "calloc failed");
 	}
-	if (pl.p_entry_point_args[0] != '\0') {
-		printf("Passing in command line arguments: %s\n", 
-		    pl.p_entry_point_args);
-	}
 	pi->p_type = PRISON_TYPE_REGULAR;
 	strlcpy(pi->p_image_name, pl.p_name, sizeof(pi->p_image_name));
 	cmd_vec = vec_init(64);
@@ -236,7 +234,7 @@ dispatch_launch_cblock(int sock)
 	if (pl.p_ports[0] == '\0') {
 		strcpy(pl.p_ports, "none");
 	}
-	sprintf(buf, "TERM=%s", pl.p_term);
+	snprintf(buf, sizeof(buf), "TERM=%s", pl.p_term);
 	vec_append(env_vec, buf);
 	vec_append(env_vec, "USER=root");
 	vec_append(env_vec, "HOME=/root");
