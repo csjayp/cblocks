@@ -41,8 +41,8 @@
 #include "main.h"
 #include "dispatch.h"
 #include "sock_ipc.h"
-#include "cblock.h"
 #include "config.h"
+#include "cblock.h"
 
 #include <cblock/libcblock.h>
 
