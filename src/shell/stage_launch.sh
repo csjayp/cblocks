@@ -365,7 +365,7 @@ do_launch()
     set $(emit_entrypoint)
     if [ "$is_bridge" = "TRUE" ]; then
        netif=$(get_jail_interface)
-       setaudit -m ex,fw,pc jail -c \
+       jail -c \
           "host.hostname=${instance_hostname}" \
           "vnet" \
           "vnet.interface=$netif" \
@@ -379,7 +379,7 @@ do_launch()
         else
             ip4=$(network_to_ip)
         fi
-        setaudit -s "$ip4" -m ex,fw,pc jail -c \
+        jail -c \
           "host.hostname=${instance_hostname}" \
           "ip4.addr=${ip4}" \
           "name=${instance_id}" \
