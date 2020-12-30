@@ -16,7 +16,4 @@ struct cblock_instance *
 void *		cblock_handle_request(void *);
 void *		cblock_handle_request(void *);
 
-cblock_peer_head_t p_head;
-cblock_instance_head_t pr_head;
-
-#endif
+#endif	/* CBLOCK_DOT_H_ */

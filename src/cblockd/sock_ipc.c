@@ -146,6 +146,7 @@ sock_ipc_setup_inet(struct global_params *cmd)
 static int
 sock_ipc_accept_connection(int sock)
 {
+	extern struct global_params gcfg;
 	struct sockaddr_storage addrs;
 	struct cblock_peer *p;
 	struct sockaddr sa;

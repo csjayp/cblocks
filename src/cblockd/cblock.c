@@ -60,10 +60,15 @@
 #include <cblock/libcblock.h>
 
 static int reap_children;
+cblock_peer_head_t p_head;
+cblock_instance_head_t pr_head;
+pthread_mutex_t peer_mutex;
+pthread_mutex_t cblock_mutex;
 
 int
 cblock_create_pid_file(struct cblock_instance *p)
 {
+	extern struct global_params gcfg;
 	char pid_path[1024], pid_buf[32];
 	mode_t mode;
 	int flags;
@@ -153,6 +158,7 @@ cblock_instance_match(char *full_instance_name, const char *user_supplied)
 void
 cblock_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
 {
+	extern struct global_params gcfg;
         char buf[128], **argv;
         vec_t *vec, *vec_env;
         int status;
@@ -193,6 +199,7 @@ cblock_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
 void
 cblock_remove(struct cblock_instance *pi)
 {
+	extern struct global_params gcfg;
 	uint32_t cmd;
 	size_t cur;
 

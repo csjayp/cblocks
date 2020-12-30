@@ -48,6 +48,4 @@ struct global_params {
 	char		*c_forge_path;
 };
 
-struct global_params gcfg;
-
 #endif
