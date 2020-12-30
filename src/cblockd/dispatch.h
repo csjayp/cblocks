@@ -61,9 +61,4 @@ void		gen_sha256_string(unsigned char *, char *);
 char *		gen_sha256_instance_id(char *);
 void *		dispatch_work(void *);
 
-cblock_peer_head_t p_head;
-cblock_instance_head_t pr_head;
-pthread_mutex_t peer_mutex;
-pthread_mutex_t cblock_mutex;
-
 #endif

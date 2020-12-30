@@ -71,6 +71,8 @@ handle_reap_children(int sig)
 static int
 tty_initialize_fdset(fd_set *rfds)
 {
+	extern cblock_instance_head_t pr_head;
+	extern pthread_mutex_t cblock_mutex;
 	struct cblock_instance *pi, *p_temp;
 	int maxfd;
 
@@ -93,6 +95,8 @@ tty_initialize_fdset(fd_set *rfds)
 void *
 tty_io_queue_loop(void *arg)
 {
+	extern cblock_instance_head_t pr_head;
+	extern pthread_mutex_t cblock_mutex;
 	struct cblock_instance *pi;
 	struct timeval tv;
 	u_char buf[8192];
@@ -149,6 +153,7 @@ tty_io_queue_loop(void *arg)
 int
 dispatch_connect_console(int sock)
 {
+	extern pthread_mutex_t cblock_mutex;
 	struct cblock_console_connect pcc;
 	struct cblock_response resp;
 	struct cblock_instance *pi;
@@ -208,6 +213,8 @@ dispatch_connect_console(int sock)
 int
 dispatch_launch_cblock(int sock)
 {
+	extern cblock_instance_head_t pr_head;
+	extern pthread_mutex_t cblock_mutex;
 	extern struct global_params gcfg;
 	char **env, **argv, buf[128];
 	struct cblock_response resp;
@@ -287,6 +294,8 @@ dispatch_launch_cblock(int sock)
 void *
 dispatch_work(void *arg)
 {
+	extern pthread_mutex_t peer_mutex;
+	extern cblock_peer_head_t p_head;
 	struct cblock_peer *p;
 	uint32_t cmd;
 	ssize_t cc;

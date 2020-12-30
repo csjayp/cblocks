@@ -166,6 +166,7 @@ static int
 build_stage_compile_copy_from(struct build_context *bcp, int stage_index)
 {
 	char tar_path[MAXPATHLEN], root_path[MAXPATHLEN], *src, **argv;
+	extern struct global_params gcfg;
 	build_copy_from_t stage_deps;
 	struct build_copy_from *cfp;
 	int k, this_stage, status;
@@ -318,6 +319,7 @@ static int
 build_init_stage(struct build_context *bcp, struct build_stage *stage)
 {
 	char script[128], index[16], context_archive[128], **argv;
+	extern struct global_params gcfg;
 	vec_t *vec, *vec_env;
 	int status;
 	pid_t pid;
@@ -378,6 +380,7 @@ static int
 build_commit_image(struct build_context *bcp)
 {
 	char commit_cmd[128], **argv, s_index[32], nstages[32];
+	extern struct global_params gcfg;
 	char path[1024], *do_fim, buf[64];
 	struct build_stage *bsp;
 	int status, k, last;
@@ -469,6 +472,7 @@ static int
 build_run_build_stage(struct build_context *bcp)
 {
 	char stage_root[MAXPATHLEN], **argv, builder[1024], buf[512];
+	extern struct global_params gcfg;
 	struct build_stage *bstg;
 	vec_t *vec, *vec_env;
 	int status, k;
@@ -576,6 +580,7 @@ static int
 dispatch_build_set_outfile(struct build_context *bcp,
     char *ebuf, size_t len)
 {
+	extern struct global_params gcfg;
 	char path[512], build_root[512];
 	int fd;
 

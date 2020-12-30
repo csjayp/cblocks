@@ -118,6 +118,8 @@ CMD		return (CMD);
                 }
 %%
 
+char *yyfile;
+
 void
 yyerror(const char *str)
 {

@@ -76,6 +76,7 @@ int
 dispatch_generic_command(int sock)
 {
 	struct cblock_generic_command arg;
+	extern struct global_params gcfg;
 	char *marshalled,*script;
 	int pipefds[2], error;
 	ssize_t cc;

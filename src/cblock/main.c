@@ -50,6 +50,8 @@
 #include "main.h"
 #include "sock_ipc.h"
 
+struct global_params gcfg;
+
 struct sub_command {
 	char		*sc_name;
 	int		(*sc_callback)(int, char **, int);

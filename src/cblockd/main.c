@@ -55,6 +55,8 @@
 
 #include <cblock/libcblock.h>
 
+struct global_params gcfg;
+
 static char *banner =
 	"            __ __ __    __            __\n" \
 	".----.-----|  |  |  |--|  .-----.----|  |--.-----.\n" \

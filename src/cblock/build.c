@@ -75,6 +75,7 @@ build_manifest_load(struct build_config *bcp)
 {
 	struct build_manifest *bmp;
 	char manifest_path[128];
+	extern char *yyfile;
 	FILE *f;
 
 	bmp = build_manifest_init();
