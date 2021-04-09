@@ -27,6 +27,7 @@
 data_dir=$1
 forge_path=$2
 
+set -x 
 set -e
 
 path_to_vol()
@@ -44,6 +45,9 @@ create_forge()
         mkdir -p "$data_dir/images/forge/root/tmp"
         ;;
     zfs)
+        if ! [ -d $data_dir/images ]; then
+            zfs create $(path_to_vol $data_dir/images)
+        fi
         vol=$(path_to_vol "$data_dir/images/forge")
         if [ -d "$data_dir/images/forge" ]; then
             rm -fr "$data_dir/images/forge:latest"

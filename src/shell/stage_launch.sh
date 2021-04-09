@@ -24,6 +24,8 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
+set -x
+
 data_root="$1"
 image_name="$2"
 instance_id="$3"
@@ -51,7 +53,7 @@ network_is_bridge()
 
 get_jail_interface()
 {
-    bridge=`network_is_bridge`
+    bridge=$(network_is_bridge)
     case $bridge in
     TRUE)
         epair=`ifconfig epair create`
@@ -194,10 +196,10 @@ config_devfs()
         # devfs -m ${devfs_mount} rule applyset
         ;;
     esac
-    bridge=`network_is_bridge`
+    bridge=$(network_is_bridge)
     if [ "$bridge" = "TRUE" ]; then
-        nrules=$(devfs rule -s 5000 show | wc -l | awk '{ print $1 }')
-        if [ "$nrules" -eq 0 ]; then
+        bpf_allowed=$(devfs rule -s 5000 show | grep -c "bpf\* unhide")
+        if [ "$bpf_allowed" -eq 0 ]; then
             devfs -m ${devfs_mount} ruleset 5000
             devfs rule -s 5000 add path 'bpf*' unhide
         fi

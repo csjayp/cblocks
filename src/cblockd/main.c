@@ -224,7 +224,7 @@ daemonize(struct global_params *gcp)
 int
 main(int argc, char *argv [], char *env[])
 {
-	int option_index, c;
+	int option_index, c, zfs_selected;
 	pthread_t thr;
 	char *r;
 
@@ -278,9 +278,11 @@ main(int argc, char *argv [], char *env[])
 			gcfg.c_port = optarg;
 			break;
 		case 'u':
+			zfs_selected = 0;
 			gcfg.c_underlying_fs = "ufs";
 			break;
 		case 'z':
+			zfs_selected = 1;
 			gcfg.c_underlying_fs = "zfs";
 			break;
 		case 'N':
@@ -305,7 +307,9 @@ main(int argc, char *argv [], char *env[])
 	}
 	fprintf(stdout, "%s\n", banner);
 	fprintf(stdout, "version %s\n", "0.0.0");
-	initialize_data_directory();
+	if (!zfs_selected) {
+		initialize_data_directory();
+	}
 	if (gcfg.c_forge_path != NULL) {
 		return (create_forge(gcfg.c_forge_path));
 	}
