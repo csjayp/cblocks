@@ -35,6 +35,7 @@
 #include <netinet/in.h>
 
 #include <stdio.h>
+#include <string.h>
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -164,7 +165,7 @@ create_forge(char *forge_path)
 }
 
 static void
-initialize_data_directory(void)
+initialize_data_directory(int iszfs)
 {
 	char path[256], *dir, **dir_list;
 	struct stat sb;
@@ -183,6 +184,10 @@ initialize_data_directory(void)
 	 */
 	dir_list = data_sub_dirs;
 	while ((dir = *dir_list++)) {
+		if (strcmp(dir, "instances") == 0 ||
+		    strcmp(dir, "images") == 0) {
+			continue;
+		}
 		(void) snprintf(path, sizeof(path), "%s/%s",
 		    gcfg.c_data_dir, dir);
 		if (mkdir(path, 0755) == -1 && errno != EEXIST) {
@@ -234,6 +239,7 @@ main(int argc, char *argv [], char *env[])
 	gcfg.c_family = PF_UNSPEC;
 	gcfg.c_port = "3333";
 	gcfg.c_tty_buf_size = 5 * 4096;
+	gcfg.c_name = "/var/run/cblock.sock";
 	while (1) {
 		option_index = 0;
 		c = getopt_long(argc, argv, "f:l:o:bd:T:46U:s:p:huzNv", long_options,
@@ -307,16 +313,14 @@ main(int argc, char *argv [], char *env[])
 	}
 	fprintf(stdout, "%s\n", banner);
 	fprintf(stdout, "version %s\n", "0.0.0");
-	if (!zfs_selected) {
-		initialize_data_directory();
-	}
+	initialize_data_directory(zfs_selected);
 	if (gcfg.c_forge_path != NULL) {
 		return (create_forge(gcfg.c_forge_path));
 	}
-	if (gcfg.c_name) {
-		sock_ipc_setup_unix(&gcfg);
-	} else {
+	if (gcfg.c_host) {
 		sock_ipc_setup_inet(&gcfg);
+	} else {
+		sock_ipc_setup_unix(&gcfg);
 	}
 	if (gcfg.c_background) {
 		daemonize(&gcfg);
