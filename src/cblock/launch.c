@@ -165,7 +165,7 @@ launch_main(int argc, char *argv [], int ctlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "HP:vN:Fpn:t:V:T", launch_options,
+		c = getopt_long(argc, argv, "AHP:vN:Fpn:t:V:T", launch_options,
 		    &option_index);
 		if (c == -1) {
 			break;

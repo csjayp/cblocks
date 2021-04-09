@@ -24,6 +24,8 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
+set -x
+
 build_root=$1
 stage_index=$2
 base_container=$3
@@ -45,16 +47,18 @@ bind_devfs()
     fi
     mount -t devfs devfs "${build_root}/${stage_index}/root/dev"
     devfs -m "${build_root}/${stage_index}/root/dev" ruleset 5000
-    devfs rule -s 5000 add hide
-    devfs rule -s 5000 add path null unhide
-    devfs rule -s 5000 add path zero unhide
-    devfs rule -s 5000 add path random unhide
-    devfs rule -s 5000 add path urandom unhide
-    devfs rule -s 5000 add path 'fd'  unhide 
-    devfs rule -s 5000 add path 'fd/*'  unhide
-    devfs rule -s 5000 add path stdin unhide
-    devfs rule -s 5000 add path stdout unhide
-    devfs rule -s 5000 add path stderr unhide
+    if [ $(devfs rule -s 5000 show | grep -c .) -eq 0 ]; then
+        devfs rule -s 5000 add hide
+        devfs rule -s 5000 add path null unhide
+        devfs rule -s 5000 add path zero unhide
+        devfs rule -s 5000 add path random unhide
+        devfs rule -s 5000 add path urandom unhide
+        devfs rule -s 5000 add path 'fd'  unhide
+        devfs rule -s 5000 add path 'fd/*'  unhide
+        devfs rule -s 5000 add path stdin unhide
+        devfs rule -s 5000 add path stdout unhide
+        devfs rule -s 5000 add path stderr unhide
+    fi
     devfs -m "${build_root}/${stage_index}/root/dev" rule applyset
 }
 
@@ -185,6 +189,9 @@ bootstrap()
         mkdir -p "${build_root}/${stage_index}"
         ;;
     zfs)
+        if ! [ -d "$data_dir/instances" ]; then
+            zfs create $(path_to_vol $data_dir/instances)
+        fi
         build_root_vol=$(path_to_vol "${build_root}")
         if [ "${stage_index}" == "0" ]; then
             zfs create "${build_root_vol}"
