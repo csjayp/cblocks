@@ -161,6 +161,7 @@ main(int argc, char *argv [])
 	argc -= sc_index;
 	gcfg.c_family = PF_UNSPEC;
 	gcfg.c_port = "3333";
+	gcfg.c_name = "/var/run/cblock.sock";
 	while (1) {
 		option_index = 0;
 		c = getopt_long(sc_index, main_argv, "h46U:s:p:h", long_options,
@@ -195,10 +196,10 @@ main(int argc, char *argv [])
 			break;
 		}
 	}
-	if (gcfg.c_name) {
-		ctlsock = sock_ipc_connect_unix(&gcfg);
-	} else {
+	if (gcfg.c_host) {
 		ctlsock = sock_ipc_connect_inet(&gcfg);
+	} else {
+		ctlsock = sock_ipc_connect_unix(&gcfg);
 	}
 	ret = (*scp->sc_callback)(argc, argv, ctlsock);
 	return (ret);

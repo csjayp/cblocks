@@ -308,6 +308,9 @@ console_main(int argc, char *argv [], int cltlsock)
 			break;
 		}
 	}
+	if (cc.c_name == NULL) {
+		errx(1, "must specify intance id to connect to");
+	}
 	console_connect_console(cltlsock, &cc);
 	return (0);
 }

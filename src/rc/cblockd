@@ -18,7 +18,7 @@ load_rc_config $name
 : ${cblockd_enable:="NO"}
 : ${cblockd_data_dir:=""}
 : ${cblockd_fs:="ufs"}
-: ${cblockd_sock_path:=""}
+: ${cblockd_sock_path:="/var/run/cblock.sock"}
 : ${cblockd_sock_owner:=""}
 : ${cblockd_logfile:="/var/log/cblockd.log"}
 
