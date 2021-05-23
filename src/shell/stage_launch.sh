@@ -24,8 +24,6 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
-set -x
-
 data_root="$1"
 image_name="$2"
 instance_id="$3"
@@ -208,6 +206,15 @@ config_devfs()
     fi
 }
 
+emit_os_release()
+{
+    if [ -f "${image_dir}/OSRELEASE" ]; then
+        cat "${image_dir}/OSRELEASE"
+    else
+        uname -r
+    fi
+}
+
 emit_entrypoint()
 {
     CMD=`cat "${image_dir}/ENTRYPOINT"`
@@ -372,7 +379,7 @@ do_launch()
           "vnet" \
           "vnet.interface=$netif" \
           "name=${instance_id}" \
-          "osrelease=12.1-RELEASE" \
+          "osrelease=$(emit_os_release)" \
           "path=${instance_root}" \
           command="$@"
     else
@@ -385,7 +392,7 @@ do_launch()
           "host.hostname=${instance_hostname}" \
           "ip4.addr=${ip4}" \
           "name=${instance_id}" \
-          "osrelease=12.1-RELEASE" \
+          "osrelease=$(emit_os_release)" \
           "path=${instance_root}" \
           command="$@"
     fi

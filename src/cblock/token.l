@@ -52,6 +52,7 @@ AS		return (AS);
 RUN		return (RUN);
 ADD		return (ADD);
 COPY		return (COPY);
+OSRELEASE	return (OSRELEASE);
 ENV		return (ENV);
 WORKDIR		return (WORKDIR);
 ENTRYPOINT	return (ENTRYPOINT);

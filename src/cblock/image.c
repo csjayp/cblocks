@@ -63,6 +63,20 @@ image_usage(void)
 }
 
 static void
+image_prune(struct image_config *icp, int ctlsock)
+{
+	struct cblock_generic_command arg;
+	uint32_t cmd;
+
+	cmd = PRISON_IPC_GENERIC_COMMAND;
+	bzero(&arg, sizeof(arg));
+	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
+	sprintf(arg.p_cmdname, "instance_prune");
+	sock_ipc_must_write(ctlsock, &arg, sizeof(arg));
+	sock_ipc_from_sock_to_tty(ctlsock);
+}
+
+static void
 image_get(struct image_config *icp, int ctlsock)
 {
 	struct cblock_generic_command arg;
@@ -105,6 +119,10 @@ image_main(int argc, char *argv [], int ctlsock)
 	}
 	argc -= optind;
 	argv += optind;
+	if (ic.i_do_prune) {
+		image_prune(&ic, ctlsock);
+		return (0);
+	}
 	image_get(&ic, ctlsock);
 	return (0);
 }

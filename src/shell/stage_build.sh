@@ -26,20 +26,52 @@
 #
 set -e 
 
+get_default_ip()
+{
+    netif=`route get www.fastly.com | grep -F 'interface:' | awk '{ print $2 }'`
+    ipv4=`ifconfig ${netif} | egrep "inet " | tail -n 1 | awk '{ print $2 }'`
+    echo "${ipv4}"
+}
+
 build_root=$1
+instance_id=$2
+osrelease=$3
+
+if ! [ "$osrelease" ]; then
+    osrelease=$(uname -r)
+fi
 
 init_build()
 {
+    #
+    # Inject the /etc/resolv.conf from the host environment into this build
+    # jail. People can provide their own their own within the build if they
+    # want to use something else.
+    #
+    echo "NOTE: Injecting host resolv.conf. Builds can override by including their own"
+    cp /etc/resolv.conf "${build_root}/etc/resolv.conf"
+
     #
     # Check to see if this is a forge build. If so, change the path to the
     # interpreter. We ought to just use PATH for this.
     #
     if [ -f "${build_root}/tmp/cblock_forge/bin/sh" ]; then
-        chroot "${build_root}" \
-          /tmp/cblock_forge/bin/sh /tmp/cblock-bootstrap.sh
+        chroot \
+        jail -c \
+          "host.hostname=$(hostname)" \
+          "ip4.addr=$(get_default_ip)" \
+          "name=$instance_id" \
+          "osrelease=$osrelease" \
+          "path="${build_root} \
+          exec.start="/tmp/cblock_forge/bin/sh /tmp/cblock-bootstrap.sh"
     else
-        chroot "${build_root}" \
-          /bin/sh /tmp/cblock-bootstrap.sh
+        jail -c \
+          "host.hostname=$(hostname)" \
+          "ip4.addr=$(get_default_ip)" \
+          "name=$instance_id" \
+          "osrelease=$osrelease" \
+          "path="${build_root} \
+          exec.start="/bin/sh /tmp/cblock-bootstrap.sh"
     fi
     #
     # Cleanup artifacts that were in /tmp just in case subsequent stages want
