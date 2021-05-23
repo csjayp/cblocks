@@ -46,6 +46,15 @@ commit_image()
         dir=$(readlink "${build_root}/${build_index}/root/cellblock-root-ptr")
         src="${build_root}/${build_index}/root/${dir}"
         #
+        # If the container is expecting a specific OS release to be specified
+        # for package installs or whatever else, copy that over into the
+        # the image so the dispatcher and set it properly
+        #
+        if [ -f "${build_root}/${build_index}/OSRELEASE" ]; then
+            cp "${build_root}/${build_index}/OSRELEASE" \
+                "${build_root}/${build_index}/root/${dir}"
+        fi
+        #
         # If we have root pivoting step, make sure we copy the entry point
         # and entry point args from the original root.
         #

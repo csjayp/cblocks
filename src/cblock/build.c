@@ -180,6 +180,11 @@ build_send_context(int sock, struct build_config *bcp)
 	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
 	strlcpy(pbc.p_cblock_file, bcp->b_cblock_file,
 	    sizeof(pbc.p_cblock_file));
+	if (bcp->b_bmp->osrelease) {
+		printf("coying OS release\n");
+		strlcpy(pbc.p_os_release, bcp->b_bmp->osrelease,
+		    sizeof(pbc.p_os_release));
+	}
 	if (bcp->b_bmp->entry_point) {
 		strlcpy(pbc.p_entry_point, bcp->b_bmp->entry_point,
 		    sizeof(pbc.p_entry_point));

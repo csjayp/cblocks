@@ -398,6 +398,20 @@ build_commit_image(struct build_context *bcp)
 		break;
 	}
 	/*
+	 * Write out the OS release specification for the container if there is
+	 * one. If not, the default OS of the host environment will be used.
+	 */
+	if (bcp->pbc.p_os_release[0] != '\0') {
+		snprintf(path, sizeof(path), "%s/%d/OSRELEASE",
+		    bcp->build_root, last);
+		fp = fopen(path, "w+");
+		if (fp == NULL) {
+			err(1, "fopen(%s) failed", path);
+		}
+		fprintf(fp, "%s", bcp->pbc.p_os_release);
+		fclose(fp);
+	}
+	/*
 	 * Write out entry point and enty point args (CMD) for the final stage
 	 */
 	if (bcp->pbc.p_entry_point[0] != '\0') {
@@ -552,6 +566,8 @@ build_run_build_stage(struct build_context *bcp)
 			}
 			vec_append(vec, builder);
 			vec_append(vec, stage_root);
+			vec_append(vec, bcp->instance);
+			vec_append(vec, bcp->pbc.p_os_release);
 			vec_finalize(vec);
 			argv = vec_return(vec);
 			execve(*argv, argv, vec_return(vec_env));

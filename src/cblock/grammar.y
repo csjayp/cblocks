@@ -65,7 +65,7 @@ static char *archive_extensions[] = {
 
 %token FROM AS COPY ADD RUN ENTRYPOINT STRING WORKDIR
 %token OPEN_SQUARE_BRACKET CLOSE_SQUARE_BRACKET COPY_FROM ENV EQ
-%token INTEGER COMMA CMD ROOTPIVOT
+%token INTEGER COMMA CMD ROOTPIVOT OSRELEASE
 
 %type <num> INTEGER
 %type <c_string> STRING
@@ -152,6 +152,19 @@ entry_def:
 		free(cmd_string);
 		vec_free(vec);
 		vec = NULL;
+        }
+	| OSRELEASE STRING
+	{
+		struct build_manifest *bmp;
+
+		bmp = get_current_build_manifest();
+		if (bmp->osrelease != NULL) {
+			errx(1, "OSRELEASE: has already been specified");
+		}
+		bmp->osrelease = strdup($2);
+		if (bmp->osrelease == NULL) {
+			err(1, "failed to dup os release");
+		}
         }
         ;
 

@@ -1,5 +1,6 @@
-FROM base:12.1-RELEASE
+FROM freebsd
   ADD resolv.conf /etc
+  ENV "IGNORE_OSVERSION" = "TRUE"
   RUN "pkg --yes update"
   RUN "pkg install --yes git"
   RUN "pkg install --yes gcc llvm flex bison cmake"
