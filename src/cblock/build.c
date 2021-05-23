@@ -154,7 +154,9 @@ static int
 build_send_context(int sock, struct build_config *bcp)
 {
 	struct cblock_build_context pbc;
+	struct cblock_response resp;
 	struct stat sb;
+	vec_t *vec;
 	char *term;
 	u_int cmd;
 	int fd;
@@ -205,11 +207,21 @@ build_send_context(int sock, struct build_config *bcp)
 	if (sock_ipc_from_to(fd, sock, sb.st_size) == -1) {
 		err(1, "sock_ipc_from_to: failed");
 	}
-	close(fd);
 	if (unlink(bcp->b_context_path) == -1) {
 		err(1, "failed to cleanup build context");
 	}
-	sock_ipc_from_sock_to_tty(sock);
+        sock_ipc_must_read(sock, &resp, sizeof(resp));
+        if (resp.p_ecode != 0) {
+                err(1, "failed to spawn container");
+        }
+	vec = vec_init(16);
+	vec_append(vec, "console");
+	vec_append(vec, "--name");
+	vec_append(vec, resp.p_errbuf);
+	vec_finalize(vec);
+	console_main(vec->vec_used, vec_return(vec), sock);
+	vec_free(vec);
+	sock_ipc_must_read(sock, &resp, sizeof(resp));
 	return (0);
 }
 

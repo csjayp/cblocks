@@ -24,8 +24,6 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
-set -x
-
 build_root=$1
 stage_index=$2
 base_container=$3

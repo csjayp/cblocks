@@ -58,7 +58,7 @@ init_build()
     if [ -f "${build_root}/tmp/cblock_forge/bin/sh" ]; then
         chroot \
         jail -c \
-          "host.hostname=$(hostname)" \
+          "host.hostname=$instance_id" \
           "ip4.addr=$(get_default_ip)" \
           "name=$instance_id" \
           "osrelease=$osrelease" \
@@ -66,7 +66,7 @@ init_build()
           exec.start="/tmp/cblock_forge/bin/sh /tmp/cblock-bootstrap.sh"
     else
         jail -c \
-          "host.hostname=$(hostname)" \
+          "host.hostname=$instance_id" \
           "ip4.addr=$(get_default_ip)" \
           "name=$instance_id" \
           "osrelease=$osrelease" \

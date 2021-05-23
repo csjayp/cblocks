@@ -27,9 +27,7 @@
 data_dir=$1
 forge_path=$2
 
-set -x 
 set -e
-
 path_to_vol()
 {
     printf "%s" "$1" | sed -E "s,^/(.*),\1,g"

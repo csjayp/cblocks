@@ -112,7 +112,11 @@ do_instance_purge()
         case $CBLOCK_FS in
         zfs)
             vol=$(get_vol $instance_path)
+            #
+            # Other file systems?
+            umount "${instance_path}/root/dev" 2>&1
             zfs destroy -r "$vol" > /dev/null 2>&1
+            chflags -R noschg "${instance_path}"
             rm -fr "${instance_path}"
             ;;
         ufs)

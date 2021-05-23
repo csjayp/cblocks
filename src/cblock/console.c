@@ -279,7 +279,6 @@ console_connect_console(int sock, struct console_config *ccp)
 		    ccp->c_name, resp.p_errbuf);
 		return;
 	}
-	printf("got error code %d\n", resp.p_ecode);
 	console_tty_set_raw_mode(STDIN_FILENO);
 	console_tty_console_session(sock);
 }

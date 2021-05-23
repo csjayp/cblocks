@@ -210,7 +210,6 @@ struct build_context {
 	TAILQ_ENTRY(build_context)		 bc_glue;
 	char					*instance;
 	int					 peer_sock;
-	FILE					*peer_sock_fp;
 };
 
 struct vec {
