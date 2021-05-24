@@ -197,7 +197,7 @@ cblock_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
 		err(1, "cblock_remove: execve failed");
 	}
 	waitpid_ignore_intr(pid, &status);
-	CBLOCKD_CBLOCK_CLEANUP(instance);
+	CBLOCKD_CBLOCK_CLEANUP(instance, status);
 }
 
 void
