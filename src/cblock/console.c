@@ -54,7 +54,8 @@
 struct termios otermios;
 int need_resize;
 
-void console_reset_tty(void);
+void	console_reset_tty(void);
+int	console_mplex(int);
 
 struct console_config {
 	char		*c_name;
@@ -221,36 +222,43 @@ console_tty_handle_stdin(int sock)
 }
 
 static void
-console_mplex(int sock)
+console_evloop(int sock)
 {
-	int error, done;
-	fd_set rfds;
+	int done;
 
 	done = 0;
 	while (!done) {
-		FD_ZERO(&rfds);
-		FD_SET(sock, &rfds);
-		FD_SET(STDIN_FILENO, &rfds);
-		error = select(sock + 1, &rfds, NULL, NULL, NULL);
-                if (error == -1 && errno == EINTR) {
-			continue;
-                }
-		if (error == -1) {
-			err(1, "select failed");
+		done = console_mplex(sock);
+	}
+}
+
+int
+console_mplex(int sock)
+{
+	fd_set rfds;
+	int error;
+
+	FD_ZERO(&rfds);
+	FD_SET(sock, &rfds);
+	FD_SET(STDIN_FILENO, &rfds);
+	error = select(sock + 1, &rfds, NULL, NULL, NULL);
+	if (error == -1 && errno == EINTR) {
+		return (0);
+	}
+	if (error == -1) {
+		err(1, "select failed");
+	}
+	if (FD_ISSET(sock, &rfds)) {
+		if (console_tty_handle_socket(sock)) {
+			return (1);
 		}
-		if (FD_ISSET(sock, &rfds)) {
-			if (console_tty_handle_socket(sock)) {
-				done = 1;
-				continue;
-			}
+	}
+	if (FD_ISSET(STDIN_FILENO, &rfds)) {
+		if (console_tty_handle_stdin(sock)) {
+			return (1);
 		}
-                if (FD_ISSET(STDIN_FILENO, &rfds)) {
-			if (console_tty_handle_stdin(sock)) {
-				done = 1;
-				continue;
-			}
-                }
         }
+	return (0);
 }
 
 void
@@ -259,7 +267,7 @@ console_tty_console_session(int sock)
 
 	console_tty_set_raw_mode(STDIN_FILENO);
 	signal(SIGWINCH, console_handle_window_resize);
-	console_mplex(sock);
+	console_evloop(sock);
 }
 
 static void
