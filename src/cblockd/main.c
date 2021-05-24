@@ -317,7 +317,7 @@ main(int argc, char *argv [], char *env[])
 	if (gcfg.c_forge_path != NULL) {
 		return (create_forge(gcfg.c_forge_path));
 	}
-	if (gcfg.c_host) {
+	if (gcfg.c_host || gcfg.c_port) {
 		sock_ipc_setup_inet(&gcfg);
 	} else {
 		sock_ipc_setup_unix(&gcfg);
