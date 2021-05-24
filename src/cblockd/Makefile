@@ -7,14 +7,20 @@ PREFIX	?= /usr/local
 
 all:	$(TARGETS)
 
-.c.o:
+.c.o:	probes.h
 	$(CC) $(CFLAGS) -c $<
 
-cblockd: $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib -L../libcblock
+probes.o: $(OBJ)
+	dtrace -G -s probes.d -o probes.o -64 $(OBJ)
+
+probes.h: probes.d
+	dtrace -o probes.h -h -s probes.d
+
+cblockd: $(OBJ) probes.o
+	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib -L../libcblock probes.o
 
 clean:
-	rm -fr *.o $(TARGETS) *.core *.plist
+	rm -fr *.o $(TARGETS) *.core *.plist *.outa probes.h
 
 install:
 	[ -d $(PREFIX)/bin ] || mkdir -p $(PREFIX)/bin

@@ -62,7 +62,7 @@ static struct sub_command sub_command_list[] = {
 	{ "launch",	launch_main, "Launch a new container instance"  },
 	{ "console",	console_main, "Attach to a container console" },
 	{ "build",	build_main, "Build a new container image" },
-	{ "ps",		instance_main, "Get information about running instances" },
+	{ "instances",	instance_main, "Get information about running instances" },
 	{ "network",    network_main, "Configure networking parameters" },
 	{ "images",	image_main, "Manage cblock images" },
 	{ NULL,		NULL, NULL }
@@ -140,7 +140,7 @@ reset_getopt_state(void)
 int
 main(int argc, char *argv [])
 {
-	int option_index, c, ctlsock, sc_index, j, ret;
+	int option_index, c, ctlsock, sc_index, j;
 	struct sub_command *scp;
 	char **main_argv;
 
@@ -201,6 +201,5 @@ main(int argc, char *argv [])
 	} else {
 		ctlsock = sock_ipc_connect_unix(&gcfg);
 	}
-	ret = (*scp->sc_callback)(argc, argv, ctlsock);
-	return (ret);
+	return ((*scp->sc_callback)(argc, argv, ctlsock));
 }

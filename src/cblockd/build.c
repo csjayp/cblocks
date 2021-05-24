@@ -50,8 +50,10 @@
 #include "termbuf.h"
 #include "main.h"
 #include "dispatch.h"
+#include "cblock.h"
 #include "sock_ipc.h"
 #include "config.h"
+#include "probes.h"
 
 #include <cblock/libcblock.h>
 
@@ -572,7 +574,6 @@ build_run_build_stage(struct build_context *bcp)
 			err(1, "execve failed");
 		}
 		waitpid_ignore_intr(pid, &status);
-		printf("got error code %d from build\n", status);
 		if (status != 0) {
 			print_bold_prefix(stdout);
 			fprintf(stdout,
@@ -697,7 +698,9 @@ dispatch_build_recieve(int sock)
 		return (1);
 	}
 	if (pi->p_pid > 0) {
+		CBLOCKD_CBLOCK_CREATE(pi->p_instance_tag);
 		TAILQ_INIT(&pi->p_ttybuf.t_head);
+		cblock_create_pid_file(pi);
 		pi->p_ttybuf.t_tot_len = 0;
 		pthread_mutex_lock(&cblock_mutex);
 		TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
