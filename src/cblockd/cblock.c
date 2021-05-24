@@ -221,7 +221,6 @@ cblock_remove(struct cblock_instance *pi)
 		 * ultimate status code of the build job, so send it.
 		 */
 		if (pi->p_type == PRISON_TYPE_BUILD) {
-			printf("reporting error code to peer %d\n", pi->p_status);
 			sock_ipc_must_write(pi->p_peer_sock, &pi->p_status,
 			    sizeof(pi->p_status));
 		}
