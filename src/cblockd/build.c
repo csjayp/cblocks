@@ -513,27 +513,27 @@ build_run_build_stage(struct build_context *bcp)
 		}
 		status = build_init_stage(bcp, bstg);
 		if (status != 0) {
-			print_bold_prefix(bcp->peer_sock_fp);
-			fprintf(bcp->peer_sock_fp,
+			print_bold_prefix(stdout);
+			fprintf(stdout,
 			    "Stage index %d failed with %d code. Exiting\n",
                             bstg->bs_index,
 			    WEXITSTATUS(status));
-			fflush(bcp->peer_sock_fp);
+			fflush(stdout);
 			break;
 		}
-		print_bold_prefix(bcp->peer_sock_fp);
+		print_bold_prefix(stdout);
 		if (bstg->bs_name[0] != '\0') {
-			fprintf(bcp->peer_sock_fp,
+			fprintf(stdout,
 			    "Executing stage (%d/%d) : FROM %s AS %s\n",
 			    k + 1, bcp->pbc.p_nstages, bstg->bs_base_container,
 			    bstg->bs_name);
 		} else {
-			fprintf(bcp->peer_sock_fp,
+			fprintf(stdout,
 			    "Executing stage (%d/%d) : FROM %s\n",
 			    k + 1, bcp->pbc.p_nstages,
 			    bstg->bs_base_container);
 		}
-		fflush(bcp->peer_sock_fp);
+		fflush(stdout);
 		snprintf(stage_root, sizeof(stage_root),
 		    "%s/%d/root", bcp->build_root, bstg->bs_index);
 		pid = fork();
@@ -541,8 +541,6 @@ build_run_build_stage(struct build_context *bcp)
 			err(1, "pid failed");
 		}
 		if (pid == 0) {
-			dup2(bcp->peer_sock, STDOUT_FILENO);
-			dup2(bcp->peer_sock, STDERR_FILENO);
 			/*
 			 * We need to setup a functional environment here,
 			 * especially for build containers. PATH is really
@@ -574,14 +572,15 @@ build_run_build_stage(struct build_context *bcp)
 			err(1, "execve failed");
 		}
 		waitpid_ignore_intr(pid, &status);
+		printf("got error code %d from build\n", status);
 		if (status != 0) {
-			print_bold_prefix(bcp->peer_sock_fp);
-			fprintf(bcp->peer_sock_fp,
+			print_bold_prefix(stdout);
+			fprintf(stdout,
 			    "Execution of stage of %d ", k + 1);
-			print_red(bcp->peer_sock_fp, "failed");
-			fprintf(bcp->peer_sock_fp,
+			print_red(stdout, "failed");
+			fprintf(stdout,
 			    ". Terminating.\n");
-			fflush(bcp->peer_sock_fp);
+			fflush(stdout);
 			break;
 		}
 	}
@@ -623,6 +622,10 @@ dispatch_build_set_outfile(struct build_context *bcp,
 int
 dispatch_build_recieve(int sock)
 {
+	extern cblock_instance_head_t pr_head;
+	extern pthread_mutex_t cblock_mutex;
+	struct cblock_instance *pi;
+
 	struct cblock_response resp;
 	struct build_context bctx;
 	char *build_type;
@@ -679,44 +682,55 @@ dispatch_build_recieve(int sock)
 		warn("sock_ipc_from_to failed");
 		return (1);
 	}
-	/*
-	 * Copy this socket purely so we can dup it to stdout/stderr. Set this
-	 * to -1 afterwards to explictily discourage anyone from using it,
-	 * closing it etc.. later on the build process.
-	 */
 	close(fd);
-	bctx.peer_sock_fp = fdopen(sock, "w");
-	if (bctx.peer_sock_fp == NULL) {
-		free(bctx.instance);
-		warn("%s: failed to get file handle for sock", __func__);
+	pi = calloc(1, sizeof(*pi));
+	if (pi == NULL) {
+		err(1, "calloc failed");
+	}
+	pi->p_type = PRISON_TYPE_BUILD;
+	pi->p_instance_tag = strdup(bctx.instance); /* NB: check free */
+	strlcpy(pi->p_image_name, pi->p_instance_tag, sizeof(pi->p_image_name));
+	pi->p_launch_time = time(NULL);
+	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
+	if (pi->p_pid == -1) {
+		warn("failed to fork build job");
 		return (1);
 	}
-	bctx.peer_sock = sock;
-	print_bold_prefix(bctx.peer_sock_fp);
-	fprintf(bctx.peer_sock_fp,
-	    "Bootstrapping build stages 1 through %d\n", bctx.pbc.p_nstages); 
-	fflush(bctx.peer_sock_fp);
+	if (pi->p_pid > 0) {
+		TAILQ_INIT(&pi->p_ttybuf.t_head);
+		pi->p_ttybuf.t_tot_len = 0;
+		pthread_mutex_lock(&cblock_mutex);
+		TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
+		pthread_mutex_unlock(&cblock_mutex);
+		snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "%s",
+		    pi->p_instance_tag);
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		return (1);
+	}
+	/*
+	 * Child process, all stdout/stdin is routed to the PTY
+	 */
+	print_bold_prefix(stdout);
+	printf("Bootstrapping build stages 1 through %d\n", bctx.pbc.p_nstages); 
+	fflush(stdout);
 	if (build_run_build_stage(&bctx) != 0) {
-		cblock_fork_cleanup(bctx.instance, build_type, sock,
-		    bctx.pbc.p_verbose);
-		free(bctx.instance);
-		return (-1);
+		fprintf(stdout, "build_run_build_stage failed\n");
+		_exit(1);
 	}
-	print_bold_prefix(bctx.peer_sock_fp);
-	fprintf(bctx.peer_sock_fp,
+	print_bold_prefix(stdout);
+	fprintf(stdout,
 	    "Build Stage(s) complete. Writing container image...\n");
-	fflush(bctx.peer_sock_fp);
+	fflush(stdout);
 	if (build_commit_image(&bctx) != 0) {
-		cblock_fork_cleanup(bctx.instance, build_type, sock,
-		    bctx.pbc.p_verbose);
-		free(bctx.instance);
-		return (-1);
+		fprintf(stdout, "build_commit_image: failed\n");
+		_exit(1);
 	}
-	print_bold_prefix(bctx.peer_sock_fp);
-	fprintf(bctx.peer_sock_fp,
+	print_bold_prefix(stdout);
+	fprintf(stdout,
 	    "Cleaning up ephemeral images and build artifacts\n");
-	fflush(bctx.peer_sock_fp);
-	cblock_fork_cleanup(bctx.instance, build_type, sock, bctx.pbc.p_verbose);
+	fflush(stdout);
 	free(bctx.instance);
+	_exit(0);
+	/* NOT REACHED */
 	return (1);
 }

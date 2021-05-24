@@ -306,6 +306,7 @@ dispatch_work(void *arg)
 	printf("newly accepted socket: %d\n", p->p_sock);
 	done = 0;
 	while (!done) {
+		printf("waiting for command\n");
 		cc = sock_ipc_may_read(p->p_sock, &cmd, sizeof(cmd));
 		if (cc == 1) {
 			break;
@@ -320,7 +321,6 @@ dispatch_work(void *arg)
 			break;
 		case PRISON_IPC_SEND_BUILD_CTX:
 			cc = dispatch_build_recieve(p->p_sock);
-			done = 1;
 			break;
 		case PRISON_IPC_CONSOLE_CONNECT:
 			cc = dispatch_connect_console(p->p_sock);
