@@ -57,6 +57,8 @@
 #include "cblock.h"
 #include "config.h"
 
+#include "probes.h"
+
 #include <cblock/libcblock.h>
 
 static int reap_children;
@@ -79,6 +81,7 @@ cblock_create_pid_file(struct cblock_instance *p)
 	    gcfg.c_data_dir, p->p_instance_tag);
 	snprintf(pid_buf, sizeof(pid_buf), "%d", p->p_pid);
 	p->p_pid_file = open(pid_path, flags, mode);
+	assert(p->p_pid_file != 0);
 	if (p->p_pid_file == -1) {
 		warn("open(%s)", pid_path);
 		return (-1);
@@ -209,9 +212,19 @@ cblock_remove(struct cblock_instance *pi)
 	 * NB: we are holding a lock here. We need to re-factor this a bit
 	 * so we aren't performing socket io while this lock is held.
 	 */
+	CBLOCKD_CBLOCK_DESTROY(pi->p_instance_tag);
 	if ((pi->p_state & STATE_CONNECTED) != 0) {
 		cmd = PRISON_IPC_CONSOLE_SESSION_DONE;
 		sock_ipc_must_write(pi->p_peer_sock, &cmd, sizeof(cmd));
+		/*
+		 * If this is a cellblock build, the peer will be waiting for
+		 * ultimate status code of the build job, so send it.
+		 */
+		if (pi->p_type == PRISON_TYPE_BUILD) {
+			printf("reporting error code to peer %d\n", pi->p_status);
+			sock_ipc_must_write(pi->p_peer_sock, &pi->p_status,
+			    sizeof(pi->p_status));
+		}
 	}
 	cblock_fork_cleanup(pi->p_instance_tag, "regular", -1, gcfg.c_verbose);
 	assert(pi->p_ttyfd != 0);
@@ -221,6 +234,7 @@ cblock_remove(struct cblock_instance *pi)
 	while (cur > 0) {
 		cur = termbuf_remove_oldest(&pi->p_ttybuf);
 	}
+	assert(pi->p_pid_file != 0);
 	close(pi->p_pid_file);
 	free(pi);
 }
@@ -261,6 +275,7 @@ cblock_reap_children(void)
 			continue;
 		}
 		pi->p_state |= STATE_DEAD;
+		pi->p_status = status;
 		cblock_remove(pi);
 	}
 	pthread_mutex_unlock(&cblock_mutex);

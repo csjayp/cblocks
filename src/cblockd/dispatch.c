@@ -57,6 +57,8 @@
 #include "config.h"
 #include "cblock.h"
 
+#include "probes.h"
+
 #include <cblock/libcblock.h>
 
 static int reap_children;
@@ -282,6 +284,7 @@ dispatch_launch_cblock(int sock)
 	TAILQ_INIT(&pi->p_ttybuf.t_head);
 	pi->p_ttybuf.t_tot_len = 0;
 	pthread_mutex_lock(&cblock_mutex);
+	CBLOCKD_CBLOCK_CREATE(pi->p_instance_tag);
 	TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
 	pthread_mutex_unlock(&cblock_mutex);
 	resp.p_ecode = 0;

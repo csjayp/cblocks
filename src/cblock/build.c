@@ -155,11 +155,11 @@ build_send_context(int sock, struct build_config *bcp)
 {
 	struct cblock_build_context pbc;
 	struct cblock_response resp;
+	int fd, status;
 	struct stat sb;
 	vec_t *vec;
 	char *term;
 	u_int cmd;
-	int fd;
 
 	if (stat(bcp->b_context_path, &sb) == -1) {
 		err(1, "stat failed");
@@ -214,15 +214,15 @@ build_send_context(int sock, struct build_config *bcp)
         if (resp.p_ecode != 0) {
                 err(1, "failed to spawn container");
         }
-	vec = vec_init(16);
+	vec = vec_init(8);
 	vec_append(vec, "console");
 	vec_append(vec, "--name");
 	vec_append(vec, resp.p_errbuf);
 	vec_finalize(vec);
 	console_main(vec->vec_used, vec_return(vec), sock);
 	vec_free(vec);
-	sock_ipc_must_read(sock, &resp, sizeof(resp));
-	return (0);
+	sock_ipc_must_read(sock, &status, sizeof(status));
+	return (status);
 }
 
 static int
@@ -288,11 +288,10 @@ build_set_default_tag(struct build_config *bcp)
 int
 build_main(int argc, char *argv [], int cltlsock)
 {
+	int c, noexec, status, option_index;
 	struct build_manifest *bmp;
 	struct build_config bc;
 	time_t before, after;
-	int option_index;
-	int c, noexec;
 	char *tag, *ptr;
 
 	noexec = 0;
@@ -362,8 +361,11 @@ build_main(int argc, char *argv [], int cltlsock)
 		return (0);
 	}
 	build_generate_context(&bc);
-	build_send_context(cltlsock, &bc);
-	after = time(NULL);
-	printf("build occured in %ld seconds\n", after - before);
-	return (0);
+	status = build_send_context(cltlsock, &bc);
+	if (status == 0) {
+		after = time(NULL);
+		print_bold_prefix(stdout);
+		printf("build occured in %ld seconds: status code %d\n", after - before, status);
+	}
+	return (status);
 }

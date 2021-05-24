@@ -44,6 +44,7 @@ struct cblock_instance {
         time_t                          p_launch_time;
 	char				p_image_name[256];
 	int				p_pid_file;
+	int				p_status;
 };
 typedef TAILQ_HEAD( , cblock_peer) cblock_peer_head_t;
 typedef TAILQ_HEAD( , cblock_instance) cblock_instance_head_t;

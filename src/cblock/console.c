@@ -26,6 +26,7 @@
  */
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <sys/ioctl.h>
 #include <sys/param.h>
 #include <sys/un.h>
@@ -52,6 +53,8 @@
 
 struct termios otermios;
 int need_resize;
+
+void console_reset_tty(void);
 
 struct console_config {
 	char		*c_name;
@@ -83,7 +86,7 @@ console_usage(void)
 }
 
 void
-console_tty_atexit(void)
+console_reset_tty(void)
 {
 	struct termios def;
 
@@ -109,7 +112,7 @@ console_tty_set_raw_mode(int fd)
 	 * happens make sure we restore the TTY state to a clean, and sane
 	 * place to work.
 	 */
-	atexit(console_tty_atexit);
+	atexit(console_reset_tty);
 	if (tcgetattr(fd, &otermios) == -1) {
 		return (-1);
 	}
@@ -127,38 +130,31 @@ console_tty_set_raw_mode(int fd)
 	return (0);
 }
 
-static void *
-console_tty_handle_socket(void *arg)
+static int
+console_tty_handle_socket(int sock)
 {
-	int *sock, done;
 	uint32_t cmd;
 	size_t len;
 	char *buf;
 
-	sock = (int *)arg;
-	done = 0;
-	while (!done) {
-		if (sock_ipc_may_read(*sock, &cmd, sizeof(cmd))) {
-			exit(0);
-			break;
-		}
-		switch (cmd) {
-		case PRISON_IPC_CONSOLE_TO_CLIENT:
-			sock_ipc_must_read(*sock, &len, sizeof(len));
-			buf = malloc(len);
-			sock_ipc_must_read(*sock, buf, len);
-			(void) write(STDIN_FILENO, buf, len);
-			break;
-		case PRISON_IPC_CONSOLE_SESSION_DONE:
-			exit(0);
-			done = 1;
-			break;
-		default:
-			printf("invalid console frame type %d\n", cmd);
-		}
+	if (sock_ipc_may_read(sock, &cmd, sizeof(cmd))) {
+		return (1);
 	}
-	printf("tty_handle_socket: exiting\n");
-	return (NULL);
+	switch (cmd) {
+	case PRISON_IPC_CONSOLE_TO_CLIENT:
+		sock_ipc_must_read(sock, &len, sizeof(len));
+		buf = malloc(len);
+		sock_ipc_must_read(sock, buf, len);
+		(void) write(STDIN_FILENO, buf, len);
+		break;
+	case PRISON_IPC_CONSOLE_SESSION_DONE:
+		console_reset_tty();
+		return (1);
+		break;
+	default:
+		printf("invalid console frame type %d\n", cmd);
+	}
+	return (0);
 }
 
 static void
@@ -187,71 +183,83 @@ console_tty_send_resize(int sock)
 	}
 }
 
-static void *
-console_tty_handle_stdin(void *arg)
+static int
+console_tty_handle_stdin(int sock)
 {
 	char buf[4096], *vptr;
-	ssize_t cc;
-	int *sock;
 	uint32_t *cmd;
+	ssize_t cc;
 
-	sock = (int *)arg;
-	while (1) {
-		vptr = buf;
-		cmd = (uint32_t *)buf;
-		*cmd = PRISON_IPC_CONSOLE_DATA;
-		vptr += sizeof(uint32_t);
-		cc = read(STDIN_FILENO, vptr, sizeof(buf) - sizeof(uint32_t));
-		if (cc == 0) {
-			break;
-		}
-		if (cc == -1 && errno == EINTR) {
-			continue;
-		}
-		if (cc == -1) {
-			err(1, "read failed");
-		}
-		/*
-		 * If we get ^Q exit. This probably should be configurable.
-		 */
-		if (cc == 1 && *vptr == 0x11) {
-			exit(0);
-		}
-		if (need_resize) {
-			console_tty_send_resize(*sock);
-			need_resize = 0;
-		}
-                if (write(*sock, buf, cc + sizeof(uint32_t)) == -1
-		    && errno == EPIPE) {
-			break;
-		}
+	vptr = buf;
+	cmd = (uint32_t *)buf;
+	*cmd = PRISON_IPC_CONSOLE_DATA;
+	vptr += sizeof(uint32_t);
+	cc = read(STDIN_FILENO, vptr, sizeof(buf) - sizeof(uint32_t));
+	if (cc == 0) {
+		return (1);
 	}
-	printf("console_tty_handle_stdin exiting\n");
-        return (NULL);
+	if (cc == -1 && errno == EINTR) {
+		return (0);
+	}
+	if (cc == -1) {
+		err(1, "read failed");
+	}
+	/*
+	 * If we get ^Q exit. This probably should be configurable.
+	 */
+	if (cc == 1 && *vptr == 0x11) {
+		return (1);
+	}
+	if (need_resize) {
+		console_tty_send_resize(sock);
+		need_resize = 0;
+	}
+	if (write(sock, buf, cc + sizeof(uint32_t)) == -1 && errno == EPIPE) {
+		return (0);
+	}
+	return (0);
+}
+
+static void
+console_mplex(int sock)
+{
+	int error, done;
+	fd_set rfds;
+
+	done = 0;
+	while (!done) {
+		FD_ZERO(&rfds);
+		FD_SET(sock, &rfds);
+		FD_SET(STDIN_FILENO, &rfds);
+		error = select(sock + 1, &rfds, NULL, NULL, NULL);
+                if (error == -1 && errno == EINTR) {
+			continue;
+                }
+		if (error == -1) {
+			err(1, "select failed");
+		}
+		if (FD_ISSET(sock, &rfds)) {
+			if (console_tty_handle_socket(sock)) {
+				done = 1;
+				continue;
+			}
+		}
+                if (FD_ISSET(STDIN_FILENO, &rfds)) {
+			if (console_tty_handle_stdin(sock)) {
+				done = 1;
+				continue;
+			}
+                }
+        }
 }
 
 void
 console_tty_console_session(int sock)
 {
-	pthread_t thr[2];
-	int s;
-	void *ptr;
 
 	console_tty_set_raw_mode(STDIN_FILENO);
 	signal(SIGWINCH, console_handle_window_resize);
-	s = sock;
-	if (pthread_create(&thr[0], NULL, console_tty_handle_socket, &s) == -1) {
-		err(1, "pthread_create(socket)");
-	}
-	if (pthread_create(&thr[1], NULL, console_tty_handle_stdin, &s) == -1) {
-		err(1, "pthread_create(stdin)");
-	}
-	if (pthread_join(thr[0], &ptr) == -1) {
-		err(1, "pthread_join(tty master)");
-	}
-	if (pthread_join(thr[1], &ptr) == -1) {
-		err(1, "pthrad_join(stdin)");
-	}
+	console_mplex(sock);
 }
 
 static void
