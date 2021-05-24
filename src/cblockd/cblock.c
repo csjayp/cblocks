@@ -197,6 +197,7 @@ cblock_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
 		err(1, "cblock_remove: execve failed");
 	}
 	waitpid_ignore_intr(pid, &status);
+	CBLOCKD_CBLOCK_CLEANUP(instance);
 }
 
 void
@@ -212,7 +213,6 @@ cblock_remove(struct cblock_instance *pi)
 	 * NB: we are holding a lock here. We need to re-factor this a bit
 	 * so we aren't performing socket io while this lock is held.
 	 */
-	CBLOCKD_CBLOCK_DESTROY(pi->p_instance_tag);
 	if ((pi->p_state & STATE_CONNECTED) != 0) {
 		cmd = PRISON_IPC_CONSOLE_SESSION_DONE;
 		sock_ipc_must_write(pi->p_peer_sock, &cmd, sizeof(cmd));
@@ -225,6 +225,7 @@ cblock_remove(struct cblock_instance *pi)
 			    sizeof(pi->p_status));
 		}
 	}
+	CBLOCKD_CBLOCK_DESTROY(pi->p_instance_tag, pi->p_status);
 	cblock_fork_cleanup(pi->p_instance_tag, "regular", -1, gcfg.c_verbose);
 	assert(pi->p_ttyfd != 0);
 	(void) close(pi->p_ttyfd);
