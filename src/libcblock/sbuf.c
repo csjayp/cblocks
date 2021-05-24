@@ -52,7 +52,7 @@ __FBSDID("$FreeBSD: stable/12/sys/kern/subr_sbuf.c 349824 2019-07-07 18:45:57Z m
 #include <string.h>
 #endif /* _KERNEL */
 
-#include <sys/sbuf.h>
+#include <cblock/sbuf.h>
 
 #ifdef _KERNEL
 static MALLOC_DEFINE(M_SBUF, "sbuf", "string buffers");
