@@ -78,6 +78,7 @@ static char *data_sub_dirs[] = {
 static struct option long_options[] = {
 	{ "ipv4",		no_argument,	0, '4' },
 	{ "ipv6",		no_argument,	0, '6' },
+	{ "inet",		no_argument,	0, 'I' },
 	{ "unix-sock",		required_argument, 0, 'U' },
 	{ "listen-host",	required_argument, 0, 's' },
 	{ "listen-port",	required_argument, 0, 'p' },
@@ -103,6 +104,7 @@ usage(void)
 	    "Options\n"
 	    " -4, --ipv4                  IPv4 sockets only\n"
 	    " -6, --ipv6                  IPv6 sockets only\n"
+	    " -I, --inet                  Listen on ip4/ip6 network\n"
 	    " -U, --unix-sock=PATH        Path to UNIX socket\n"
 	    " -s, --listen-host=HOST      Listen host/address\n"
 	    " -p, --listen-port=PORT      Listen on port\n"
@@ -237,7 +239,6 @@ main(int argc, char *argv [], char *env[])
 	gcfg.global_env = env;
 	gcfg.c_callback = cblock_handle_request;
 	gcfg.c_family = PF_UNSPEC;
-	gcfg.c_port = "3333";
 	gcfg.c_tty_buf_size = 5 * 4096;
 	gcfg.c_name = "/var/run/cblock.sock";
 	while (1) {
@@ -248,6 +249,9 @@ main(int argc, char *argv [], char *env[])
 			break;
 		}
 		switch (c) {
+		case 'I':
+			gcfg.c_inet = 1;
+			break;
 		case 'f':
 			gcfg.c_forge_path = optarg;
 			break;
@@ -317,7 +321,13 @@ main(int argc, char *argv [], char *env[])
 	if (gcfg.c_forge_path != NULL) {
 		return (create_forge(gcfg.c_forge_path));
 	}
-	if (gcfg.c_host || gcfg.c_port) {
+	if (gcfg.c_inet) {
+		if (gcfg.c_host == NULL) {
+			gcfg.c_host = "localhost";
+		}
+		if (gcfg.c_port == NULL) {
+			gcfg.c_port = "7070";
+		}
 		sock_ipc_setup_inet(&gcfg);
 	} else {
 		sock_ipc_setup_unix(&gcfg);

@@ -73,6 +73,7 @@ instance_get(struct instance_config *icp, int ctlsock)
 	size_t count;
 	time_t now;
 
+
 	cmd = PRISON_IPC_GET_INSTANCES;
 	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
 	sock_ipc_must_read(ctlsock, &count, sizeof(count));
@@ -85,17 +86,18 @@ instance_get(struct instance_config *icp, int ctlsock)
 	}
 	sock_ipc_must_read(ctlsock, ent, count * sizeof(struct instance_ent));
 	if (!icp->i_quiet) {
-		printf("%-10.10s  %-15.15s %-12.12s %-7.7s %10.10s\n",
-		    "INSTANCE", "IMAGE", "TTY", "PID", "UP");
+		printf("%-10.10s  %-15.15s %-12.12s %-7.7s %-11.11s %10.10s\n",
+		    "INSTANCE", "IMAGE", "TTY", "PID", "TYPE", "UP");
 	}
 	now = time(NULL);
 	for (k = 0; k < count; k++) {
 		cur = &ent[k];
-		printf("%-10.10s  %-15.15s %-12.12s %-7d %9lds\n",
+		printf("%-10.10s  %-15.15s %-12.12s %-7d %-11.11s %9lds\n",
 		    cur->p_instance_name,
 		    cur->p_image_name,
 		    cur->p_tty_line,
 		    cur->p_pid,
+		    cur->p_type,
 		    now - cur->p_start_time);
 	}
 }

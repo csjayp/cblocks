@@ -1,6 +1,8 @@
 #!/bin/sh
 #
 BINS="cp fetch ln mkdir mktemp rm sh tar"
+ETCS="protocols resolv.conf services"
+CAPATH="/usr/local/share/certs/ca-root-nss.crt"
 
 rm -fr libmap.conf
 
@@ -9,8 +11,14 @@ chflags -R noschg .
 mkdir -p libexec
 mkdir -p lib
 mkdir -p bin
+mkdir -p etc
 
 cp /libexec/ld-elf.so.1 libexec
+cp $CAPATH etc/
+
+for etc_file in $ETCS; do
+    cp "/etc/$etc_file" etc/
+done
 
 get_deps()
 {

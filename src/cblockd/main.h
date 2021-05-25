@@ -46,6 +46,7 @@ struct global_params {
 	char		*c_sock_owner;
 	char		*c_logfile;
 	char		*c_forge_path;
+	int		 c_inet;
 };
 
 #endif
