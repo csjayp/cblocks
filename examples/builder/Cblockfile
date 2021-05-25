@@ -1,8 +1,7 @@
 FROM freebsd
-  ADD resolv.conf /etc
-  ENV "IGNORE_OSVERSION" = "TRUE"
-  RUN "pkg --yes update"
-  RUN "pkg install --yes git"
-  RUN "pkg install --yes gcc llvm flex bison cmake"
+ENV IGNORE_OSVERSION = yes
+RUN "pkg --yes update"
+RUN "pkg install --yes git"
+RUN "pkg install --yes gcc llvm flex bison cmake"
 
 ENTRYPOINT ["/bin/tcsh"]

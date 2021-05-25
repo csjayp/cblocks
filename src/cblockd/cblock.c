@@ -80,6 +80,7 @@ cblock_create_pid_file(struct cblock_instance *p)
 	snprintf(pid_path, sizeof(pid_path), "%s/locks/%s.pid",
 	    gcfg.c_data_dir, p->p_instance_tag);
 	snprintf(pid_buf, sizeof(pid_buf), "%d", p->p_pid);
+	p->p_pid_file_path = strdup(pid_path);
 	p->p_pid_file = open(pid_path, flags, mode);
 	assert(p->p_pid_file != 0);
 	if (p->p_pid_file == -1) {
@@ -136,6 +137,18 @@ cblock_populate_instance_entries(size_t max_ents)
 		cur->p_start_time = p->p_launch_time;
 		if (counter == max_ents) {
 			break;
+		}
+		switch (p->p_type) {
+		case PRISON_TYPE_BUILD:
+			(void) snprintf(cur->p_type, sizeof(cur->p_type),
+			    "ephemeral");
+			break;
+		case PRISON_TYPE_REGULAR:
+			(void) snprintf(cur->p_type, sizeof(cur->p_type),
+			    "persistent");
+			break;
+		default:
+			assert(0);
 		}
 		counter++;
 	}
@@ -204,6 +217,7 @@ void
 cblock_remove(struct cblock_instance *pi)
 {
 	extern struct global_params gcfg;
+	char *instance_type;
 	uint32_t cmd;
 	size_t cur;
 
@@ -225,8 +239,18 @@ cblock_remove(struct cblock_instance *pi)
 			    sizeof(pi->p_status));
 		}
 	}
+	switch (pi->p_type) {
+	case PRISON_TYPE_BUILD:
+		instance_type = "build";
+		break;
+	case PRISON_TYPE_REGULAR:
+		instance_type = "regular";
+		break;
+	default:
+		assert(0);
+	}
 	CBLOCKD_CBLOCK_DESTROY(pi->p_instance_tag, pi->p_status);
-	cblock_fork_cleanup(pi->p_instance_tag, "regular", -1, gcfg.c_verbose);
+	cblock_fork_cleanup(pi->p_instance_tag, instance_type, -1, gcfg.c_verbose);
 	assert(pi->p_ttyfd != 0);
 	(void) close(pi->p_ttyfd);
 	TAILQ_REMOVE(&pr_head, pi, p_glue);
@@ -236,6 +260,10 @@ cblock_remove(struct cblock_instance *pi)
 	}
 	assert(pi->p_pid_file != 0);
 	close(pi->p_pid_file);
+	if (unlink(pi->p_pid_file_path) == -1) {
+		warn("unable to remove pidfile");
+	}
+	free(pi->p_pid_file_path);
 	free(pi);
 }
 

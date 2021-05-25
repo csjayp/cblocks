@@ -1,6 +1,5 @@
 FROM base AS go_builder
   ADD . .
-  COPY resolv.conf /etc
   RUN "pkg --yes update"
   RUN "pkg install -y go-1.14.1_1,1"
   WORKDIR /fcgi

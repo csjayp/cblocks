@@ -72,6 +72,7 @@ struct instance_ent {
 	pid_t					p_pid;
 	char					p_tty_line[MAXPATHLEN];
 	time_t					p_start_time;
+	char					p_type[MAXPATHLEN];
 };
 
 struct cblock_generic_command {
