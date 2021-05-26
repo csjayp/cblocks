@@ -314,7 +314,13 @@ network_to_ip()
 
 do_launch()
 {
-    sysctl net.inet.ip.forwarding=1
+    if [ $(sysctl net.inet.ip.forwarding | awk '{ print $2 }') != "1" ]; then
+        sysctl net.inet.ip.forwarding=1 2>&1 >/dev/null
+        if [ $? -ne 0 ]; then
+            echo "failed to enable forwarding"
+            exit 1
+        fi
+    fi
     img_tag="${image_name}:${tag}"
     if [ ! -h "${data_root}/images/${img_tag}" ]; then
         echo "[FATAL]: no such image ${image_name} downloaded"
