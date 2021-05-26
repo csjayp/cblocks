@@ -378,7 +378,7 @@ do_launch()
           "host.hostname=${instance_hostname}" \
           "vnet" \
           "vnet.interface=$netif" \
-          "name=${instance_id}" \
+          "name=${image_name}-${instance_hostname}" \
           "osrelease=$(emit_os_release)" \
           "path=${instance_root}" \
           command="$@"
@@ -391,7 +391,7 @@ do_launch()
         jail -c \
           "host.hostname=${instance_hostname}" \
           "ip4.addr=${ip4}" \
-          "name=${instance_id}" \
+          "name=${image_name}-${instance_hostname}" \
           "osrelease=$(emit_os_release)" \
           "path=${instance_root}" \
           command="$@"

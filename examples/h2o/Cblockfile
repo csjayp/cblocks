@@ -1,9 +1,11 @@
 FROM base AS go_builder
   ADD . .
   RUN "pkg --yes update"
-  RUN "pkg install -y go-1.14.1_1,1"
+  RUN "pkg install -y go-1.16.4,1"
   WORKDIR /fcgi
   ENV PATH = "$PATH:/usr/local/go14/bin"
+  RUN "go mod init local/fcgi"
+  RUN "go mod tidy"
   RUN "go build"
   RUN "size fcgi"
 
@@ -15,7 +17,6 @@ FROM base
   RUN "mkdir /tls"
   ADD server.crt /tls
   ADD server.key /tls
-  COPY resolv.conf /etc
 
 ENTRYPOINT [ "/usr/local/bin/h2o", "-c", "/h2o.conf" ]
 CMD [ ]
