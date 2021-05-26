@@ -66,15 +66,6 @@ network_cleanup()
     mv $newdb "$data_root"/networks/cur
 }
 
-kill_jail()
-{
-    pattern=$(echo "$instance" | awk '{ printf("%.10s", $1) }')
-    jail_id=$(jls | grep -F "$pattern" | awk '{ print $1 }')
-    if [ "$jail_id" ]; then
-        jail -r "$jail_id"
-    fi
-}
-
 umount_reverse_order()
 {
     for fs in $(mount -p | awk '{ print $2 }' | grep -F "${instance}" | tail -r); do
@@ -89,28 +80,33 @@ zfs_lookup_origin()
 
 cleanup()
 {
-    if [ -f "${data_root}/instances/${instance}.tar.gz" ]; then
-        echo DEBUG: doing build clean up
-            rm -fr "${data_root}/instances/${instance}.tar.gz"
-            rm -fr "${data_root}/instances/${instance}.*.sh"
-            rm -fr "${data_root}/instances/${instance}/images"
-            stage_list=$(echo "${data_root}"/instances/"${instance}"/[0-9]*)
-            for d in $stage_list; do
-                umount -f "${d}/root/dev"
-                case $CBLOCK_FS in
-                ufs)
-                    umount -f "${d}/root"
-                    ;;
-                esac
-            done
+    jail_id=$(jls | grep "$instance" | awk '{ print $1 }')
+    jail -r $jail_id
+    if [ $? -ne 0 ]; then
+        echo "jail instance not present? continuing with fs cleanup"
+    fi
+    case $type in
+    build)
+        rm -fr "${data_root}/instances/${instance}.tar.gz"
+        rm -fr "${data_root}/instances/${instance}.*.sh"
+        rm -fr "${data_root}/instances/${instance}/images"
+        stage_list=$(echo "${data_root}"/instances/"${instance}"/[0-9]*)
+        for d in $stage_list; do
+            umount -f "${d}/root/dev"
             case $CBLOCK_FS in
-            zfs)
-                build_root_vol=$(path_to_vol "${data_root}/instances/${instance}")
-                zfs destroy -f -r "${build_root_vol}"
+            ufs)
+                umount -f "${d}/root"
                 ;;
             esac
-    else
-        echo DEBUG: doing regular cleanup
+        done
+        case $CBLOCK_FS in
+        zfs)
+            build_root_vol=$(path_to_vol "${data_root}/instances/${instance}")
+            zfs destroy -f -r "${build_root_vol}"
+            ;;
+        esac
+        ;;
+    regular)
         case $CBLOCK_FS in
         fuse-unionfs)
             umount_reverse_order
@@ -128,10 +124,9 @@ cleanup()
             umount_reverse_order
             ;;
         esac
-    fi
+        ;;
+    esac
 }
 
-kill_jail
 cleanup
-
 network_cleanup

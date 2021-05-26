@@ -71,7 +71,7 @@ image_prune(struct image_config *icp, int ctlsock)
 	cmd = PRISON_IPC_GENERIC_COMMAND;
 	bzero(&arg, sizeof(arg));
 	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
-	sprintf(arg.p_cmdname, "instance_prune");
+	sprintf(arg.p_cmdname, "image_prune");
 	sock_ipc_must_write(ctlsock, &arg, sizeof(arg));
 	sock_ipc_from_sock_to_tty(ctlsock);
 }

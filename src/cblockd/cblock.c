@@ -141,11 +141,11 @@ cblock_populate_instance_entries(size_t max_ents)
 		switch (p->p_type) {
 		case PRISON_TYPE_BUILD:
 			(void) snprintf(cur->p_type, sizeof(cur->p_type),
-			    "ephemeral");
+			    "building");
 			break;
 		case PRISON_TYPE_REGULAR:
 			(void) snprintf(cur->p_type, sizeof(cur->p_type),
-			    "persistent");
+			    "assembled");
 			break;
 		default:
 			assert(0);
@@ -210,7 +210,7 @@ cblock_fork_cleanup(char *instance, char *type, int dup_sock, int verbose)
 		err(1, "cblock_remove: execve failed");
 	}
 	waitpid_ignore_intr(pid, &status);
-	CBLOCKD_CBLOCK_CLEANUP(instance, status);
+	CBLOCKD_CBLOCK_CLEANUP(instance, status, type);
 }
 
 void
@@ -280,6 +280,7 @@ cblock_detach_console(const char *instance)
 		pi->p_state &= ~STATE_CONNECTED;
 		pi->p_peer_sock = -1;
 		pthread_mutex_unlock(&cblock_mutex);
+		CBLOCKD_CBLOCK_CONSOLE_DETACH(pi->p_instance_tag);
 		return;
 	}
 	pthread_mutex_unlock(&cblock_mutex);
@@ -352,9 +353,12 @@ cblock_lookup_instance(const char *instance)
 void *
 cblock_handle_request(void *arg)
 {
+	pthread_attr_t detached;
 	struct cblock_peer *p;
 
 	p = (struct cblock_peer *)arg;
+	pthread_attr_init(&detached);
+	pthread_attr_setdetachstate(&detached, PTHREAD_CREATE_DETACHED);
 	if (pthread_create(&p->p_thr, NULL, dispatch_work, arg) != 0) {
 		err(1, "pthread_create(dispatch_work) failed");
 	}

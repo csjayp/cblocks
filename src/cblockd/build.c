@@ -341,10 +341,8 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 	}
 	/*
 	 * Redirect any messages from the build container bootstrap
-	 * processes to the client.
+	 * processes to the console.
 	 */
-	dup2(bcp->peer_sock, STDOUT_FILENO);
-	dup2(bcp->peer_sock, STDERR_FILENO);
 	vec_env = vec_init(16);
 	vec_append(vec_env, DEFAULT_PATH);
 	char buf[128];
@@ -690,7 +688,7 @@ dispatch_build_recieve(int sock)
 	}
 	pi->p_type = PRISON_TYPE_BUILD;
 	pi->p_instance_tag = strdup(bctx.instance); /* NB: check free */
-	strlcpy(pi->p_image_name, pi->p_instance_tag, sizeof(pi->p_image_name));
+	strlcpy(pi->p_image_name, bctx.pbc.p_image_name, sizeof(pi->p_image_name));
 	pi->p_launch_time = time(NULL);
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
 	if (pi->p_pid == -1) {

@@ -40,62 +40,6 @@ instances()
       -type d
 }
 
-images()
-{
-    find "${data_dir}/images" \
-      -mindepth 1 -maxdepth  1 -type d
-}
-
-symlinks()
-{
-    find "${data_dir}/images" \
-      -mindepth 1 -maxdepth  1 -type l
-}
-
-#
-# NB: We need to loop through the mounted file systems and see
-# If the image has any active snap shots
-#
-# ssdvol0/cblock/instances/4428f0b45b/0  origin                  ssdvol0/cblock/images/builder.1e21cdc30f@4428f0b45b_0  -
-# We can do this by checking the origin
-#
-do_image_purge()
-{
-    for image in $(images); do
-        match="no"
-        for link in $(symlinks); do
-            target=$(readlink "$link")
-            if [ "$target" = "$image" ]; then
-                match="$link"
-                break
-            fi
-            if [ "$obliterate" = "yes" ]; then
-                rm $link
-            fi
-        done
-        if [ "$obliterate" = "yes" ]; then
-            match="no"
-        fi
-        if [ "$match" != "no" ]; then
-            continue
-        fi
-        printf "Removing image: %s\n" $(basename $image)
-        case $CBLOCK_FS in
-        zfs)
-            vol=$(get_vol $image)
-            zfs destroy -r "$vol"
-            rm -fr "$vol"
-            ;;
-        ufs)
-            chflags -R noschg "$image"
-            rm -fr "$image"
-            ;;
-        *)
-            echo "No match on CBLOCK_FS"
-        esac
-    done
-}
-
 do_instance_purge()
 {
     for instance_path in $(instances); do
@@ -108,13 +52,15 @@ do_instance_purge()
                 continue
             fi 
         fi
-        echo Removing "$instance"
+        echo Removing instance: "$instance"
         case $CBLOCK_FS in
         zfs)
             vol=$(get_vol $instance_path)
             #
             # Other file systems?
-            umount "${instance_path}/root/dev" 2>&1
+            if [ -c "${instance_path}/root/dev/null" ]; then
+                umount "${instance_path}/root/dev" 2>&1 >/dev/null
+            fi
             zfs destroy -r "$vol" > /dev/null 2>&1
             chflags -R noschg "${instance_path}"
             rm -fr "${instance_path}"
@@ -153,4 +99,3 @@ if [ ! "$data_dir" ]; then
     exit 1
 fi
 do_instance_purge
-do_image_purge

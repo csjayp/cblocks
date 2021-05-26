@@ -185,6 +185,7 @@ dispatch_connect_console(int sock)
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
 	}
+	CBLOCKD_CBLOCK_CONSOLE_ATTACH(pcc.p_instance);
 	pi->p_state = STATE_CONNECTED;
 	ttyfd = pi->p_ttyfd;
 	tty_block = termbuf_to_contig(&pi->p_ttybuf);

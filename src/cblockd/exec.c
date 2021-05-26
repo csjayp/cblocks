@@ -51,7 +51,8 @@ struct command_ent {
 };
 
 static struct command_ent command_list[] = {
-	{ "instance_prune",	"cmd_prune.sh" },
+	{ "instance_prune",	"cmd_instance_prune.sh" },
+	{ "image_prune",	"cmd_image_prune.sh" },
 	{ "network-create",	"network.sh" },
 	{ "network-destroy",	"network.sh" },
 	{ "network-list",	"network.sh" },

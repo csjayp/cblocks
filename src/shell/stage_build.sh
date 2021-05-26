@@ -43,20 +43,19 @@ fi
 
 init_build()
 {
-    #
     # Inject the /etc/resolv.conf from the host environment into this build
     # jail. People can provide their own their own within the build if they
-    # want to use something else.
+    # want to use something else. Also, if etc isn't present in that image
+    # yet, skip over it (as is the case for the base forge image).
     #
-    echo "NOTE: Injecting host resolv.conf. Builds can override by including their own"
-    cp /etc/resolv.conf "${build_root}/etc/resolv.conf"
-
+    if [ -d "${build_root}/etc" ]; then
+        cp /etc/resolv.conf "${build_root}/etc/resolv.conf"
+    fi
     #
     # Check to see if this is a forge build. If so, change the path to the
     # interpreter. We ought to just use PATH for this.
     #
     if [ -f "${build_root}/tmp/cblock_forge/bin/sh" ]; then
-        chroot \
         jail -c \
           "host.hostname=$instance_id" \
           "ip4.addr=$(get_default_ip)" \
