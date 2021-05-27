@@ -1,4 +1,4 @@
-# Get going with Cellblocks!
+# Getting started with Cellblocks
 
 ## Building cblock daemon and client
 
