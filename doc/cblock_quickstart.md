@@ -3,16 +3,19 @@
 ## Building cblock daemon and client
 
 ```
+% git clone https://github.com/csjayp/cblocks.git
+% cd cblocks
 % make
-% sudo make install
-% make clean
-```
 
-First, create the root file system for your cellblock daemon
+```
 
 ## Installing
 
+First, install the binaries and create the root file system for your cellblock daemon:
+
 ```
+% sudo make install
+% make clean
 % sudo zfs create ssdvol0/cblocks
 % sudo zfs create ssdvol0/cblocks/instances
 % sudo zfs create ssdvol0/cblocks/images
