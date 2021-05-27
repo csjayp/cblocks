@@ -36,6 +36,8 @@
 #include <err.h>
 #include <assert.h>
 
+#include <bsm/libbsm.h>
+
 #include <cblock/libcblock.h>
 
 #include "parser.h"
@@ -65,7 +67,7 @@ static char *archive_extensions[] = {
 
 %token FROM AS COPY ADD RUN ENTRYPOINT STRING WORKDIR
 %token OPEN_SQUARE_BRACKET CLOSE_SQUARE_BRACKET COPY_FROM ENV EQ
-%token INTEGER COMMA CMD ROOTPIVOT OSRELEASE
+%token INTEGER COMMA CMD ROOTPIVOT OSRELEASE AUDITCFG
 
 %type <num> INTEGER
 %type <c_string> STRING
@@ -153,6 +155,37 @@ entry_def:
 		vec_free(vec);
 		vec = NULL;
         }
+	| AUDITCFG STRING
+	{
+		struct build_manifest *bmp;
+		struct au_class_ent *acp;
+		char *ap, *bp, *copy;
+
+		bmp = get_current_build_manifest();
+		if (bmp->auditcfg != NULL) {
+			errx(1, "AUDITCFG: has already been specified");
+		}
+		bmp->auditcfg = strdup($2);
+		if (bmp->auditcfg == NULL) {
+			err(1, "failed to dup audit config");
+		}
+		copy = strdup($2);
+		bp = copy;
+		/*
+		 * Maybe we should make this into an actual list instead
+		 * of a string?
+		 */
+		while ((ap = strsep(&copy, ",")) != NULL) {
+			if (strlen(ap) == 0) {
+				continue;
+			}
+			acp = getauclassnam(ap);
+			if (acp == NULL) {
+				errx(1, "invalid audit class name: %s", ap);
+			}
+		}
+		free(bp);
+	}
 	| OSRELEASE STRING
 	{
 		struct build_manifest *bmp;

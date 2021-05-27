@@ -186,6 +186,10 @@ build_send_context(int sock, struct build_config *bcp)
 		strlcpy(pbc.p_os_release, bcp->b_bmp->osrelease,
 		    sizeof(pbc.p_os_release));
 	}
+	if (bcp->b_bmp->auditcfg) {
+		strlcpy(pbc.p_auditcfg, bcp->b_bmp->auditcfg,
+		    sizeof(pbc.p_auditcfg));
+	}
 	if (bcp->b_bmp->entry_point) {
 		strlcpy(pbc.p_entry_point, bcp->b_bmp->entry_point,
 		    sizeof(pbc.p_entry_point));

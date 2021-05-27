@@ -50,6 +50,7 @@ FROM		return (FROM);
 \-\-FROM	return (COPY_FROM);
 AS		return (AS);
 RUN		return (RUN);
+AUDITCFG	return (AUDITCFG);
 ADD		return (ADD);
 COPY		return (COPY);
 OSRELEASE	return (OSRELEASE);

@@ -18,5 +18,7 @@ FROM base
   ADD server.crt /tls
   ADD server.key /tls
 
+AUDITCFG "ex,pc"
+
 ENTRYPOINT [ "/usr/local/bin/h2o", "-c", "/h2o.conf" ]
 CMD [ ]
