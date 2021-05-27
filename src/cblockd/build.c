@@ -397,6 +397,16 @@ build_commit_image(struct build_context *bcp)
 		last = bsp->bs_index;
 		break;
 	}
+	if (bcp->pbc.p_auditcfg[0] != '\0') {
+		snprintf(path, sizeof(path), "%s/%d/AUDITCFG",
+		    bcp->build_root, last);
+		fp = fopen(path, "w+");
+		if (fp == NULL) {
+			err(1, "fopen(%s) failed", path);
+		}
+		fprintf(fp, "%s", bcp->pbc.p_auditcfg);
+		fclose(fp);
+        }
 	/*
 	 * Write out the OS release specification for the container if there is
 	 * one. If not, the default OS of the host environment will be used.

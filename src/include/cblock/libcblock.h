@@ -94,6 +94,7 @@ struct cblock_build_context {
 	int					p_verbose;
 	int					p_build_fim_spec;
 	char					p_os_release[MAXPATHLEN];
+	char					p_auditcfg[MAXPATHLEN];
 };
 
 struct cblock_response {
@@ -201,6 +202,7 @@ struct build_manifest {
 	char					*entry_point_args;
 	char					*maintainr;
 	char					*osrelease;
+	char					*auditcfg;
 };
 
 struct build_context {
