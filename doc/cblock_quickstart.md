@@ -51,9 +51,10 @@ to build other cellblocks. This image is created on the server using the followi
 steps:
 
 ```
-% cd ../../doc
+% cd ../../tools
 % mdkdir forge
-% sudo ../copy.sh
+% cd forge
+% sudo ../genforge.sh
 ```
 When you look in your current working directory, you will see the base
 utilities and libraries needed to facilitate the operations within a
