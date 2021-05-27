@@ -183,7 +183,6 @@ build_send_context(int sock, struct build_config *bcp)
 	strlcpy(pbc.p_cblock_file, bcp->b_cblock_file,
 	    sizeof(pbc.p_cblock_file));
 	if (bcp->b_bmp->osrelease) {
-		printf("coying OS release\n");
 		strlcpy(pbc.p_os_release, bcp->b_bmp->osrelease,
 		    sizeof(pbc.p_os_release));
 	}
@@ -336,6 +335,9 @@ build_main(int argc, char *argv [], int cltlsock)
 	argv += optind;
 	if (bc.b_name == NULL) {
 		errx(1, "must specify image name -n");
+	}
+	if (strchr(bc.b_name, '.') != NULL) {
+		errx(1, "image names can not contain '.' characters. See jail(8)");
 	}
 	tag = strchr(bc.b_name, ':');
 	if (tag != NULL) {
