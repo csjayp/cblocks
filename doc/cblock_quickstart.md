@@ -43,7 +43,7 @@ pts that are required for cblockd's operation (note: sequencing is important, be
 Create your forge image (note this must be done on the server side):
 
 ```
-% cd doc/
+% cd ../../doc
 % mdkdir forge
 % sudo ../copy.sh
 ```
@@ -94,7 +94,8 @@ others:
 ```
 
 Now that your forge image is archived up, you can submit it to the daemon
-which will convert it into your first image:
+which will convert it into your first image (make sure you are using the correct
+data directory):
 
 ```
 % sudo cblockd --zfs --data-directory /ssdvol0/cblocks --create-forge ../forge.tgz
@@ -124,17 +125,17 @@ examples called "base", in this directory you will see a single file that will c
 a full freebsd image based on the distfiles:
 
 ```
-% cd examples/base
+% cd ../../examples/base/
 % cat Cblockfile
 
 FROM forge:latest
 
 RUN "mkdir -p imgbuild/root"
 ENV "SSL_CA_CERT_FILE" = "/etc/ca-root-nss.crt"
-ADD https://download.freebsd.org/ftp/releases/amd64/12.1-RELEASE/base.txz imgbuild/root
+ADD https://download.freebsd.org/ftp/releases/amd64/12.2-RELEASE/base.txz imgbuild/root
 ROOTPIVOT imgbuild
 
-OSRELEASE 12.1-RELEASE
+OSRELEASE 12.2-RELEASE
 ENTRYPOINT [ "/bin/tcsh" ]
 ```
 
@@ -157,5 +158,37 @@ If you are using the base container to build subsequent containers, the build sy
 Now lets build it:
 
 ```
-% sudo cblock build -n freebsd-12.1 .
+% sudo cblock build -n freebsd-12_2 .
+-- Preparing local build context...
+-- Transmitting build context to cblock daemon (2560) bytes...
+-- Bootstrapping build stages 1 through 1
+-- Executing stage (1/1) : FROM forge:latest
+-- Step 1/4 : RUN mkdir -p imgbuild/root
+-- Step 2/4 : ENV SSL_CA_CERT_FILE=/etc/ca-root-nss.crt
+-- Step 3/4 : ADD https://download.freebsd.org/ftp/releases/amd64/12.2-RELEASE/base.txz imgbuild/root
+-- Step 4/4 : ROOTPIVOT imgbuild
+-- Build Stage(s) complete. Writing container image...
+-- Cleaning up ephemeral images and build artifacts
+-- build occured in 150 seconds: status code 0
+%
+```
+That now you should have a base image, you can view your images by typing:
+```
+% sudo cblock images
+IMAGE            TAG                      SIZE CREATED
+freebsd-12_2     latest                975.58M  2021-05-27 00:36:20
+forge            latest                 10.17M  2021-05-27 00:32:08
+%
+```
+
+Now we are ready to launch the container. Note with `--host-networking` the cblock daemon
+will lookup the source address associated with your default outbound interface, and use
+that. So take care if you cblock daemon is directory connected to the internet.
+
+```
+% sudo cblock launch --name freebsd-12_2 --host-networking 
+cellblock: container launched: instance: 7d19953ce1
+root@7d19953ce1:/ # id
+uid=0(root) gid=0(wheel) groups=0(wheel),5(operator)
+root@7d19953ce1:/ # 
 ```
