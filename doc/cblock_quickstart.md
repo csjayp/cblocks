@@ -43,7 +43,12 @@ pts that are required for cblockd's operation (note: sequencing is important, be
 % sudo make install DESTDIR=/ssdvol0/cblocks 
 ```
 
-Create your forge image (note this must be done on the server side):
+### Creating the base Forge image
+
+The forge image contains the toolchain to which facilitates all the operations
+that can occur in the `Cblockfile`. This is the prime image, that must be present
+to build other cellblocks. This image is created on the server using the following
+steps:
 
 ```
 % cd ../../doc
@@ -122,6 +127,8 @@ forge            latest                 13.36M  2021-05-24 19:23:19
 %
 ```
 
+### Creating base FreeBSD image
+
 Now you are ready to start creating cellblocks. As a good first example, I typically
 like to create a base FreeBSD image. I generally use the Cblock file included in the
 examples called "base", in this directory you will see a single file that will construct
@@ -152,11 +159,11 @@ This is a very simple Cblockfile. Lets go through it line by line so we understa
 | 4 | `ADD https://download.freebsd.org/ftp/releases/amd64/12.1-RELEASE/base.txz imgbuild/root` | Similar to docker, `ADD` will add files from the ocal file system, or https to the target directory. If the file is a compressed archive, it will decompress and extract it to the target directory |
 | 5 | `ROOTPIVOT imgbuild` | Instructs the builder to use the `imgbuild` directory for the image when it creates it |
 | 6 | `OSRELEASE 12.1-RELEASE` | Set the OS release, this could be useful when running `-STABLE` kernels for example, but want the packages from the last release (among other things). |
-| 7 | `ENTRYPOINT [ "/bin/tcsh" ]` | Finally specify the entry point for the container, in this case we are using `tcsh` |
+| 7 | `ENTRYPOINT [ "/bin/tcsh" ]` | Finally specify the entry point for the cellblock, in this case we are using `tcsh` |
 
-**NOTE**: Anytime you are using the `ROOTPIVOT` function, you will need to make sure to include you `ADD` a `resolv.conf` into the new image root if you wan't to use it as a persistent container.
+**NOTE**: Anytime you are using the `ROOTPIVOT` function, you will need to make sure to include you `ADD` a `resolv.conf` into the new image root if you wan't to use it as a persistent cellblock.
 
-If you are using the base container to build subsequent containers, the build system will automatically inject the host's resolv.conf into the target container if one is not supplied.
+If you are using the base cellblock to build subsequent cellblocks, the build system will automatically inject the host's resolv.conf into the target container if one is not supplied.
 
 Now lets build it:
 
@@ -184,6 +191,8 @@ forge            latest                 10.17M  2021-05-27 00:32:08
 %
 ```
 
+### Launching your Cellblock
+
 Now we are ready to launch the container. Note with `--host-networking` the cblock daemon
 will lookup the source address associated with your default outbound interface, and use
 that. So take care if you cblock daemon is directory connected to the internet.
@@ -194,4 +203,21 @@ cellblock: container launched: instance: 7d19953ce1
 root@7d19953ce1:/ # id
 uid=0(root) gid=0(wheel) groups=0(wheel),5(operator)
 root@7d19953ce1:/ # 
+```
+
+### Detaching from your Cellblock
+
+Each cellblock instance has a TTY attached to it. WHen you launch your cellblock you will be
+connected to the console by default. If you want to launch them asynchronously, you can use
+the `--no-attach` option on launch. If you want to dis-connect from the console and return to
+doing other things, simply press `ctrl+q` and you will be dropped back to the shell. Your
+cellblock will continue running. Should you want to re-connect to it, grab the instance ID
+and use the console sub command:
+
+```
+% sudo cblock instances
+INSTANCE    IMAGE           TTY          PID     TYPE                UP
+a5ec8053ea  freebsd-12_2    /dev/pts/2   2374    assembled         276s
+% sudo cblock console --name a5ec8053ea
+root@a5ec8053ea:/ # 
 ```
