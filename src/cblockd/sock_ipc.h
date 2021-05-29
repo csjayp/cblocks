@@ -37,6 +37,7 @@ struct cblock_peer {
 	gid_t				p_gid;	/* GID if available (PF_UNIX) */
 	int				p_family; /* address family */
 	pthread_t			p_thr;
+	pthread_attr_t			p_detached;
 	TAILQ_ENTRY(cblock_peer)	p_glue;
 };
 

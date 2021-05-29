@@ -353,17 +353,16 @@ cblock_lookup_instance(const char *instance)
 void *
 cblock_handle_request(void *arg)
 {
-	pthread_attr_t detached;
 	struct cblock_peer *p;
 
 	p = (struct cblock_peer *)arg;
-	pthread_attr_init(&detached);
-	pthread_attr_setdetachstate(&detached, PTHREAD_CREATE_DETACHED);
-	if (pthread_create(&p->p_thr, NULL, dispatch_work, arg) != 0) {
-		err(1, "pthread_create(dispatch_work) failed");
-	}
+	pthread_attr_init(&p->p_detached);
+	pthread_attr_setdetachstate(&p->p_detached, PTHREAD_CREATE_DETACHED);
 	pthread_mutex_lock(&peer_mutex);
 	TAILQ_INSERT_HEAD(&p_head, p, p_glue);
 	pthread_mutex_unlock(&peer_mutex);
+	if (pthread_create(&p->p_thr, &p->p_detached, dispatch_work, arg) != 0) {
+		err(1, "pthread_create(dispatch_work) failed");
+	}
 	return (NULL);
 }
