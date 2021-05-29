@@ -92,8 +92,8 @@ cleanup()
     fi
     case $type in
     build)
-        rm -fr "${data_root}/instances/${instance}.tar.gz"
-        rm -fr "${data_root}/instances/${instance}.*.sh"
+        rm "${data_root}/instances/${instance}.tar.gz"
+        rm ${data_root}/instances/${instance}.*.sh
         rm -fr "${data_root}/instances/${instance}/images"
         stage_list=$(echo "${data_root}"/instances/"${instance}"/[0-9]*)
         for d in $stage_list; do
