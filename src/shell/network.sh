@@ -71,16 +71,21 @@ do_nat_setup()
     fi
     # NB: we should be doing these under a lockf to avoid races
     while read ln; do
-        n_type=$(echo "$ln" | awk -F: '{ print $1 }')
-        n_name=$(echo "$ln" | awk -F: '{ print $2 }')
-        n_netif=$(echo "$ln" | awk -F: '{ print $3 }')
+        n_type=$(echo "$ln" | awk -F, '{ print $1 }')
+        n_name=$(echo "$ln" | awk -F, '{ print $2 }')
+        n_netif=$(echo "$ln" | awk -F, '{ print $3 }')
         if [ "$n_name" = "$net_name" ]; then
             echo "Network \'$net_name\' is already defined"
             echo "        $ln"
             exit 1
         fi
     done < ${data_root}/networks/network_list
-    echo "nat:${net_name}:$netif:$net_mask" >> \
+    if [ $(echo $net_mask | grep -c -F :) = "1" ]; then
+        ip_version="6"
+    else
+        ip_version="4"
+    fi
+    echo "nat,${net_name},$netif,$net_mask,$ip_version" >> \
       ${data_root}/networks/network_list
 }
 
@@ -103,7 +108,7 @@ do_bridge_setup()
         echo "Failed to rename bridge interface bridge${unit} to ${net_name}"
         exit 1
     fi
-    echo "bridge:${net_name}:$netif" >> ${data_root}/networks/network_list
+    echo "bridge,${net_name},$netif" >> ${data_root}/networks/network_list
     printf "${net_name}"
 }
 
@@ -127,8 +132,8 @@ net_destroy()
     fi
     netdb=$(mktemp)
     while read ln; do
-        _type=$(echo $ln | cut -f 1 -d:)
-        _name=$(echo $ln | cut -f 2 -d:)
+        _type=$(echo $ln | cut -f 1 -d,)
+        _name=$(echo $ln | cut -f 2 -d,)
         if [ "$_name" != "$net_name" ]; then
             echo $ln >> $netdb
             continue
@@ -145,16 +150,16 @@ net_destroy()
 
 net_list()
 {
-    printf "%7.7s %10.10s  %5.5s   %-20.20s\n" "TYPE" "NAME" "NETIF" "NET"
+    printf "%7.7s %10.10s  %5.5s   %-40.40s\n" "TYPE" "NAME" "NETIF" "NET"
     while read ln; do
-        type=$(echo $ln | cut -f 1 -d:)
-        name=$(echo $ln | cut -f 2 -d:)
-        netif=$(echo $ln | cut -f 3 -d:)
+        type=$(echo $ln | cut -f 1 -d,)
+        name=$(echo $ln | cut -f 2 -d,)
+        netif=$(echo $ln | cut -f 3 -d,)
         net="-"
         if [ "$type" != "bridge" ]; then
-            net=$(echo $ln | cut -f 4 -d:)
+            net=$(echo $ln | cut -f 4 -d,)
         fi
-        printf "%7.7s %10.10s  %5.5s   %-20.20s\n" $type $name $netif $net
+        printf "%7.7s %10.10s  %5.5s   %-40.40s\n" $type $name $netif $net
     done < ${data_root}/networks/network_list
 }
 

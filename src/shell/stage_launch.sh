@@ -35,11 +35,23 @@ entry_point_args="$8"
 devfs_mount="${data_root}/instances/${instance_id}/root/dev"
 image_dir=""
 
+net_is_ip6()
+{   
+    while read ln; do
+        n_name=$(echo "$ln" | awk -F, '{ print $2 }')
+        n_version=$(echo "$ln" | awk -F, '{ print $5 }')
+        if [ $n_name = "$1" ]; then
+            echo $n_version
+            return
+        fi
+    done < ${data_root}/networks/network_list
+}
+
 network_is_bridge()
 {
-    for netif in `ifconfig -l`; do
+    for netif in $(ifconfig -l); do
         if [ "$netif" = "$network" ]; then
-            b=`ifconfig "$network" | grep groups | awk '{ print $2 }'`
+            b=$(ifconfig "$network" | grep groups | awk '{ print $2 }')
             if [ "$b" = "bridge" ]; then
                 echo TRUE
                 return
@@ -54,12 +66,12 @@ get_jail_interface()
     bridge=$(network_is_bridge)
     case $bridge in
     TRUE)
-        epair=`ifconfig epair create`
+        epair=$(ifconfig epair create)
         if [ $? -ne 0 ]; then
             echo "Failed to create epair interface"
             exit 1
         fi
-        epair_unit=`echo $epair | sed -E "s/epair([0-9+])a/\1/g"`
+        epair_unit=$(echo $epair | sed -E "s/epair([0-9+])a/\1/g")
         ifconfig epair${epair_unit}a up && ifconfig epair${epair_unit}b up
         if [ $? -ne 0 ]; then
             echo "Failed to bring epair interfaces up"
@@ -85,22 +97,22 @@ setup_port_redirects()
     _all_fields=$1
     _ip=$2
     _outif=$3
-    for spec in `echo "${_all_fields}" | sed "s/,/ /g"`; do
+    for spec in $(echo "${_all_fields}" | sed "s/,/ /g"); do
         case $spec in
         none)
             return
             ;;
         *:*:*)
-            for field in `jot 4`; do
+            for field in $(jot 4); do
                 case $field in
                 1)
-                    host_port=`echo "$spec" | cut -f $field -d:`
+                    host_port=$(echo "$spec" | cut -f $field -d:)
                     ;;
                 2)
-                    container_port=`echo "$spec" | cut -f $field -d:`
+                    container_port=$(echo "$spec" | cut -f $field -d:)
                     ;;
                 3)
-                    visibility=`echo "$spec" | cut -f $field -d:`
+                    visibility=$(echo "$spec" | cut -f $field -d:)
                     ;;
                 esac
             done
@@ -108,13 +120,13 @@ setup_port_redirects()
               "port $host_port -> $_ip port $container_port"
             ;;
         *:*)
-            for field in `jot 4`; do
+            for field in $(jot 4); do
                 case $field in
                 1)
-                    host_port=`echo "$spec" | cut -f $field -d:`
+                    host_port=$(echo "$spec" | cut -f $field -d:)
                     ;;
                 2)
-                    container_port=`echo "$spec" | cut -f $field -d:`
+                    container_port=$(echo "$spec" | cut -f $field -d:)
                     ;;
                 esac
             done
@@ -245,7 +257,18 @@ path_to_vol()
 
 is_broadcast()
 {
-    range=`subcalc inet $1 | grep "^range:"`
+    case $3 in
+    4)
+        family="inet"
+        ;;
+    6)
+        family="inet6"
+        ;;
+    *)
+        echo "invalid ip version"
+        exit 1
+    esac
+    range=`subcalc $family $1 | grep "^range:"`
     start=`echo $range | awk '{ print $2 }'`
     end=`echo $range | awk '{ print $4 }'`
     if [ "$2" = "$start" ] || [ "$2" = "$end" ]; then
@@ -257,7 +280,18 @@ is_broadcast()
 
 is_assigned()
 {
-    for ip in `ifconfig cblock0 | grep "inet "| awk '{ print $2 }'`; do
+    case $2 in
+    4)
+        family="inet"
+        ;;
+    6)
+        family="inet6"
+        ;;
+    *)
+        echo "invalid ip version"
+        exit 1
+    esac
+    for ip in $(ifconfig cblock0 | grep "$family" | awk '{ print $2 }'); do
         if [ "$ip" = "$1" ]; then
             echo yes
             return 0
@@ -272,7 +306,7 @@ network_is_defined()
         return 0
     fi
     while read ln; do
-        n_name=$(echo $ln | awk -F: '{ print $2 }')
+        n_name=$(echo $ln | awk -F, '{ print $2 }')
         if [ "$n_name" = "$network" ]; then
             return $(true)
         fi
@@ -281,26 +315,57 @@ network_is_defined()
     exit 1
 }
 
-network_to_ip()
+network_to_ip6()
 {
     while read ln; do
-        n_type=`echo $ln | awk -F: '{ print $1 }'`
+        n_type=$(echo $ln | awk -F, '{ print $1 }')
         if [ "$n_type" != "nat" ]; then
             continue
         fi
-        n_name=`echo $ln | awk -F: '{ print $2 }'`
+        n_name=$(echo $ln | awk -F, '{ print $2 }')
         if [ "$n_name" != "$network" ]; then
             continue
         fi
-        net_addr=`echo $ln | awk -F: '{ print $4 }'`
-        out_if=`echo $ln | awk -F: '{ print $3 }'`
-        for ip in `subcalc inet $net_addr print | grep -v "^;"`; do
-            if [ `is_assigned $ip` = "no" ] && \
-               [ `is_broadcast $net_addr $ip` = "no" ]; then
+        net_addr=$(echo $ln | awk -F, '{ print $4 }')
+        out_if=$(echo $ln | awk -F, '{ print $3 }')
+        version=$(echo $ln | awk -F, '{ print $5 }')
+        if [ $version != "6" ]; then
+            continue
+        fi
+        for ip in $(subcalc inet6 $net_addr print | grep -v "^;"); do
+            if [ $(is_assigned $ip $version) = "no" ] && \
+               [ $(is_broadcast $net_addr $ip $version) = "no" ]; then
+                ifconfig cblock0 inet6 "${ip}/128" alias
+                echo "${ip}"
+                echo "nat,${instance_id},${ip},$network,6" >> \
+                  $data_root/networks/cur
+                return
+            fi
+        done
+    done < $data_root/networks/network_list
+    exit 1
+}
+
+network_to_ip()
+{
+    while read ln; do
+        n_type=$(echo $ln | awk -F, '{ print $1 }')
+        if [ "$n_type" != "nat" ]; then
+            continue
+        fi
+        n_name=$(echo $ln | awk -F, '{ print $2 }')
+        if [ "$n_name" != "$network" ]; then
+            continue
+        fi
+        net_addr=$(echo $ln | awk -F, '{ print $4 }')
+        out_if=$(echo $ln | awk -F, '{ print $3 }')
+        for ip in $(subcalc inet $net_addr print | grep -v "^;"); do
+            if [ $(is_assigned $ip) = "no" ] && \
+               [ $(is_broadcast $net_addr $ip) = "no" ]; then
                 ifconfig cblock0 inet "${ip}/32" alias
                 echo "nat on $out_if from ${ip}/32 to any -> ($out_if)" | \
                     pfctl -a cblock-nat/${instance_id} -f -
-                echo "nat:${instance_id}:${ip}:$network" >> \
+                echo "nat,${instance_id},${ip},$network,4" >> \
                   $data_root/networks/cur
                 echo "${ip}"
                 setup_port_redirects "$ports" "$ip" "$out_if" | \
@@ -394,13 +459,16 @@ do_launch()
         else
             ip4=$(network_to_ip)
         fi
-        jail -c \
-          "host.hostname=${instance_hostname}" \
-          "ip4.addr=${ip4}" \
-          "name=${image_name}-${instance_hostname}" \
-          "osrelease=$(emit_os_release)" \
-          "path=${instance_root}" \
-          command="$@"
+        jailcmd="jail -c host.hostname=${instance_hostname} "
+        jailcmd="$jailcmd name=${image_name}-${instance_hostname} "
+        jailcmd="$jailcmd allow.chflags=1 path=${instance_root} "
+        if [ $(net_is_ip6 $network) = "6" ]; then
+            netspec="ip6.addr=$(network_to_ip6)"
+        else
+            netspec="ip4.addr=$ip4"
+        fi
+        jailcmd="$jailcmd $netspec command=$@"
+        eval $jailcmd
     fi
 }
 
