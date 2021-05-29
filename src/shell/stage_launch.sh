@@ -456,8 +456,6 @@ do_launch()
     else
         if [ "$network" = "__host__" ]; then
             ip4=$(get_default_ip)
-        else
-            ip4=$(network_to_ip)
         fi
         jailcmd="jail -c host.hostname=${instance_hostname} "
         jailcmd="$jailcmd name=${image_name}-${instance_hostname} "
