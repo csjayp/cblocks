@@ -45,6 +45,7 @@ net_is_ip6()
             return
         fi
     done < ${data_root}/networks/network_list
+    echo 4
 }
 
 network_is_bridge()

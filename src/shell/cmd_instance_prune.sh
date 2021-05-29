@@ -43,7 +43,6 @@ instances()
 do_instance_purge()
 {
     for instance_path in $(instances); do
-        echo checking $instance_path
         instance=`basename "${instance_path}"`
         if [ -f "${data_dir}/locks/${instance}.pid" ]; then
             lockf -k -t 0 "${data_dir}/locks/${instance}.pid" true > \
@@ -52,7 +51,7 @@ do_instance_purge()
                 continue
             fi 
         fi
-        echo Removing instance: "$instance"
+        echo Removing stale instance: "$instance"
         case $CBLOCK_FS in
         zfs)
             vol=$(get_vol $instance_path)

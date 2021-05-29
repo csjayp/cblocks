@@ -320,7 +320,7 @@ build_emit_shell_script(struct build_context *bcp, int stage_index)
 static int
 build_init_stage(struct build_context *bcp, struct build_stage *stage)
 {
-	char script[128], index[16], context_archive[128], **argv;
+	char script[128], index[16], context_archive[128], **argv, buf[128];
 	extern struct global_params gcfg;
 	vec_t *vec, *vec_env;
 	int status;
@@ -345,7 +345,6 @@ build_init_stage(struct build_context *bcp, struct build_stage *stage)
 	 */
 	vec_env = vec_init(16);
 	vec_append(vec_env, DEFAULT_PATH);
-	char buf[128];
 	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
 	vec_append(vec_env, buf);
 	vec_finalize(vec_env);
@@ -456,8 +455,6 @@ build_commit_image(struct build_context *bcp)
 		}
 		return (status);
 	}
-	dup2(bcp->peer_sock, STDOUT_FILENO);
-	dup2(bcp->peer_sock, STDERR_FILENO);
 	snprintf(commit_cmd, sizeof(commit_cmd), "%s/lib/stage_commit.sh",
 	    gcfg.c_data_dir);
 	snprintf(nstages, sizeof(nstages), "%d", bcp->pbc.p_nstages);
