@@ -13,3 +13,4 @@ dummy:
 
 install:
 	install -m 0555 $(TARGETS) $(DESTDIR)/lib
+	touch $(DESTDIR)/networks/network_list

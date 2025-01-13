@@ -634,7 +634,6 @@ dispatch_build_recieve(int sock)
 
 	struct cblock_response resp;
 	struct build_context bctx;
-	char *build_type;
 	ssize_t cc;
 	int fd;
 
@@ -644,7 +643,6 @@ dispatch_build_recieve(int sock)
 		printf("didn't get proper build context headers\n");
 		return (0);
 	}
-	build_type = "build";
 	if (bctx.pbc.p_nstages > MAX_BUILD_STAGES ||
 	    bctx.pbc.p_nsteps > MAX_BUILD_STEPS) {
 		resp.p_ecode = -1;

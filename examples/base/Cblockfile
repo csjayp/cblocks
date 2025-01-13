@@ -2,8 +2,8 @@ FROM forge:latest
 
 RUN "mkdir -p imgbuild/root"
 ENV "SSL_CA_CERT_FILE" = "/etc/ca-root-nss.crt"
-ADD https://download.freebsd.org/ftp/releases/amd64/12.2-RELEASE/base.txz imgbuild/root
+ADD https://download.freebsd.org/ftp/releases/amd64/13.4-RELEASE/base.txz imgbuild/root
 ROOTPIVOT imgbuild
 
-OSRELEASE 12.2-RELEASE
+OSRELEASE 13.4-RELEASE
 ENTRYPOINT [ "/bin/tcsh" ]
