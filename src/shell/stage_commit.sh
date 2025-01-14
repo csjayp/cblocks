@@ -66,6 +66,13 @@ commit_image()
             cp "${build_root}/${build_index}/ARGS" \
                 "${build_root}/${build_index}/root/${dir}"
         fi
+        #
+        # Don't forget the audit configuration if one has been specified
+        #
+        if [ -f "${build_root}/${build_index}/AUDITCFG" ]; then
+            cp "${build_root}/${build_index}/AUDITCFG" \
+                "${build_root}/${build_index}/root/${dir}"
+        fi
     else
         rm -fr "${build_root}/${build_index}/root/tmp/*"
         src="${build_root}/${build_index}"
