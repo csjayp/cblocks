@@ -21,7 +21,7 @@ First, install the binaries and create the root file system for your cellblock d
 % sudo zfs create ssdvol0/cblocks/images
 ```
 
-Modify the rc.conf to include the setup:
+Modify the rc.conf to include the setup (make sure to substitute the ZFS path with your own):
 
 ```
 cblockd_enable=YES
@@ -169,7 +169,7 @@ If you are using the base cellblock to build subsequent cellblocks, the build sy
 Now lets build it:
 
 ```
-% sudo cblock build -n freebsd-12_2 .
+% sudo cblock build -n freebsd-13_4 .
 -- Preparing local build context...
 -- Transmitting build context to cblock daemon (2560) bytes...
 -- Bootstrapping build stages 1 through 1
@@ -187,7 +187,7 @@ That now you should have a base image, you can view your images by typing:
 ```
 % sudo cblock images
 IMAGE            TAG                      SIZE CREATED
-freebsd-12_2     latest                975.58M  2021-05-27 00:36:20
+freebsd-13_4     latest                975.58M  2021-05-27 00:36:20
 forge            latest                 10.17M  2021-05-27 00:32:08
 %
 ```
@@ -199,7 +199,7 @@ will lookup the source address associated with your default outbound interface, 
 that. So take care if you cblock daemon is directory connected to the internet.
 
 ```
-% sudo cblock launch --name freebsd-12_2 --host-networking 
+% sudo cblock launch --name freebsd-13_4 --host-networking 
 cellblock: container launched: instance: 7d19953ce1
 root@7d19953ce1:/ # id
 uid=0(root) gid=0(wheel) groups=0(wheel),5(operator)
@@ -218,7 +218,7 @@ and use the console sub command:
 ```
 % sudo cblock instances
 INSTANCE    IMAGE           TTY          PID     TYPE                UP
-a5ec8053ea  freebsd-12_2    /dev/pts/2   2374    assembled         276s
+a5ec8053ea  freebsd-13_4    /dev/pts/2   2374    assembled         276s
 % sudo cblock console --name a5ec8053ea
 root@a5ec8053ea:/ # 
 ```
