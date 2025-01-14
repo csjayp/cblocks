@@ -85,10 +85,13 @@ zfs_lookup_origin()
 
 cleanup()
 {
+    # For builds the jail should have exited already
     jail_id=$(jls | grep "$instance" | awk '{ print $1 }')
-    jail -r $jail_id
-    if [ $? -ne 0 ]; then
-        echo "jail instance not present? continuing with fs cleanup"
+    if [ "$jail_id" ]; then
+        jail -r $jail_id
+        if [ $? -ne 0 ]; then
+            echo "jail instance not present? continuing with fs cleanup"
+        fi
     fi
     case $type in
     build)
