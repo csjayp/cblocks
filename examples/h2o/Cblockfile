@@ -1,7 +1,8 @@
 FROM base AS go_builder
   ADD . .
-  RUN "pkg --yes update"
-  RUN "pkg install -y go-1.16.4,1"
+  ENV ASSUME_ALWAYS_YES = "YES"
+  RUN "pkg update"
+  RUN "pkg install go-1.21_5,2"
   WORKDIR /fcgi
   ENV PATH = "$PATH:/usr/local/go14/bin"
   RUN "go mod init local/fcgi"
@@ -11,8 +12,8 @@ FROM base AS go_builder
 
 FROM base
   ADD . .
-  RUN "pkg install -y h2o"
-  RUN "size `which h2o`"
+  ENV ASSUME_ALWAYS_YES = "YES"
+  RUN "pkg install h2o"
   COPY --FROM go_builder /fcgi/fcgi /usr/local/bin
   RUN "mkdir /tls"
   ADD server.crt /tls

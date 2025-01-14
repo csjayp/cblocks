@@ -458,7 +458,11 @@ do_launch()
         if [ "$network" = "__host__" ]; then
             ip4=$(get_default_ip)
         fi
-        jailcmd="jail -c host.hostname=${instance_hostname} "
+        jailcmd=""
+        if [ -f "${image_dir}/AUDITCFG" ]; then
+            jailcmd="setaudit -m $(cat ${image_dir}/AUDITCFG) -s $(get_default_ip)"
+        fi
+        jailcmd="$jailcmd jail -c host.hostname=${instance_hostname} "
         jailcmd="$jailcmd name=${image_name}-${instance_hostname} "
         jailcmd="$jailcmd allow.chflags=1 path=${instance_root} "
         if [ $(net_is_ip6 $network) = "6" ]; then
