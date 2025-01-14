@@ -638,6 +638,7 @@ dispatch_build_recieve(int sock)
 	int fd;
 
 	bzero(&bctx, sizeof(bctx));
+	bzero(&resp, sizeof(resp));
 	cc = sock_ipc_must_read(sock, &bctx.pbc, sizeof(bctx.pbc));
 	if (cc == 0) {
 		printf("didn't get proper build context headers\n");

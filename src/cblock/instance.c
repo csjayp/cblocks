@@ -73,7 +73,7 @@ instance_get(struct instance_config *icp, int ctlsock)
 	size_t count;
 	time_t now;
 
-
+	count = 0;
 	cmd = PRISON_IPC_GET_INSTANCES;
 	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
 	sock_ipc_must_read(ctlsock, &count, sizeof(count));

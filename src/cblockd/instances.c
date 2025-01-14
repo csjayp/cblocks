@@ -47,7 +47,7 @@
 #include <cblock/libcblock.h>
 
 int
-dispatch_get_instances(sock)
+dispatch_get_instances(int sock)
 {
 	struct instance_ent *ents;
 	size_t count;

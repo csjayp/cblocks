@@ -64,6 +64,7 @@ sock_ipc_setup_unix(struct global_params *cmd)
 	bzero(&addr, sizeof(addr));
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, cmd->c_name, sizeof(addr.sun_path)-1);
+	(void) unlink(addr.sun_path);
 	if (bind(cmd->c_socks[0], (struct sockaddr*)&addr, sizeof(addr)) == -1) {
 		err(1, "bind(PF_UNIX) failed");
 	}
@@ -181,6 +182,7 @@ sock_ipc_accept_connection(int sock)
 			err(1, "accept failed");
 		}
 		if (sa.sa_family == PF_UNIX) {
+			uid = gid = -1;
 			if (getpeereid(nsock, &uid, &gid) == -1) {
 				err(1, "getpeereid failed");
 			}
