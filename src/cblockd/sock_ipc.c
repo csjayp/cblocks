@@ -182,6 +182,7 @@ sock_ipc_accept_connection(int sock)
 			err(1, "accept failed");
 		}
 		if (sa.sa_family == PF_UNIX) {
+			uid = gid = -1;
 			if (getpeereid(nsock, &uid, &gid) == -1) {
 				err(1, "getpeereid failed");
 			}

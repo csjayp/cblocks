@@ -288,6 +288,7 @@ dispatch_launch_cblock(int sock)
 	CBLOCKD_CBLOCK_CREATE(pi->p_instance_tag);
 	TAILQ_INSERT_HEAD(&pr_head, pi, p_glue);
 	pthread_mutex_unlock(&cblock_mutex);
+	bzero(&resp, sizeof(resp));
 	resp.p_ecode = 0;
 	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "%s",
 	    pi->p_instance_tag);

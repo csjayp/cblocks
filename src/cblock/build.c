@@ -361,6 +361,7 @@ build_main(int argc, char *argv [], int cltlsock)
 	}
 	before = time(NULL);
 	build_set_default_tag(&bc);
+	(void) build_manifest_load(&bc);
 	if (noexec) {
 		return (0);
 	}
