@@ -48,17 +48,24 @@ net_is_ip6()
     echo 4
 }
 
-network_is_bridge()
+get_bridge_netif_by_network()
 {
     for netif in $(ifconfig -l); do
-        if [ "$netif" = "$network" ]; then
-            b=$(ifconfig "$network" | grep groups | awk '{ print $2 }')
-            if [ "$b" = "bridge" ]; then
-                echo TRUE
-                return
-            fi
+        net=$(ifconfig $netif | grep description: | awk '{ print $2 }')
+        if [ "$net" = "$1" ]; then
+            echo $netif
         fi
     done
+    exit 1
+}
+
+network_is_bridge() {
+    while IFS=',' read -r type name netif; do
+        if [ "$name" = "$network" ] && [ "$type" = "bridge" ]; then
+            echo TRUE
+            return
+        fi
+    done < $data_root/networks/network_list
     echo FALSE
 }
 
@@ -67,20 +74,28 @@ get_jail_interface()
     bridge=$(network_is_bridge)
     case $bridge in
     TRUE)
+        # NB: big cleanup on errors here needed!
         epair=$(ifconfig epair create)
         if [ $? -ne 0 ]; then
             echo "Failed to create epair interface"
             exit 1
         fi
-        epair_unit=$(echo $epair | sed -E "s/epair([0-9+])a/\1/g")
+        epair_unit=$(echo $epair | sed -E "s/epair([0-9]+)a/\1/g")
         ifconfig epair${epair_unit}a up && ifconfig epair${epair_unit}b up
         if [ $? -ne 0 ]; then
             echo "Failed to bring epair interfaces up"
             exit 1
         fi
-        ifconfig $network addm epair${epair_unit}a
+        netif=$(get_bridge_netif_by_network $network)
+        ifconfig $netif addm epair${epair_unit}a
         if [ $? -ne 0 ]; then
-            echo "Failed to add epair interface to bridge $network"
+            echo "Failed to add epair interface to bridge $netif ($network)"
+            exit 1
+        fi
+        # Make sure the underlying bridge interface is UP
+        ifconfig $netif up
+        if [ $? -ne 0 ]; then
+            echo "Unable to bring bridge interface $netif UP"
             exit 1
         fi
         echo epair${epair_unit}b
@@ -451,6 +466,7 @@ do_launch()
           "vnet" \
           "vnet.interface=$netif" \
           "name=${image_name}-${instance_hostname}" \
+          "allow.chflags=1" \
           "osrelease=$(emit_os_release)" \
           "path=${instance_root}" \
           command="$@"
