@@ -33,8 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <openssl/sha.h>
-#include <sanitizer/msan_interface.h>
+#include <openssl/evp.h>
 
 #include "termbuf.h"
 #include "main.h"
@@ -44,35 +43,47 @@
 #include <cblock/libcblock.h>
 
 void
-gen_sha256_string(unsigned char *hash, char *output)
+gen_sha256_string(u_char *hash, char *output, u_int len)
 {
 	int k;
 
-	__msan_unpoison(hash, SHA256_DIGEST_LENGTH);
-	__msan_unpoison(output, SHA256_DIGEST_LENGTH * 2);
-	for (k = 0; k < SHA256_DIGEST_LENGTH; k++) {
-		sprintf(output + (k * 2), "%02x", hash[k]);
+	// NB: assumed zeroed out `output` buffer
+	for (k = 0; k < len; k++) {
+		(void) sprintf(output + (k * 2), "%02x", hash[k]);
 	}
-	output[64] = '\0';
 }
 
 char *
 gen_sha256_instance_id(char *instance_name)
 {
-	u_char hash[SHA256_DIGEST_LENGTH];
-	char inbuf[128], *ret;
-	char outbuf[128+1];
-	SHA256_CTX sha256;
-	char buf[32];
+	char buf[32], inbuf[128], *ret, outbuf[EVP_MAX_MD_SIZE * 2];
+	u_char hash[EVP_MAX_MD_SIZE];
+	EVP_MD_CTX *hash_ctx;
+	u_int dlen;
 
 	bzero(inbuf, sizeof(inbuf));
+	bzero(hash, sizeof(hash));
 	arc4random_buf(inbuf, sizeof(inbuf) - 1);
 	bzero(outbuf, sizeof(outbuf));
-	SHA256_Init(&sha256);
-	SHA256_Update(&sha256, inbuf, strlen(inbuf));
-	SHA256_Final(hash, &sha256);
-	gen_sha256_string(&hash[0], outbuf);
-	sprintf(buf, "%.10s", outbuf);
+	hash_ctx = EVP_MD_CTX_new();
+	if (hash_ctx == NULL) {
+		return (NULL);
+	}
+	if (!EVP_DigestInit_ex(hash_ctx, EVP_sha256(), NULL)) {
+		fprintf(stderr, "EVP_DigestInit_ex failed\n");
+		return (NULL);
+	}
+	if (!EVP_DigestUpdate(hash_ctx, inbuf, strlen(inbuf))) {
+		fprintf(stderr, "EVP_DigestUpdate failed\n");
+		return (NULL);
+	}
+	if (!EVP_DigestFinal_ex(hash_ctx, hash, &dlen)) {
+		fprintf(stderr, "EVP_DigestFinal_ex failed\n");
+		return (NULL);
+	}
+	EVP_MD_CTX_free(hash_ctx);
+	gen_sha256_string(&hash[0], outbuf, dlen);
+	(void) sprintf(buf, "%.10s", outbuf);
 	ret = strdup(buf);
 	return (ret);
 }
