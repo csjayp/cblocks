@@ -59,7 +59,7 @@ void		cblock_fork_cleanup(char *instance, char *, int, int);
 void		tty_handle_resize(int, char *);
 void		tty_console_session(const char *, int, int);
 char *		tty_trim_buffer(char *, size_t, size_t *);
-void		gen_sha256_string(unsigned char *, char *);
+void		gen_sha256_string(unsigned char *, char *, u_int);
 char *		gen_sha256_instance_id(char *);
 void *		dispatch_work(void *);
 
