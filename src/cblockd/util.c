@@ -34,6 +34,7 @@
 #include <string.h>
 
 #include <openssl/sha.h>
+#include <sanitizer/msan_interface.h>
 
 #include "termbuf.h"
 #include "main.h"
@@ -47,6 +48,8 @@ gen_sha256_string(unsigned char *hash, char *output)
 {
 	int k;
 
+	__msan_unpoison(hash, SHA256_DIGEST_LENGTH);
+	__msan_unpoison(output, SHA256_DIGEST_LENGTH * 2);
 	for (k = 0; k < SHA256_DIGEST_LENGTH; k++) {
 		sprintf(output + (k * 2), "%02x", hash[k]);
 	}

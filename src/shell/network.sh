@@ -31,23 +31,34 @@ net_name=""
 net_mask=""
 op=""
 
+get_bridge_netif_by_network()
+{
+    for netif in $(ifconfig -l); do
+        net=$(ifconfig $netif | grep description: | awk '{ print $2 }')
+        if [ "$net" = "$1" ]; then
+            echo $netif
+        fi
+    done
+    exit 1
+}
+
 get_lowest_bridge_unit()
 {
-    iflist=$(ifconfig -l)
-    NOMATCH="TRUE"
-    for unit in $(jot 1024 0); do
-        ifconfig "bridge${unit}" create up 2>/dev/null
-        if [ "$?" -ne 0 ]; then
-            continue
-        fi 
-        printf "$unit"
-        NOMATCH="FALSE"
-        break
+    for unit in $(jot 512 0); do
+        bridge="bridge${unit}"
+        found="false"
+        for int in $(ifconfig -l); do
+            if [ "$bridge" = "$int" ]; then
+                found="true"
+                break
+            fi
+        done
+        if [ "$found" = "false" ]; then
+            echo $unit
+            return
+        fi
     done
-    if [ "$NOMATCH" = "TRUE" ]; then
-        echo "Exhausted bridge list. Giving up"
-        return 1
-    fi
+    echo "-1"
 }
 
 do_nat_setup()
@@ -92,8 +103,13 @@ do_nat_setup()
 do_bridge_setup()
 {
     unit=$(get_lowest_bridge_unit)
-    if [ $? -ne 0 ]; then
+    if [ "$unit" -le 0 ]; then
         echo "Failed to calculate lowest bridge unit"
+        exit 1
+    fi
+    ifconfig bridge"${unit}" create >/dev/null
+    if [ $? -ne 0 ]; then
+        echo "Failed to create bridge $unit"
         exit 1
     fi
     ifconfig bridge"${unit}" addm "$netif" >/dev/null
@@ -102,14 +118,14 @@ do_bridge_setup()
         echo "Failed to add root netif $netif to bridge $net_name"
         exit 1
     fi
-    ifconfig "bridge${unit}" name "${net_name}" >/dev/null
+    ifconfig "bridge${unit}" description "${net_name}" >/dev/null
     if [ $? -ne 0 ]; then
         ifconfig bridge"${unit}" destroy 
         echo "Failed to rename bridge interface bridge${unit} to ${net_name}"
         exit 1
     fi
     echo "bridge,${net_name},$netif" >> ${data_root}/networks/network_list
-    printf "${net_name}"
+    printf "bridge${unit}"
 }
 
 net_in_use()
@@ -140,7 +156,7 @@ net_destroy()
         fi
         case $_type in
         bridge)
-            ifconfig $_name destroy
+            ifconfig $(get_bridge_netif_by_network $_name) destroy
             ;;
         esac
     done < ${data_root}/networks/network_list

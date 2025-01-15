@@ -56,18 +56,22 @@ init_build()
     # interpreter. We ought to just use PATH for this.
     #
     if [ -f "${build_root}/tmp/cblock_forge/bin/sh" ]; then
+        # Forge builds
         jail -c \
           "host.hostname=$instance_id" \
           "ip4.addr=$(get_default_ip)" \
           "name=$instance_id" \
+          "allow.chflags=1" \
           "osrelease=$osrelease" \
           "path="${build_root} \
           exec.start="/tmp/cblock_forge/bin/sh /tmp/cblock-bootstrap.sh"
     else
+        # regular builds
         jail -c \
           "host.hostname=$instance_id" \
           "ip4.addr=$(get_default_ip)" \
           "name=$instance_id" \
+          "allow.chflags=1" \
           "osrelease=$osrelease" \
           "path="${build_root} \
           exec.start="/bin/sh /tmp/cblock-bootstrap.sh"

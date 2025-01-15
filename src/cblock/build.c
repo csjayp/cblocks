@@ -173,6 +173,7 @@ build_send_context(int sock, struct build_config *bcp)
 		errx(1, "Can not determine TERM type\n");
 	}
 	bzero(&pbc, sizeof(pbc));
+	bzero(&resp, sizeof(resp));
 	cmd = PRISON_IPC_SEND_BUILD_CTX;
 	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	pbc.p_build_fim_spec = bcp->b_fim_spec;
