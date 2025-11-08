@@ -74,7 +74,7 @@ commit_image()
                 "${build_root}/${build_index}/root/${dir}"
         fi
     else
-        rm -fr "${build_root}/${build_index}/root/tmp/*"
+        rm -Wfr "${build_root}/${build_index}/root/tmp/*"
         src="${build_root}/${build_index}"
     fi
     if [ "${fim_spec_mode}" = "ON" ]; then

@@ -73,7 +73,7 @@ do_image_purge()
             ;;
         ufs)
             chflags -R noschg "$image"
-            rm -fr "$image"
+            rm -Wfr "$image"
             ;;
         *)
             echo "No match on CBLOCK_FS"

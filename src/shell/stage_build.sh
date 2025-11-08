@@ -81,7 +81,8 @@ init_build()
     # to create directories etc (e.g.: like stage dependecies). Also we don't
     # want build artifacts hanging around in container images.
     #
-    rm -fr "${build_root}"/tmp/*
+    chflags -R noschg "${build_root}"/tmp/*
+    rm -Wfr "${build_root}"/tmp/*
 }
 
 init_build
