@@ -38,6 +38,7 @@ create_forge()
     case $CBLOCK_FS in
     ufs)
         if [ -d "$data_dir/images/forge" ]; then
+            chflags -R noschg "$data_dir/images/forge"
             rm -fr "$data_dir/images/forge" "$data_dir/images/forge:latest"
         fi
         mkdir -p "$data_dir/images/forge/root/tmp"
