@@ -1,8 +1,8 @@
 env:
   CIRRUS_CLONE_DEPTH: 1
 
-freebsd_12_task:
+freebsd_14_task:
   freebsd_instance:
-    image: freebsd-12-1-release-amd64
+    image: freebsd-14-3-release-amd64
   build_script:
     ./build.sh
