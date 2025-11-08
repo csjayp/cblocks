@@ -3,6 +3,6 @@ env:
 
 freebsd_14_task:
   freebsd_instance:
-    image: freebsd-14
+    image_name: freebsd-14-3-release-amd64-ufs
   build_script:
     ./build.sh
