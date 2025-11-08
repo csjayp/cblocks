@@ -237,6 +237,7 @@ main(int argc, char *argv [], char *env[])
 	char buf[32];
 
 	strcpy(buf, argv[1]);
+	(void) printf("TEST: %s\n", buf);
 	gcfg.c_data_dir = DEFAULT_DATA_DIR;
 	gcfg.global_env = env;
 	gcfg.c_callback = cblock_handle_request;
