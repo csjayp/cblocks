@@ -78,7 +78,7 @@ prepare_file_system()
         if [ -h "${build_root}/images/${base_container}" ]; then
             printf "\033[1m--\033[0m %s\n" "Ephemeral image found from previous stage"
             case $CBLOCK_FS in
-            ufs|fuse-unionfs)
+            ufs)
                 base_root="${build_root}/images/${base_container}"
                 ;;
             zfs)
@@ -95,50 +95,6 @@ prepare_file_system()
     # shadow objects being created which can impact performance.
     #
     case $CBLOCK_FS in
-    fuse-unionfs)
-        # NB: we should check for the fuse kld here, or load it inthe daemon
-        union_dir="${data_dir}/unions/${instance_name}/${stage_index}"
-        mkdir -p "${union_dir}"
-        perms="RO"
-        if [ -h "${base_root}" ] && [ "${stage_index}" -gt 0 ]; then
-            # NB: we should also validate that this directory matches the
-            # structure of an intermediate build image (pattern)
-            #
-            # NB: Do we need to unmount the active union before mounting
-            # it as the base image for the subsquent stage?
-            perms="RW"
-        fi
-        unionfs \
-          -o noauto_cache \
-          -o sync_read \
-          -o big_writes \
-          -o intr \
-          -o default_permissions \
-          -o allow_other \
-          -o cow \
-          -o use_ino \
-          "${base_root}/root=${perms}:${union_dir}=RW" \
-          "${build_root}"/"${stage_index}"/root
-        if [ $? -ne 0 ]; then
-            echo "Failed to add the fuse/unionfs overlay"
-            exit 1
-        fi
-        # This is a bit hackisk, but we need to wait for the unionfs mount to
-        # register in the mount points. This operation is occuring async to
-        # this shell script. This might be better handled by the unionfs
-        # command line tool itself
-        #
-        # NB: add an upper bound to this loop, either time or count.
-        while $(true); do
-            df "${build_root}/${stage_index}/root/etc"
-            if [ $? -eq 0 ]; then
-                break
-            fi
-        done
-        if [ ! -d "${build_root}/${stage_index}/root/tmp" ] ; then
-            mkdir "${build_root}/${stage_index}/root/tmp"
-        fi
-        ;;
     ufs)
         mount -t unionfs -o noatime -o below "${base_root}"/root \
           "${build_root}"/"${stage_index}"/root
@@ -183,7 +139,7 @@ bootstrap()
 {
 
     case $CBLOCK_FS in
-    ufs|fuse-unionfs)
+    ufs)
         mkdir -p "${build_root}/${stage_index}"
         ;;
     zfs)
