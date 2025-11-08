@@ -70,7 +70,6 @@ static char *data_sub_dirs[] = {
 	"locks",
 	"images",
 	"instances",
-	"unions",
 	"networks",
 	NULL,
 };
@@ -186,10 +185,6 @@ initialize_data_directory(int iszfs)
 	 */
 	dir_list = data_sub_dirs;
 	while ((dir = *dir_list++)) {
-		if (strcmp(dir, "instances") == 0 ||
-		    strcmp(dir, "images") == 0) {
-			continue;
-		}
 		(void) snprintf(path, sizeof(path), "%s/%s",
 		    gcfg.c_data_dir, dir);
 		if (mkdir(path, 0755) == -1 && errno != EEXIST) {
