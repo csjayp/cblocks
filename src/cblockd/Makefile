@@ -1,3 +1,4 @@
+#
 CC	?= cc
 CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I $(PREFIX)/include -I../include/
 TARGETS	= cblockd
