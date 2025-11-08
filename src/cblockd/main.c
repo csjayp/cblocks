@@ -70,7 +70,6 @@ static char *data_sub_dirs[] = {
 	"locks",
 	"images",
 	"instances",
-	"unions",
 	"networks",
 	NULL,
 };
