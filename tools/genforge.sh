@@ -28,11 +28,24 @@ BINS="cp fetch ln mkdir mktemp rm sh tar"
 ETCS="protocols resolv.conf services"
 CAPATH="/usr/local/share/certs/ca-root-nss.crt"
 
-if [ ! -f $CAPATH ]; then
+set -e
+
+. /etc/rc.conf
+
+if [ ! -f "$CAPATH" ]; then
     echo ERROR: ca-root-nss certs are not installed
     echo HINT: run pkg install ca_root_nss
     exit 1
 fi
+
+if [ -z "$cblockd_data_dir" ] || [ -z "$cblockd_fs" ]; then
+   echo ERROR: update /etc/rc.conf and set cblockd_enable cblockd_data_dir and cblockd_fs
+   exit 1
+fi
+
+chflags -R noschg forge/ && rm -fr forge/
+rm -fr forge.tgz && mkdir forge
+cd forge
 
 rm -fr libmap.conf
 
@@ -47,7 +60,7 @@ cp /libexec/ld-elf.so.1 libexec
 cp $CAPATH etc/
 
 for etc_file in $ETCS; do
-    cp "/etc/$etc_file" etc/
+    cp -p "/etc/$etc_file" etc/
 done
 
 get_deps()
@@ -83,3 +96,6 @@ for bin in $BINS; do
     dname=$(dirname $(echo $bpath | sed -E s,^/,,g))
     cp $bpath bin/
 done
+
+tar -czpf ../forge.tgz .
+cblockd --${cblockd_fs}  --data-directory ${cblockd_data_dir} --create-forge ../forge.tgz

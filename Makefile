@@ -1,3 +1,6 @@
+include /etc/rc.conf
+export $(shell sed 's/=.*//' /etc/rc.conf)
+
 cblock: cblockd
 	make -C src/cblock
 
@@ -17,3 +20,8 @@ clean:
 	make -C src/libcblock clean
 	make -C src/cblockd clean
 	make -C src/cblock clean
+
+forge:
+	cd tools && ./envcheck.sh
+	make -C src/shell DESTDIR=$(cblockd_data_dir) install
+	cd tools && ./genforge.sh
