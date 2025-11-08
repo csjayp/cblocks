@@ -2,9 +2,9 @@ FROM base AS go_builder
   ADD . .
   ENV ASSUME_ALWAYS_YES = "YES"
   RUN "pkg update"
-  RUN "pkg install go-1.21_5,2"
+  RUN "pkg install go125"
   WORKDIR /fcgi
-  ENV PATH = "$PATH:/usr/local/go14/bin"
+  ENV PATH = "$PATH:/usr/local/go125/bin"
   RUN "go mod init local/fcgi"
   RUN "go mod tidy"
   RUN "go build"

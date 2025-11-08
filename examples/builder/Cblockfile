@@ -1,4 +1,4 @@
-FROM freebsd
+FROM base
 ENV IGNORE_OSVERSION = yes
 RUN "pkg --yes update"
 RUN "pkg install --yes git"
