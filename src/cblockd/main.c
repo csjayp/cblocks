@@ -234,7 +234,9 @@ main(int argc, char *argv [], char *env[])
 	int option_index, c, zfs_selected;
 	pthread_t thr;
 	char *r;
+	char buf[32];
 
+	strcpy(buf, argv[1]);
 	gcfg.c_data_dir = DEFAULT_DATA_DIR;
 	gcfg.global_env = env;
 	gcfg.c_callback = cblock_handle_request;
