@@ -162,7 +162,7 @@ emit_mount_specification()
     if [ $? -eq 0 ]; then
         return 1
     fi
-    for spec in `echo "${_all_fields}" | sed "s/,/ /g"`; do
+    for spec in $(echo "${_all_fields}" | sed "s/,/ /g"); do
         case $spec in
         tmpfs)
             echo mount -t tmpfs tmpfs ${_root}/tmp\;
@@ -176,7 +176,7 @@ emit_mount_specification()
             echo mount -t fdescfs fdescfs ${_root}/dev/fd\;
             ;;
         *:*:*:*)
-            for field in `jot 4`; do
+            for field in $(jot 4); do
                 case $field in
                 1)
                     fs_type=`echo "$spec" | cut -f $field -d:`
@@ -192,6 +192,11 @@ emit_mount_specification()
                     ;;
                 esac
             done
+            if [ -z $fs_type ] || [ -z $fs_host ] || [ -z $container_mount ] || [ -z $perm ]; then
+                echo must follow fs:local:container:perms >&2
+                echo exit 1
+                return
+            fi
             echo -n "mount -t $fs_type "
             if [ "$perms" = "RO" ] || [ "$perms" = "ro" ]; then
                 echo -n "-o ro "
@@ -199,8 +204,9 @@ emit_mount_specification()
             echo $fs_host ${_root}/$container_mount\;
             ;;
         *)
-            echo invalid specification
-            return 1
+            echo must follow fs:local:container:perms >&2
+            echo exit 1
+            return
             ;;
         esac
     done
@@ -456,7 +462,8 @@ do_launch()
     esac
     mount -t devfs devfs "${instance_root}/dev"
     config_devfs
-    eval `emit_mount_specification "$mount_spec"`
+    mnt_cmd=$(emit_mount_specification "$mount_spec")
+    eval $mnt_cmd
     is_bridge=$(network_is_bridge)
     set $(emit_entrypoint)
     if [ "$is_bridge" = "TRUE" ]; then
