@@ -462,7 +462,7 @@ do_launch()
         else
             netspec="ip4.addr=$ip4"
         fi
-        jailcmd="$jailcmd $netspec command=$@"
+        jailcmd="$jailcmd $netspec osrelease=$(emit_os_release) command=$@"
         eval $jailcmd
     fi
 }
