@@ -28,6 +28,12 @@ BINS="cp fetch ln mkdir mktemp rm sh tar"
 ETCS="protocols resolv.conf services"
 CAPATH="/usr/local/share/certs/ca-root-nss.crt"
 
+if [ ! -f $CAPATH ]; then
+    echo ERROR: ca-root-nss certs are not installed
+    echo HINT: run pkg install ca_root_nss
+    exit 1
+fi
+
 rm -fr libmap.conf
 
 chflags -R noschg .

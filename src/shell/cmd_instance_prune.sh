@@ -66,7 +66,7 @@ do_instance_purge()
             ;;
         ufs)
             chflags -R noschg "${instance_path}"/*
-            rm -fr "${instance_path}"
+            rm -Wfr "${instance_path}"
             ;;
         esac
     done
