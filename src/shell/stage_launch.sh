@@ -34,7 +34,7 @@ entry_point_args="$8"
 devfs_mount="${data_root}/instances/${instance_id}/root/dev"
 image_dir=""
 
-set -e
+#set -e
 
 net_is_ip6()
 {   
@@ -100,7 +100,7 @@ get_jail_interface()
             exit 1
         fi
         echo epair${epair_unit}b
-        echo "bridge:${instance_id}:epair${epair_unit}:$network" >> \
+        echo "bridge,${instance_id},epair${epair_unit},$network" >> \
           $data_root/networks/cur
         ;;
     *)

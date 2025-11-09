@@ -42,13 +42,18 @@ get_bridge_netif_by_network()
     exit 1
 }
 
+get_bridge_unit()
+{
+    ifconfig -D $1 | grep "drivername: bridge" | awk '{ print $2 }' | sed s/bridge//
+}
+
 get_lowest_bridge_unit()
 {
-    for unit in $(jot 512 0); do
-        bridge="bridge${unit}"
+    for unit in $(jot 10 0); do
         found="false"
-        for int in $(ifconfig -l); do
-            if [ "$bridge" = "$int" ]; then
+        for n in $(ifconfig -l); do
+            ounit=$(get_bridge_unit $n)
+            if [ "$ounit" = "$unit" ]; then
                 found="true"
                 break
             fi
@@ -103,7 +108,7 @@ do_nat_setup()
 do_bridge_setup()
 {
     unit=$(get_lowest_bridge_unit)
-    if [ "$unit" -le 0 ]; then
+    if [ "$unit" -lt 0 ]; then
         echo "Failed to calculate lowest bridge unit"
         exit 1
     fi

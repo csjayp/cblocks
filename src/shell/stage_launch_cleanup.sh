@@ -33,6 +33,23 @@ path_to_vol()
     echo -n "$1" | sed -E "s,^/(.*),\1,g"
 }
 
+netif_get_desc()
+{
+    ifconfig -D $1 | grep description | awk '{ print $2 }'
+}
+
+netif_get_bridge_by_name()
+{
+    for n in $(ifconfig -l); do
+        desc=$(netif_get_desc $n)
+        if [ "$desc" = "$1" ]; then
+            echo "$n"
+            return
+        fi
+    done
+    echo "someNonExistentInterface24567"
+}
+
 network_cleanup()
 {
     if [ ! -f "$data_root"/networks/cur ]; then
@@ -49,7 +66,8 @@ network_cleanup()
         case $type in
         bridge)
             epair=$(echo $ln | awk -F, '{ print $3 }')
-            bridgeif=$(echo $ln | awk -F, '{ print $4 }')
+            net_name=$(echo $ln | awk -F, '{ print $4 }')
+            bridgeif=$(netif_get_bridge_by_name $net_name)
             ifconfig "${epair}a" down
             ifconfig "$bridgeif" deletem "${epair}a"
             ifconfig "${epair}a" destroy

@@ -180,11 +180,20 @@ initialize_data_directory(int iszfs)
 		errx(1, "%s: is not a directory", gcfg.c_data_dir);
 	}
 	/*
-	 * NB: we need a chck for ZFS. The scripts depend on these directories
+	 * NB: we need a check for ZFS. The scripts depend on these directories
 	 * actually being file system roots.
 	 */
 	dir_list = data_sub_dirs;
 	while ((dir = *dir_list++)) {
+		/*
+		 * We skip over creating these directories for ZFS because they
+		 * get created as part of the file system creation.
+		 */
+		if (strcmp(gcfg.c_underlying_fs, "zfs") == 0 &&
+		    (strcmp(dir, "instances") == 0 ||
+		    strcmp(dir, "images") == 0)) {
+			continue;
+		}
 		(void) snprintf(path, sizeof(path), "%s/%s",
 		    gcfg.c_data_dir, dir);
 		if (mkdir(path, 0755) == -1 && errno != EEXIST) {
