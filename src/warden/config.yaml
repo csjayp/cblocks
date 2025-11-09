@@ -1,0 +1,31 @@
+# cellblock orchestration
+# sudo cblock network --create --type nat --netmask 192.168.0.0/24 --interface em0 --name vlan0
+
+cellblocks:
+  - image: base:14.3
+    description: postfix smtp server
+    fdescfs: true
+    network: vlan0
+    ports:
+      - host_port: 443
+        container_port: 443
+        public: true
+      - host_port: 80
+        container_port: 80
+    volumes:
+      - type: ufs
+        origin: /dev/zvol/pool0/db-storage
+        mountpoint: /data
+        perms: rw
+      - type: zfs
+        origin: pool0/dataset
+        mountpoint: /zfs/dataset
+        perms: rw
+      - type: nullfs
+        origin: /home/csjp/.ssh
+        mountpoint: /root/.ssh
+        perms: ro
+
+  - image: porter
+    tmpfs: true
+    network: host
