@@ -1,4 +1,4 @@
-FROM base AS go_builder
+FROM base:14.3 AS go_builder
   ADD . .
   ENV ASSUME_ALWAYS_YES = "YES"
   RUN "pkg update"
@@ -10,7 +10,7 @@ FROM base AS go_builder
   RUN "go build"
   RUN "size fcgi"
 
-FROM base
+FROM base:14.3
   ADD . .
   ENV ASSUME_ALWAYS_YES = "YES"
   RUN "pkg install h2o"
@@ -21,5 +21,6 @@ FROM base
 
 AUDITCFG "ex,pc"
 
-ENTRYPOINT [ "/usr/local/bin/h2o", "-c", "/h2o.conf" ]
+#ENTRYPOINT [ "/usr/local/bin/h2o", "-c", "/h2o.conf" ]
+ENTRYPOINT [ "/bin/tcsh" ]
 CMD [ ]
