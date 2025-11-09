@@ -40,23 +40,23 @@ network_cleanup()
     fi
     newdb=$(mktemp)
     while read ln; do
-        ins=$(echo "$ln" | awk -F: '{ print $2 }')
+        ins=$(echo "$ln" | awk -F, '{ print $2 }')
         if [ "$ins" != "$instance" ]; then
             echo $ln >> $newdb
             continue
         fi
-        type=$(echo "$ln" | awk -F: '{ print $1 }')
+        type=$(echo "$ln" | awk -F, '{ print $1 }')
         case $type in
         bridge)
-            epair=$(echo $ln | awk -F: '{ print $3 }')
-            bridgeif=$(echo $ln | awk -F: '{ print $4 }')
+            epair=$(echo $ln | awk -F, '{ print $3 }')
+            bridgeif=$(echo $ln | awk -F, '{ print $4 }')
             ifconfig "${epair}a" down
             ifconfig "$bridgeif" deletem "${epair}a"
             ifconfig "${epair}a" destroy
             ;;
         nat)
             version=$(echo "$ln" | cut -f 5 -d,)
-            ip=$(echo "$ln" | awk -F: '{ print $3 }')
+            ip=$(echo "$ln" | awk -F, '{ print $3 }')
             if [ "$version" = "6" ]; then
                 ifconfig cblock0 inet6 "${ip}" delete
             else

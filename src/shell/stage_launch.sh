@@ -1,4 +1,3 @@
-#!/bin/sh
 #
 # Copyright (c) 2020 Christian S.J. Peron
 # All rights reserved.
@@ -34,6 +33,8 @@ ports="$7"
 entry_point_args="$8"
 devfs_mount="${data_root}/instances/${instance_id}/root/dev"
 image_dir=""
+
+set -e
 
 net_is_ip6()
 {   
@@ -290,9 +291,9 @@ is_broadcast()
         echo "invalid ip version"
         exit 1
     esac
-    range=`subcalc $family $1 | grep "^range:"`
-    start=`echo $range | awk '{ print $2 }'`
-    end=`echo $range | awk '{ print $4 }'`
+    range=$(subcalc $family $1 | grep "^range:")
+    start=$(echo $range | awk '{ print $2 }')
+    end=$(echo $range | awk '{ print $4 }')
     if [ "$2" = "$start" ] || [ "$2" = "$end" ]; then
         echo yes
     else
@@ -382,8 +383,8 @@ network_to_ip()
         net_addr=$(echo $ln | awk -F, '{ print $4 }')
         out_if=$(echo $ln | awk -F, '{ print $3 }')
         for ip in $(subcalc inet $net_addr print | grep -v "^;"); do
-            if [ $(is_assigned $ip) = "no" ] && \
-               [ $(is_broadcast $net_addr $ip) = "no" ]; then
+            if [ $(is_assigned $ip "4") = "no" ] && \
+               [ $(is_broadcast $net_addr $ip "4") = "no" ]; then
                 ifconfig cblock0 inet "${ip}/32" alias
                 echo "nat on $out_if from ${ip}/32 to any -> ($out_if)" | \
                     pfctl -a cblock-nat/${instance_id} -f -
@@ -431,8 +432,13 @@ do_launch()
     esac
     mount -t devfs devfs "${instance_root}/dev"
     config_devfs
-    mnt_cmd=$(emit_mount_specification "$mount_spec")
-    eval $mnt_cmd
+    # if mount_spec is *just* devfs skip over mount operations since
+    # devfs is handled elsewhere.
+    # NB: handle trailing ',' character...
+    if [ "$mount_spec" != "devfs," ]; then
+        mnt_cmd=$(emit_mount_specification "$mount_spec")
+        eval $mnt_cmd
+    fi
     is_bridge=$(network_is_bridge)
     set $(emit_entrypoint)
     if [ "$is_bridge" = "TRUE" ]; then
@@ -449,6 +455,8 @@ do_launch()
     else
         if [ "$network" = "__host__" ]; then
             ip4=$(get_default_ip)
+        else
+            ip4=$(network_to_ip)
         fi
         jailcmd=""
         if [ -f "${image_dir}/AUDITCFG" ]; then

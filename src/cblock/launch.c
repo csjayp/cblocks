@@ -162,6 +162,11 @@ launch_main(int argc, char *argv [], int ctlsock)
 	lc.l_tag = "latest";
 	lc.l_attach = 1;
 	lc.l_verbose = 0;
+	/*
+	 * We will use host networking if nothing else is specified. This hopefully
+	 * simplifies the container launching use cases a bit.
+	 */
+	lc.l_network = "__host__";
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
