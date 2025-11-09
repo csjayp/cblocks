@@ -57,11 +57,6 @@ humanize()
     fi
 }
 
-get_vol()
-{
-    printf "%s" "$1" | sed -E "s,^/(.*),\1,g"
-}
-
 images()
 {
     find "${data_dir}/images" \
