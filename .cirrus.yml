@@ -5,4 +5,4 @@ freebsd_14_task:
   freebsd_instance:
     image_family: freebsd-14-2
   build_script:
-    - ./build.sh
+    - /ci/build.sh
