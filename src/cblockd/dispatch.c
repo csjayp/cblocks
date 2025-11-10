@@ -153,6 +153,48 @@ tty_io_queue_loop(void *arg)
 }
 
 int
+dispatch_signal_instance(int sock)
+{
+	extern pthread_mutex_t cblock_mutex;
+	struct cblock_signal_instance csi;
+	struct cblock_response resp;
+	struct cblock_instance *pi;
+
+	bzero(&resp, sizeof(resp));
+	sock_ipc_must_read(sock, &csi, sizeof(csi));
+	pthread_mutex_lock(&cblock_mutex);
+	pi = cblock_lookup_instance(csi.p_instance);
+	if (pi == NULL) {
+		pthread_mutex_unlock(&cblock_mutex);
+		(void) snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
+		    "%s invalid container", csi.p_instance);
+		resp.p_ecode = 1;
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		return (1);
+	}
+	switch (csi.p_sig) {
+	case SIGTERM:
+	case SIGKILL:
+	case SIGHUP:
+		(void) kill(pi->p_pid, csi.p_sig);
+		pthread_mutex_unlock(&cblock_mutex);
+		break;
+	default:
+		pthread_mutex_unlock(&cblock_mutex);
+		(void) snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
+		    "illegal signal specification: %d", csi.p_sig);
+		resp.p_ecode = 1;
+		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		return (1);
+	}
+	pthread_mutex_unlock(&cblock_mutex);
+	resp.p_ecode = 0;
+	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "OK %d", csi.p_sig);
+	sock_ipc_must_write(sock, &resp, sizeof(resp));
+        return (1);
+}
+
+int
 dispatch_connect_console(int sock)
 {
 	extern pthread_mutex_t cblock_mutex;
@@ -317,6 +359,10 @@ dispatch_work(void *arg)
 			break;
 		}
 		switch (cmd) {
+		case PRISON_IPC_SIGNAL_INSTANCE:
+			cc = dispatch_signal_instance(p->p_sock);
+			done = 1;
+			break;
 		case PRISON_IPC_GENERIC_COMMAND:
 			cc = dispatch_generic_command(p->p_sock);
 			done = 1;

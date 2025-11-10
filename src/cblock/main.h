@@ -28,6 +28,8 @@
 #define	MAIN_DOT_H_
 
 #define	MAXSOCKS	64
+#define	INSTANCE_SIGOP_KILL	1
+#define	INSTANCE_SIGOP_STOP	2
 
 struct global_params {
 	char		*c_name;
