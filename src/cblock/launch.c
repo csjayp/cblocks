@@ -248,7 +248,7 @@ launch_main(int argc, char *argv [], int ctlsock)
 			warnx("Create a NAT based network if you want this.");
 			exit(1);
 		}
-		if (lc.l_network) {
+		if (lc.l_network && strcmp(lc.l_network, "__host__") != 0) {
 			warnx("--network and --host-networking are mutually exclusive");
 			exit(1);
 		}

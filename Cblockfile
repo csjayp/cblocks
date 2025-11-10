@@ -1,12 +1,13 @@
-FROM base:14.3
+FROM freebsd:14.3
 
+ENV ASSUME_ALWAYS_YES = "YES"
+ENV LC_ALL = "C"
+RUN "pkg install go125"
+ENV PATH = "/usr/local/go125/bin:$PATH"
 RUN "mkdir /build"
 RUN "mkdir -p /usr/local/etc/rc.d"
 ADD . /build
 WORKDIR "/build"
-RUN "make"
-RUN "make install"
-RUN "make clean"
 RUN "./build.sh"
 
 ENTRYPOINT ["/bin/tcsh"]
