@@ -31,6 +31,7 @@
 #include <sys/ioctl.h>
 #include <sys/queue.h>
 #include <sys/ttycom.h>
+#include <signal.h>
 
 #ifdef __FreeBSD__
 #include <net/if.h>
@@ -65,6 +66,7 @@ enum {
 #define	PRISON_IPC_GET_INSTANCES	9
 #define	PRISON_IPC_GENERIC_COMMAND	10
 #define	PRISON_IPC_NETWORK_CTL		11
+#define	PRISON_IPC_SIGNAL_INSTANCE	12
 
 struct instance_ent {
 	char					p_instance_name[MAX_PRISON_NAME];
@@ -111,6 +113,11 @@ struct cblock_launch {
 	char					p_ports[MAX_ARG_STRING];
 	char					p_network[IF_NAMESIZE];
 	int					p_verbose;
+};
+
+struct cblock_signal_instance {
+	char					p_instance[MAX_PRISON_NAME];
+	int					p_sig;
 };
 
 struct cblock_console_connect {
