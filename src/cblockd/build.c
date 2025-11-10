@@ -463,6 +463,15 @@ build_commit_image(struct build_context *bcp)
 	vec_env = vec_init(16);
 	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
 	vec_append(vec_env, buf);
+	/*
+	 * Since we are using tar to solidify the image it's possible that it
+	 * will encouter non-UTF8 characters. We need to instruct tar to treat
+	 * all file names as bytes. Use the C locale for this.
+	 */
+	sprintf(buf, "LC_ALL=C");
+	vec_append(vec_env, buf);
+	sprintf(buf, "TAR_WRITER_OPTIONS=hdrcharset=BINARY");
+	vec_append(vec_env, buf);
 	vec_finalize(vec_env);
 	vec = vec_init(16);
 	vec_append(vec, "/bin/sh");

@@ -32,6 +32,8 @@ set -e
 
 . /etc/rc.conf
 
+./envcheck.sh
+
 if [ ! -f "$CAPATH" ]; then
     echo ERROR: ca-root-nss certs are not installed
     echo HINT: run pkg install ca_root_nss
