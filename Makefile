@@ -1,27 +1,29 @@
-include /etc/rc.conf
-export $(shell sed 's/=.*//' /etc/rc.conf)
+all: cblockd cblock warden
 
 cblock: cblockd
 	make -C src/cblock
 
-cblockd: libcblock.so 
+cblockd: libcblock.so
 	make -C src/cblockd
 
 libcblock.so:
 	make -C src/libcblock
 
+warden: cblockd
+	make -C src/warden
+
 install:
 	make -C src/libcblock install
 	make -C src/cblockd install
 	make -C src/cblock install
+	make -C src/warden install
 	cp src/rc/cblockd /usr/local/etc/rc.d
 
 clean:
 	make -C src/libcblock clean
 	make -C src/cblockd clean
 	make -C src/cblock clean
+	make -C src/warden clean
 
 forge:
-	cd tools && ./envcheck.sh
-	make -C src/shell DESTDIR=$(cblockd_data_dir) install
 	cd tools && ./genforge.sh
