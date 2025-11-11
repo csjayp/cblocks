@@ -4,9 +4,18 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
+	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v3"
 )
+
+type CmdArgs struct {
+	ManifestPath *string
+	Prefix       *string
+	UseZFS       *bool
+	UseUFS       *bool
+}
 
 type PortMapping struct {
 	HostPort      string `yaml:"host_port"`
@@ -31,47 +40,100 @@ type Cellblock struct {
 	Ports   []PortMapping `yaml:"ports"`
 }
 
+type CmdVec struct {
+	Args []string
+}
+
+func (c *CmdVec) SetProg(path string) {
+	c.Args = make([]string, 0)
+	c.Args = append(c.Args, path)
+}
+
+func (c *CmdVec) AddBool(option string) {
+	comp := "--" + option
+	c.Args = append(c.Args, comp)
+}
+
+func (c *CmdVec) AddOption(option, value string) {
+	comp := "--" + option
+	comp = comp + " " + value
+	c.Args = append(c.Args, comp)
+}
+
+func (c *CmdVec) AddString(option string) {
+	c.Args = append(c.Args, option)
+}
+
 type Config struct {
 	Cellblocks []Cellblock `yaml:"cellblocks"`
 }
 
-func processPorts(portMappings []PortMapping) {
+func processPorts(portMappings []PortMapping, cmdLine *CmdVec) {
 	for _, port := range portMappings {
+		arg := ""
 		if port.Public {
-			fmt.Printf("--port %s:%s:public\n",
-			    port.HostPort, port.ContainerPort)
+			arg = fmt.Sprintf("%s:%s:public\n", port.HostPort,
+				port.ContainerPort)
 		} else {
-			fmt.Printf("--port %s:%s\n",
-			    port.HostPort,
-			    port.ContainerPort)
+			arg = fmt.Sprintf("%s:%s\n", port.HostPort,
+				port.ContainerPort)
 		}
+		cmdLine.AddOption("port", arg)
 	}
 }
 
-func processVolumes(vols []Volume) {
+func processVolumes(vols []Volume, cmdLine *CmdVec) {
 	for _, vol := range vols {
-		fmt.Printf("--volume %s:%s:%s:%s\n",
-			vol.FsType, vol.Origin,
+		arg := fmt.Sprintf("%s:%s:%s:%s", vol.FsType, vol.Origin,
 			vol.MountPoint, vol.Perms)
+		cmdLine.AddOption("volume", arg)
 	}
 }
 
-func processManifest(gcfg Config) {
+func processManifest(gcfg Config, prog string) {
+	cellblockCount := 1
 	for _, cb := range gcfg.Cellblocks {
-		fmt.Printf("Launching image: %s\n", cb.Image)
+		cmd := CmdVec{}
+		cmd.SetProg(prog)
+		cmd.AddString("launch")
+		if cb.Image == "" {
+			log.Fatalf("block number %d has no image\n", cellblockCount)
+		}
+                cmd.AddBool("no-attach")
+		cmd.AddOption("name", cb.Image)
+		if cb.Network != "" {
+			cmd.AddOption("network", cb.Network)
+		}
+		if cb.Fdescfs {
+			cmd.AddBool("fdescfs")
+		}
+		if cb.Procfs {
+			cmd.AddBool("procfs")
+		}
+		if cb.Tmpfs {
+			cmd.AddBool("tmpfs")
+		}
 		if len(cb.Volumes) > 0 {
-			processVolumes(cb.Volumes)
+			processVolumes(cb.Volumes, &cmd)
 		}
 		if len(cb.Ports) > 0 {
-			processPorts(cb.Ports)
+			processPorts(cb.Ports, &cmd)
 		}
+		fmt.Printf("%s", strings.Join(cmd.Args, " "))
 	}
 }
 
 func main() {
 	var gcfg Config
+	cfg := CmdArgs{}
+	cfg.Prefix = pflag.StringP("prefix", "P", "/usr/local", "installation path")
+	manifestPath := *cfg.Prefix + "/etc/cellblocks.yaml"
+	cfg.ManifestPath = pflag.StringP("manifest-path", "p", manifestPath, "path to cellblock manifest")
+	cfg.UseUFS = pflag.BoolP("ufs", "u", true, "use the UFS filesystem")
+	cfg.UseZFS = pflag.BoolP("zfs", "z", false, "use the ZFS filesystem")
 
-	cf, err := os.ReadFile("config.yaml")
+	pflag.Parse()
+	cf, err := os.ReadFile(*cfg.ManifestPath)
 	if err != nil {
 		log.Fatalf("error reading YAML file: %v", err)
 	}
@@ -79,5 +141,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("error parsing cellblock manifest: %v\n", err)
 	}
-	processManifest(gcfg)
+	prog := *cfg.Prefix + "/bin/cblock"
+	processManifest(gcfg, prog)
 }
