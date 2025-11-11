@@ -56,7 +56,6 @@ All required tools are available through the **FreeBSD Ports Collection**.
 
 - Achieve **OCI compliance** for interoperability with existing container ecosystems.  
 - Expand **DTrace integration** for advanced observability and performance tuning.  
-- Enhance **snapshot and rollback** support, leveraging **ZFS clones** and dataset features.  
 
 ---
 
