@@ -25,5 +25,8 @@ clean:
 	make -C src/cblock clean
 	make -C src/warden clean
 
+test:
+	make -C src/warden test
+
 forge:
 	cd tools && ./genforge.sh
