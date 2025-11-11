@@ -264,6 +264,7 @@ cblock_remove(struct cblock_instance *pi)
 		warn("unable to remove pidfile");
 	}
 	free(pi->p_pid_file_path);
+	free(pi->p_instance_tag);
 	free(pi);
 }
 
@@ -364,5 +365,6 @@ cblock_handle_request(void *arg)
 	if (pthread_create(&p->p_thr, &p->p_detached, dispatch_work, arg) != 0) {
 		err(1, "pthread_create(dispatch_work) failed");
 	}
+	pthread_attr_destroy(&p->p_detached);
 	return (NULL);
 }
