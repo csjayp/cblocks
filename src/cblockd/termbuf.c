@@ -101,15 +101,15 @@ termbuf_append(struct tty_buffer *ttyb, u_char *bytes, size_t len)
 	}
 	tbp->t_len = len;
 	if (len >= sizeof(tbp->t_static)) {
-		tbp->t_dynamic = calloc(1, sizeof(len));
+		tbp->t_dynamic = calloc(1, tbp->t_len);
 		if (tbp->t_dynamic == NULL) {
 			err(1, "calloc(t_dynamic) failed");
 		}
-		bcopy(bytes, tbp->t_dynamic, tbp->t_len);
+		memcpy(tbp->t_dynamic, bytes, tbp->t_len);
 		tbp->t_flag = TERMBUF_DYNAMIC;
 	} else {
 		tbp->t_flag = TERMBUF_STATIC;
-		bcopy(bytes, tbp->t_static, tbp->t_len);
+		memcpy(tbp->t_static, bytes, tbp->t_len);
 	}
 	ttyb->t_tot_len += tbp->t_len;
 	TAILQ_INSERT_TAIL(&ttyb->t_head, tbp, t_glue);
