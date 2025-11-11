@@ -79,6 +79,7 @@ sock_ipc_from_sock_to_tty(int sock)
 		if (cc == 0) {
 			break;
 		}
+		/* NB: if stdout is a pipe we need to do better */
 		write(STDOUT_FILENO, buf, cc);
 	}
 }

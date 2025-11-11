@@ -51,7 +51,7 @@ termbuf_to_contig(struct tty_buffer *ttyb)
 	if (TAILQ_EMPTY(&ttyb->t_head)) {
 		return (NULL);
 	}
-	buf = calloc(1, ttyb->t_tot_len + 1);
+	buf = malloc(ttyb->t_tot_len + 1);
 	if (buf == NULL) {
 		err(1, "calloc(termbuf_to_contig) failed)");
 	}
@@ -59,10 +59,10 @@ termbuf_to_contig(struct tty_buffer *ttyb)
 	TAILQ_FOREACH(tbp, &ttyb->t_head, t_glue) {
 		switch (tbp->t_flag) {
 		case TERMBUF_DYNAMIC:
-			bcopy(tbp->t_dynamic, vptr, tbp->t_len);
+			memcpy(vptr, tbp->t_dynamic, tbp->t_len);
 			break;
 		case TERMBUF_STATIC:
-			bcopy(tbp->t_static, vptr, tbp->t_len);
+			memcpy(vptr, tbp->t_static, tbp->t_len);
 			break;
 		}
 		vptr += tbp->t_len;
@@ -134,7 +134,7 @@ termbuf_print_buf(struct termbuf *tbp)
 		p = tbp->t_dynamic;
 		break;
 	}
-	printf("%s", (char *)p);
+	(void) fwrite(p, 1, tbp->t_len, stdout);
 }
 
 
