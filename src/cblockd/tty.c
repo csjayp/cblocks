@@ -129,6 +129,10 @@ tty_trim_buffer(char *input, size_t len, size_t *newlen)
 	uintptr_t old, new;
 	char  *ep;
 
+	if (len == 0) {
+		*newlen = 0;
+		return (input);
+	}
 	new = 0;
 	ep = input + len - 1;
 	old = (uintptr_t) ep;
