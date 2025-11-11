@@ -5,10 +5,23 @@
 |____|_____|__|__|_____|__|_____|____|__|__|_____|
 ```
 
-# Cell blocks
+![dystopian cellblocks](media/cellblocks2.png "dystopian cellblocks")
 
-Modern container management system for FreeBSD built on top of the
-jailing system.
+# Introduction
+
+This project is a lightweight container building and runtime environment built on FreeBSD jails, designed for high performance and a minimal memory footprint. It supports both UFS/unionfs and ZFS storage backends and assigns each container its own PTY, providing a persistent, attachable console for interactive access and debugging. The system is implemented in C, Shell, and Go, combining low-level efficiency with scriptable flexibility.
+
+The container build system features a domain-specific language with a syntax closely resembling Dockerfiles, making it intuitive for users familiar with container workflows while remaining tightly integrated with the FreeBSD ecosystem. At start up, container orchestration is handled by Warden, which allows you to declaratively specify containers to launch at startup, define port mappings, volumes, and network modes. Networking leverages FreeBSD’s native mechanisms, supporting both bridge and NAT modes through the PF firewall, and includes support for OS auditing and mtree-based snapshots for file integrity monitoring (FIM).
+
+For deep observability, the environment also publishes cell block–specific DTrace providers, allowing administrators to trace and troubleshoot container lifecycle events and performance characteristics in real time. Future development will focus on OCI compliance, extending interoperability with existing container ecosystems while preserving the performance, security, and simplicity inherent to the FreeBSD jail model.
+
+## Prequisites
+
+In addition to the C compilers, the Go toolchain is required for building components of the system written in Go. Certain utilities are also necessary for full functionality: setaudit is used to apply and pin audit configurations within a container, and subcalc is required to configure container networking. All of these tools are available through the FreeBSD Ports Collection, ensuring easy installation and integration into the build environment.
+
+```
+% pkg install subcalc setaudit go125
+```
 
 ## Building cblock daemon and client
 
@@ -16,7 +29,6 @@ jailing system.
 % git clone https://github.com/csjayp/cblocks.git
 % cd cblocks
 % make
-
 ```
 
 ## Installing
@@ -26,6 +38,29 @@ First, install the binaries and create the root file system for your cellblock d
 ```
 % sudo make install
 % make clean
+```
+
+## Configuring
+
+For UFS you can do:
+
+```
+% mkdir /usr/cblocks
+% mkdir /usr/cblocks/instances
+% mkdir /usr/cblocks/images
+```
+
+Modify the rc.conf to include the setup (make sure to substitute the ZFS path with your own):
+
+```
+cblockd_enable=YES
+cblockd_data_dir="/usr/cblocks"
+cblockd_fs="ufs"
+```
+
+Alternatively for ZFS:
+
+```
 % sudo zfs create ssdvol0/cblocks
 % sudo zfs create ssdvol0/cblocks/instances
 % sudo zfs create ssdvol0/cblocks/images
@@ -53,22 +88,59 @@ pts that are required for cblockd's operation (note: sequencing is important, be
 % sudo make install DESTDIR=/ssdvol0/cblocks 
 ```
 
-### Creating the base Forge image
+## Setting up networking
 
-The forge image contains the toolchain to which facilitates all the operations
-that can occur in the `Cblockfile`. This is the prime image, that must be present
-to build other cellblocks. This image is created on the server using the following
-steps:
+For NAT networks use the following command:
 
 ```
-% cd ../../tools
-% mdkdir forge
-% cd forge
-% sudo ../genforge.sh
+% sudo cblock network --create --type nat --netmask 10.0.0.0/24 --interface em0 --name vlan0
+% sudo cblock network
+   TYPE       NAME  NETIF   NET
+    nat      vlan0    em0   10.0.0.0/24
+%
 ```
-When you look in your current working directory, you will see the base
-utilities and libraries needed to facilitate the operations within a
-Cblockfile.
+For bridged networks perform the following:
+
+```
+% sudo cblock network --create --type bridge --interface re0 --name l2net
+Bridge bridge1 configured and ready for containers
+bridge1: flags=8802<BROADCAST,SIMPLEX,MULTICAST> metric 0 mtu 1500
+	description: l2net
+	options=10<VLAN_HWTAGGING>
+	ether 58:9c:fc:10:0a:4c
+	id 00:00:00:00:00:00 priority 32768 hellotime 2 fwddelay 15
+	maxage 20 holdcnt 6 proto rstp maxaddr 2000 timeout 1200
+	root id 00:00:00:00:00:00 priority 0 ifcost 0 port 0
+	bridge flags=0<>
+	member: re0 flags=143<LEARNING,DISCOVER,AUTOEDGE,AUTOPTP>
+	        port 1 priority 128 path cost 55 vlan protocol 802.1q
+	groups: bridge
+	nd6 options=9<PERFORMNUD,IFDISABLED>
+% sudo cblock network
+   TYPE       NAME  NETIF   NET
+ bridge      l2net    re0   -
+%
+```
+NOTE: IMPORTANT: If you have your bridged network bound to your external interface, you will be exposed
+to attack from the internet and will probably want to configure a firewall!
+
+If users are using NAT mode network they must be using PF and have the following anchors defined:
+
+```
+rdr-anchor "cblock-rdr/*"
+nat-anchor "cblock-nat/*"
+```
+
+## Creating the base Forge image
+
+The forge image provides the toolchain that enables all operations defined within a Cblockfile. It serves as the base (layer 0) image, which must be present before building any other cellblocks. This image is created on the server using the following steps:
+
+```
+% sudo make forge
+```
+The command above does a bunch of operations but it basically reads various libraries and
+utilities and organizes them into an image the has the following hierarchy, then boostraps
+or loads the image into your cblock daemon.
 
 ```
 % tree 
@@ -104,31 +176,6 @@ Cblockfile.
 3 directories, 24 files
 ```
 
-Next, prepare your tar file. This will be used by the daemon service to
-to create your first image. With this image, you will be ready to contruct
-others:
-
-```
-% tar -czvpf ../forge.tgz .
-```
-
-Now that your forge image is archived up, you can submit it to the daemon
-which will convert it into your first image (make sure you are using the correct
-data directory):
-
-```
-% sudo cblockd --zfs --data-directory /ssdvol0/cblocks --create-forge ../forge.tgz
-            __ __ __    __            __
-.----.-----|  |  |  |--|  .-----.----|  |--.-----.
-|  __|  -__|  |  |  _  |  |  _  |  __|    <|__ --|
-|____|_____|__|__|_____|__|_____|____|__|__|_____|
-
-version 0.0.0
--- Constructing the base forge image for future forging operations
--- Forge creation returned 0
-%
-```
-
 Next you can verify your image:
 
 ```
@@ -140,10 +187,7 @@ forge            latest                 13.36M  2021-05-24 19:23:19
 
 ### Creating base FreeBSD image
 
-Now you are ready to start creating cellblocks. As a good first example, I typically
-like to create a base FreeBSD image. I generally use the Cblock file included in the
-examples called "base", in this directory you will see a single file that will construct
-a full freebsd image based on the distfiles:
+With the environment set up, the next step is to begin creating cellblocks. A good starting point is to build a base FreeBSD image. The included example, named "base", provides a sample Cblockfile located in the examples directory. This file defines the instructions needed to construct a complete FreeBSD image from the standard distribution files.
 
 ```
 % cd ../../examples/base/
