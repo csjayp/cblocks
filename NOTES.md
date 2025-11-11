@@ -2,8 +2,7 @@
 
 ## Overview
 
-Cblocks is a lightweight container build and runtime environment built on **FreeBSD jails**, designed for simplicity, performance, and deep integration with FreeBSD’s native subsystems.  
-The system is implemented in **C**, **Shell**, and **Go**, combining low-level efficiency with high-level orchestration and build logic.
+Cblocks is a lightweight container build and runtime environment built on **FreeBSD jails**, designed for simplicity, performance, and deep integration with FreeBSD’s native subsystems. The system is implemented in **C**, **Shell**, and **Go**, combining low-level efficiency with high-level orchestration and build logic.
 
 ---
 
