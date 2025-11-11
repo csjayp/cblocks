@@ -8,6 +8,6 @@ RUN "mkdir /build"
 RUN "mkdir -p /usr/local/etc/rc.d"
 ADD . /build
 WORKDIR "/build"
-RUN "./build.sh"
+RUN "./ci/build.sh"
 
 ENTRYPOINT ["/bin/tcsh"]
