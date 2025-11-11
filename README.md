@@ -5,6 +5,8 @@
 |____|_____|__|__|_____|__|_____|____|__|__|_____|
 ```
 
+![dystopian cellblocks](media/cellblock2.png "cellblocks")
+
 # Cell blocks
 
 Modern container management system for FreeBSD built on top of the
