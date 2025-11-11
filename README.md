@@ -28,6 +28,11 @@ For deep observability, the environment also publishes cell block–specific DTr
 
 First, install the binaries and create the root file system for your cellblock daemon:
 
+```
+% sudo make install
+% make clean
+```
+
 For UFS you can do:
 
 ```
@@ -47,8 +52,6 @@ cblockd_fs="ufs"
 Alternatively for ZFS:
 
 ```
-% sudo make install
-% make clean
 % sudo zfs create ssdvol0/cblocks
 % sudo zfs create ssdvol0/cblocks/instances
 % sudo zfs create ssdvol0/cblocks/images
