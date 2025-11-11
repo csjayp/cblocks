@@ -33,6 +33,8 @@ First, install the binaries and create the root file system for your cellblock d
 % make clean
 ```
 
+## Configuring
+
 For UFS you can do:
 
 ```
@@ -79,7 +81,50 @@ pts that are required for cblockd's operation (note: sequencing is important, be
 % sudo make install DESTDIR=/ssdvol0/cblocks 
 ```
 
-### Creating the base Forge image
+## Setting up networking
+
+For NAT networks use the following command:
+
+```
+% sudo cblock network --create --type nat --netmask 10.0.0.0/24 --interface em0 --name vlan0
+% sudo cblock network
+   TYPE       NAME  NETIF   NET
+    nat      vlan0    em0   10.0.0.0/24
+%
+```
+For bridged networks perform the following:
+
+```
+% sudo cblock network --create --type bridge --interface re0 --name l2net
+Bridge bridge1 configured and ready for containers
+bridge1: flags=8802<BROADCAST,SIMPLEX,MULTICAST> metric 0 mtu 1500
+	description: l2net
+	options=10<VLAN_HWTAGGING>
+	ether 58:9c:fc:10:0a:4c
+	id 00:00:00:00:00:00 priority 32768 hellotime 2 fwddelay 15
+	maxage 20 holdcnt 6 proto rstp maxaddr 2000 timeout 1200
+	root id 00:00:00:00:00:00 priority 0 ifcost 0 port 0
+	bridge flags=0<>
+	member: re0 flags=143<LEARNING,DISCOVER,AUTOEDGE,AUTOPTP>
+	        port 1 priority 128 path cost 55 vlan protocol 802.1q
+	groups: bridge
+	nd6 options=9<PERFORMNUD,IFDISABLED>
+% sudo cblock network
+   TYPE       NAME  NETIF   NET
+ bridge      l2net    re0   -
+%
+```
+NOTE: IMPORTANT: If you have your bridged network bound to your external interface, you will be exposed
+to attack from the internet and will probably want to configure a firewall!
+
+If users are using NAT mode network they must be using PF and have the following anchors defined:
+
+```
+rdr-anchor "cblock-rdr/*"
+nat-anchor "cblock-nat/*"
+```
+
+## Creating the base Forge image
 
 The forge image contains the toolchain to which facilitates all the operations
 that can occur in the `Cblockfile`. This is the prime image, that must be present
@@ -138,10 +183,7 @@ forge            latest                 13.36M  2021-05-24 19:23:19
 
 ### Creating base FreeBSD image
 
-Now you are ready to start creating cellblocks. As a good first example, I typically
-like to create a base FreeBSD image. I generally use the Cblock file included in the
-examples called "base", in this directory you will see a single file that will construct
-a full freebsd image based on the distfiles:
+With the environment set up, the next step is to begin creating cellblocks. A good starting point is to build a base FreeBSD image. The included example, named "base", provides a sample Cblockfile located in the examples directory. This file defines the instructions needed to construct a complete FreeBSD image from the standard distribution files.
 
 ```
 % cd ../../examples/base/
