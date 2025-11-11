@@ -64,7 +64,7 @@
 static int reap_children;
 
 static void
-handle_reap_children(int sig)
+handle_reap_children(int sig __attribute__((unused)))
 {
 
 	reap_children = 1;
@@ -95,7 +95,7 @@ tty_initialize_fdset(fd_set *rfds)
 }
 
 void *
-tty_io_queue_loop(void *arg)
+tty_io_queue_loop(void *arg __attribute__((unused)))
 {
 	extern cblock_instance_head_t pr_head;
 	extern pthread_mutex_t cblock_mutex;

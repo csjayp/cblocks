@@ -189,8 +189,7 @@ initialize_data_directory(int iszfs)
 		 * We skip over creating these directories for ZFS because they
 		 * get created as part of the file system creation.
 		 */
-		if (strcmp(gcfg.c_underlying_fs, "zfs") == 0 &&
-		    (strcmp(dir, "instances") == 0 ||
+		if (iszfs && (strcmp(dir, "instances") == 0 ||
 		    strcmp(dir, "images") == 0)) {
 			continue;
 		}

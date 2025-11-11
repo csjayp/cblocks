@@ -1,5 +1,5 @@
 CC	?= cc
-CFLAGS	= -Wall -g -fstack-protector -fsanitize=address -I../include
+CFLAGS	= -Wall -fno-omit-frame-pointer -g -fstack-protector -fsanitize=address -I../include
 TARGETS	= libcblock.so
 OBJ	= vec.o print.o sbuf.o
 PREFIX	?= /usr/local

@@ -45,7 +45,7 @@
 void
 gen_sha256_string(u_char *hash, char *output, u_int len)
 {
-	int k;
+	u_int k;
 
 	// NB: assumed zeroed out `output` buffer
 	for (k = 0; k < len; k++) {
@@ -54,7 +54,7 @@ gen_sha256_string(u_char *hash, char *output, u_int len)
 }
 
 char *
-gen_sha256_instance_id(char *instance_name)
+gen_sha256_instance_id(char *instance_name __attribute__((unused)))
 {
 	char buf[32], inbuf[128], *ret, outbuf[EVP_MAX_MD_SIZE * 2];
 	u_char hash[EVP_MAX_MD_SIZE];
