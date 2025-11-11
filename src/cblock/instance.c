@@ -112,7 +112,7 @@ instance_get(struct instance_config *icp, int ctlsock)
 }
 
 static void
-instance_prune(struct instance_config *icp, int ctlsock)
+instance_prune(struct instance_config *icp __attribute__((unused)), int ctlsock)
 {
 	struct cblock_generic_command arg;
 	uint32_t cmd;

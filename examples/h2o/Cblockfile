@@ -1,4 +1,4 @@
-FROM base:14.3 AS go_builder
+FROM freebsd:14.3 AS go_builder
   ADD . .
   ENV ASSUME_ALWAYS_YES = "YES"
   RUN "pkg update"
@@ -10,7 +10,7 @@ FROM base:14.3 AS go_builder
   RUN "go build"
   RUN "size fcgi"
 
-FROM base:14.3
+FROM freebsd:14.3
   ADD . .
   ENV ASSUME_ALWAYS_YES = "YES"
   RUN "pkg install h2o"

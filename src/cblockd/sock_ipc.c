@@ -198,8 +198,9 @@ sock_ipc_accept_connection(int sock)
 int
 sock_ipc_event_loop(struct global_params *gcp)
 {
-	int error, maxfd, s;
+	int error, maxfd;
 	fd_set rfds;
+	size_t s;
 
 	while (1) {
 		maxfd = 0;

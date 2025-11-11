@@ -63,7 +63,7 @@ image_usage(void)
 }
 
 static void
-image_prune(struct image_config *icp, int ctlsock)
+image_prune(struct image_config *icp __attribute__((unused)), int ctlsock)
 {
 	struct cblock_generic_command arg;
 	uint32_t cmd;
@@ -77,7 +77,7 @@ image_prune(struct image_config *icp, int ctlsock)
 }
 
 static void
-image_get(struct image_config *icp, int ctlsock)
+image_get(struct image_config *icp __attribute__((unused)), int ctlsock)
 {
 	struct cblock_generic_command arg;
 	uint32_t cmd;

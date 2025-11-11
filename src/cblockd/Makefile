@@ -1,6 +1,6 @@
 #
 CC	?= cc
-CFLAGS	= -Wall -fsanitize=address -fstack-protector -g -I $(PREFIX)/include -I../include/
+CFLAGS	= -Wall -Wno-zero-length-array -Wextra -Wpedantic -Wshadow -Wformat=2 -fno-omit-frame-pointer -fsanitize=address -fstack-protector -g -I $(PREFIX)/include -I../include/ -Wno-zero-length-array
 TARGETS	= cblockd
 OBJ	= main.o sock_ipc.o dispatch.o termbuf.o build.o instances.o exec.o tty.o util.o cblock.o
 LIBS	= -lpthread -lutil -lcblock -lcrypto

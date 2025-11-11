@@ -68,7 +68,7 @@ static struct option console_options[] = {
 };
 
 static void
-console_handle_window_resize(int sig)
+console_handle_window_resize(int sig __attribute__((unused)))
 {
 
 	need_resize = 1;
@@ -163,7 +163,7 @@ console_tty_send_resize(int sock)
 {
 	struct winsize wsize;
 	char *buf, *vptr;
-	size_t len;
+	ssize_t len;
 	uint32_t *cmd;
 
 	len = sizeof(struct winsize) + sizeof(uint32_t) + 1;

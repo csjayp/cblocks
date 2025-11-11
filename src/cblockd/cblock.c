@@ -117,7 +117,7 @@ cblock_populate_instance_entries(size_t max_ents)
 {
 	struct instance_ent *vec, *cur;
 	struct cblock_instance *p;
-	int counter;
+	size_t counter;
 
 	vec = calloc(max_ents, sizeof(*vec));
 	if (vec == NULL) {
