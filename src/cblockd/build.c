@@ -686,6 +686,7 @@ dispatch_build_recieve(int sock)
 		warn("dispatch_build_set_outfile: failed");
 		free(bctx.steps);
 		free(bctx.stages);
+		free(bctx.instance);
 		resp.p_ecode = -1;
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
@@ -693,6 +694,7 @@ dispatch_build_recieve(int sock)
 	if (sock_ipc_from_to(sock, fd, bctx.pbc.p_context_size) == -1) {
 		free(bctx.steps);
 		free(bctx.stages);
+		free(bctx.instance);
 		close(fd);
 		warn("sock_ipc_from_to failed");
 		return (1);
@@ -703,7 +705,7 @@ dispatch_build_recieve(int sock)
 		err(1, "calloc failed");
 	}
 	pi->p_type = PRISON_TYPE_BUILD;
-	pi->p_instance_tag = strdup(bctx.instance); /* NB: check free */
+	pi->p_instance_tag = strdup(bctx.instance);
 	strlcpy(pi->p_image_name, bctx.pbc.p_image_name, sizeof(pi->p_image_name));
 	pi->p_launch_time = time(NULL);
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
@@ -722,6 +724,9 @@ dispatch_build_recieve(int sock)
 		snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "%s",
 		    pi->p_instance_tag);
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		free(bctx.steps);
+		free(bctx.stages);
+		free(bctx.instance);
 		return (1);
 	}
 	/*

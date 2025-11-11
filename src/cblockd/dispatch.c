@@ -335,6 +335,8 @@ dispatch_launch_cblock(int sock)
 	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "%s",
 	    pi->p_instance_tag);
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
+	vec_free(cmd_vec);
+	vec_free(env_vec);
 	return (1);
 }
 

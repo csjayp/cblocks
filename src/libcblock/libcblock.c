@@ -185,11 +185,14 @@ sock_ipc_from_to(int from, int to, off_t len)
 			toread = len - block_count;
 		}
 		if (sock_ipc_must_read(from, buf, toread) != toread) {
+			free(buf);
 			return (-1);
 		}
 		if (sock_ipc_must_write(to, buf, toread) != toread) {
+			free(buf);
 			return (-1);
 		}
 	}
+	free(buf);
 	return (len);
 }

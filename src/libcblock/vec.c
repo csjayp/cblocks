@@ -228,5 +228,6 @@ vec_free(vec_t *vec)
 	for (k = 0; k < vec->vec_used; k++) {
 		free(vec->vec[k]);
 	}
+	free(vec->vec);
 	free(vec);
 }
