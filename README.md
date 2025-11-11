@@ -15,6 +15,14 @@ The container build system features a domain-specific language with a syntax clo
 
 For deep observability, the environment also publishes cell block–specific DTrace providers, allowing administrators to trace and troubleshoot container lifecycle events and performance characteristics in real time. Future development will focus on OCI compliance, extending interoperability with existing container ecosystems while preserving the performance, security, and simplicity inherent to the FreeBSD jail model.
 
+## Prequisites
+
+In addition to the C compilers, the Go toolchain is required for building components of the system written in Go. Certain utilities are also necessary for full functionality: setaudit is used to apply and pin audit configurations within a container, and subcalc is required to configure container networking. All of these tools are available through the FreeBSD Ports Collection, ensuring easy installation and integration into the build environment.
+
+```
+% pkg install subcalc setaudit go125
+```
+
 ## Building cblock daemon and client
 
 ```
