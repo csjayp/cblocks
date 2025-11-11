@@ -5,7 +5,7 @@
 |____|_____|__|__|_____|__|_____|____|__|__|_____|
 ```
 
-![dystopian cellblocks](media/cellblocks2.png "cellblocks")
+![dystopian cellblocks](media/cellblocks2.png "dystopian cellblocks")
 
 # Introduction
 
@@ -28,6 +28,24 @@ Future development will focus on achieving OCI compliance, enabling interoperabi
 ## Installing
 
 First, install the binaries and create the root file system for your cellblock daemon:
+
+For UFS you can do:
+
+```
+% mkdir /usr/cblocks
+% mkdir /usr/cblocks/instances
+% mkdir /usr/cblocks/images
+```
+
+Modify the rc.conf to include the setup (make sure to substitute the ZFS path with your own):
+
+```
+cblockd_enable=YES
+cblockd_data_dir="/usr/cblocks"
+cblockd_fs="ufs"
+```
+
+Alternatively for ZFS:
 
 ```
 % sudo make install
@@ -67,14 +85,11 @@ to build other cellblocks. This image is created on the server using the followi
 steps:
 
 ```
-% cd ../../tools
-% mdkdir forge
-% cd forge
-% sudo ../genforge.sh
+% sudo make forge
 ```
-When you look in your current working directory, you will see the base
-utilities and libraries needed to facilitate the operations within a
-Cblockfile.
+The command above does a bunch of operations but it basically reads various libraries and
+utilities and organizes them into an image the has the following hierarchy, then boostraps
+or loads the image into your cblock daemon.
 
 ```
 % tree 
@@ -108,31 +123,6 @@ Cblockfile.
 └── libmap.conf
 
 3 directories, 24 files
-```
-
-Next, prepare your tar file. This will be used by the daemon service to
-to create your first image. With this image, you will be ready to contruct
-others:
-
-```
-% tar -czvpf ../forge.tgz .
-```
-
-Now that your forge image is archived up, you can submit it to the daemon
-which will convert it into your first image (make sure you are using the correct
-data directory):
-
-```
-% sudo cblockd --zfs --data-directory /ssdvol0/cblocks --create-forge ../forge.tgz
-            __ __ __    __            __
-.----.-----|  |  |  |--|  .-----.----|  |--.-----.
-|  __|  -__|  |  |  _  |  |  _  |  __|    <|__ --|
-|____|_____|__|__|_____|__|_____|____|__|__|_____|
-
-version 0.0.0
--- Constructing the base forge image for future forging operations
--- Forge creation returned 0
-%
 ```
 
 Next you can verify your image:
