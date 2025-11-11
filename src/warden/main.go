@@ -39,8 +39,6 @@ import (
 type CmdArgs struct {
 	ManifestPath *string
 	Prefix       *string
-	UseZFS       *bool
-	UseUFS       *bool
 }
 
 type PortMapping struct {
@@ -98,10 +96,10 @@ func processPorts(portMappings []PortMapping, cmdLine *CmdVec) {
 	for _, port := range portMappings {
 		arg := ""
 		if port.Public {
-			arg = fmt.Sprintf("%s:%s:public\n", port.HostPort,
+			arg = fmt.Sprintf("%s:%s:public", port.HostPort,
 				port.ContainerPort)
 		} else {
-			arg = fmt.Sprintf("%s:%s\n", port.HostPort,
+			arg = fmt.Sprintf("%s:%s", port.HostPort,
 				port.ContainerPort)
 		}
 		cmdLine.AddOption("port", arg)
@@ -116,14 +114,15 @@ func processVolumes(vols []Volume, cmdLine *CmdVec) {
 	}
 }
 
-func processManifest(gcfg Config, prog string) {
+func ProcessManifest(gcfg Config, prog string) ([]CmdVec, error) {
 	cellblockCount := 1
+	cmdvec := make([]CmdVec, 0)
 	for _, cb := range gcfg.Cellblocks {
 		cmd := CmdVec{}
 		cmd.SetProg(prog)
 		cmd.AddString("launch")
 		if cb.Image == "" {
-			log.Fatalf("block number %d has no image\n", cellblockCount)
+			return cmdvec, fmt.Errorf("block number %d has no image\n", cellblockCount)
 		}
 		cmd.AddBool("no-attach")
 		cmd.AddOption("name", cb.Image)
@@ -145,28 +144,39 @@ func processManifest(gcfg Config, prog string) {
 		if len(cb.Ports) > 0 {
 			processPorts(cb.Ports, &cmd)
 		}
+		cmdvec = append(cmdvec, cmd)
+		cellblockCount++
+	}
+	return cmdvec, nil
+}
+
+func LaunchCellblocks(yamlData []byte, prefix string) {
+	var gcfg Config
+
+	err := yaml.Unmarshal(yamlData, &gcfg)
+	if err != nil {
+		log.Fatalf("error parsing cellblock manifest: %v\n", err)
+	}
+	prog := prefix + "/bin/cblock"
+	clist, err := ProcessManifest(gcfg, prog)
+	if err != nil {
+		log.Fatalf("failed to process manifest: %s\n", err)
+	}
+	for _, cmd := range clist {
 		fmt.Printf("%s", strings.Join(cmd.Args, " "))
 	}
 }
 
 func main() {
-	var gcfg Config
 	cfg := CmdArgs{}
 	cfg.Prefix = pflag.StringP("prefix", "P", "/usr/local", "installation path")
 	manifestPath := *cfg.Prefix + "/etc/cellblocks.yaml"
 	cfg.ManifestPath = pflag.StringP("manifest-path", "p", manifestPath, "path to cellblock manifest")
-	cfg.UseUFS = pflag.BoolP("ufs", "u", true, "use the UFS filesystem")
-	cfg.UseZFS = pflag.BoolP("zfs", "z", false, "use the ZFS filesystem")
 
 	pflag.Parse()
 	cf, err := os.ReadFile(*cfg.ManifestPath)
 	if err != nil {
 		log.Fatalf("error reading YAML file: %v", err)
 	}
-	err = yaml.Unmarshal(cf, &gcfg)
-	if err != nil {
-		log.Fatalf("error parsing cellblock manifest: %v\n", err)
-	}
-	prog := *cfg.Prefix + "/bin/cblock"
-	processManifest(gcfg, prog)
+	LaunchCellblocks(cf, *cfg.Prefix)
 }

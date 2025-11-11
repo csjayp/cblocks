@@ -1,0 +1,7 @@
+cellblocks:
+  - image: base:15-STABLE
+    description: Bank container
+    network: vlan0
+    fdescfs: false
+    procfs: false
+    tmpfs: false

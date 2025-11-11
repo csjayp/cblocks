@@ -1,0 +1,4 @@
+cellblocks:
+  - network: foobar
+    description: postfix smtp server
+    fdescfs: true

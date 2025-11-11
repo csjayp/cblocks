@@ -1,0 +1,10 @@
+cellblocks:
+  - image: base:14.3
+    description: HTTP server
+    network: vlan0
+    ports:
+      - host_port: 443
+        container_port: 443
+        public: true
+      - host_port: 80
+        container_port: 80

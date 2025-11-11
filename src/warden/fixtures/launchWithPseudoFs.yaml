@@ -1,0 +1,7 @@
+cellblocks:
+  - image: base:14.3
+    description: postfix smtp server
+    fdescfs: true
+    procfs: true
+    tmpfs: true
+    network: vlan0

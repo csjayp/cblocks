@@ -1,0 +1,3 @@
+cellblocks:
+  - image: base:14.3
+    network: vlan0
