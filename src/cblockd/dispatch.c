@@ -278,8 +278,8 @@ dispatch_launch_cblock(int sock)
 	}
 	pi->p_type = PRISON_TYPE_REGULAR;
 	strlcpy(pi->p_image_name, pl.p_name, sizeof(pi->p_image_name));
-	cmd_vec = vec_init(64);
-	env_vec = vec_init(64);
+	cmd_vec = vec_init(32);
+	env_vec = vec_init(32);
 	/*
 	 * Setup the environment variables first.
 	 */
