@@ -22,5 +22,3 @@ FROM freebsd:14.3
 AUDITCFG "ex,pc"
 
 ENTRYPOINT [ "/usr/local/bin/h2o", "-c", "/h2o.conf" ]
-#ENTRYPOINT [ "/bin/tcsh" ]
-CMD [ ]
