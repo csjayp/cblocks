@@ -21,7 +21,6 @@ For deep observability, the environment also publishes cell block–specific DTr
 % git clone https://github.com/csjayp/cblocks.git
 % cd cblocks
 % make
-
 ```
 
 ## Installing
@@ -126,10 +125,7 @@ nat-anchor "cblock-nat/*"
 
 ## Creating the base Forge image
 
-The forge image contains the toolchain to which facilitates all the operations
-that can occur in the `Cblockfile`. This is the prime image, that must be present
-to build other cellblocks. This image is created on the server using the following
-steps:
+The forge image provides the toolchain that enables all operations defined within a Cblockfile. It serves as the base (layer 0) image, which must be present before building any other cellblocks. This image is created on the server using the following steps:
 
 ```
 % sudo make forge
