@@ -13,8 +13,7 @@ This project is a lightweight container building and runtime environment built o
 
 The container build system features a domain-specific language with a syntax closely resembling Dockerfiles, making it intuitive for users familiar with container workflows while remaining tightly integrated with the FreeBSD ecosystem. At start up, container orchestration is handled by Warden, which allows you to declaratively specify containers to launch at startup, define port mappings, volumes, and network modes. Networking leverages FreeBSD’s native mechanisms, supporting both bridge and NAT modes through the PF firewall, and includes support for OS auditing and mtree-based snapshots for file integrity monitoring (FIM).
 
-Future development will focus on achieving OCI compliance, enabling interoperability with existing container ecosystems while preserving the unique performance, security, and simplicity advantages of the FreeBSD jail model.
-
+For deep observability, the environment also publishes cell block–specific DTrace providers, allowing administrators to trace and troubleshoot container lifecycle events and performance characteristics in real time. Future development will focus on OCI compliance, extending interoperability with existing container ecosystems while preserving the performance, security, and simplicity inherent to the FreeBSD jail model.
 
 ## Building cblock daemon and client
 
