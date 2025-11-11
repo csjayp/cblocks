@@ -5,7 +5,7 @@
 |____|_____|__|__|_____|__|_____|____|__|__|_____|
 ```
 
-![dystopian cellblocks](media/cellblock2.png "cellblocks")
+![dystopian cellblocks](media/cellblocks2.png "cellblocks")
 
 # Cell blocks
 
