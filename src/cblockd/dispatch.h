@@ -56,7 +56,7 @@ void *		tty_io_queue_loop(void *);
 int		dispatch_build_recieve(int);
 char *		gen_sha256_instance_id(char *instance_name);
 void		cblock_fork_cleanup(char *instance, char *, int, int);
-void		tty_handle_resize(int, char *);
+void		tty_handle_resize(int, struct winsize *);
 void		tty_console_session(const char *, int, int);
 char *		tty_trim_buffer(char *, size_t, size_t *);
 void		gen_sha256_string(unsigned char *, char *, u_int);

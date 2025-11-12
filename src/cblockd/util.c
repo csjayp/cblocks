@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include <err.h>
+#include <libutil.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

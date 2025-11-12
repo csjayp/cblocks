@@ -28,5 +28,8 @@ clean:
 test:
 	make -C src/warden test
 
+lint:
+	make -C src/warden lint
+
 forge:
 	cd tools && ./genforge.sh

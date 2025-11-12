@@ -290,6 +290,10 @@ dispatch_launch_cblock(int sock)
 	vec_append(env_vec, buf);
 	vec_append(env_vec, "USER=root");
 	vec_append(env_vec, "HOME=/root");
+
+	vec_append(env_vec, "LC_CTYPE=C.UTF-8");
+	vec_append(env_vec, "LANG=C.UTF-8");
+
 	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
 	vec_append(env_vec, buf);
 	vec_finalize(env_vec);

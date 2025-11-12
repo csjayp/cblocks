@@ -47,6 +47,7 @@
 #include <signal.h>
 #include <assert.h>
 #include <string.h>
+#include <stdint.h>
 
 #include <openssl/sha.h>
 
@@ -59,40 +60,134 @@
 
 #include <cblock/libcblock.h>
 
-void
-tty_handle_resize(int ttyfd, char *buf)
-{
-	struct winsize *wsize;
-	char *vptr;
+#define TERM_BUF_SIZE 4096
 
-	vptr = buf;
-	vptr += sizeof(uint32_t);
-	wsize = (struct winsize *)vptr;
+void
+tty_set_raw(int fd) {
+	struct termios t;
+
+	if (tcgetattr(fd, &t) < 0) {
+		err(1, "tcgetattr failed");
+	}
+	/*
+	 * Unset the following on the terminal. It's possible that we are
+	 * missing some parameters here, but we can re-visit this in the
+	 * future if need be.
+	 *
+	 * ICANON | ECHO disable canonical mode and echo
+	 * OPOST disable output processing (\n -> \r\n)
+	 * IXON | ICRNL disable Ctrl-S/Q and CR->NL
+	 */
+	t.c_lflag &= ~(ICANON | ECHO);
+	t.c_oflag &= ~(OPOST);
+	t.c_iflag &= ~(IXON | ICRNL);
+	if (tcsetattr(fd, TCSANOW, &t) < 0) {
+		err(1, "tcsetattr failed");
+	}
+}
+
+uint32_t
+tty_read_header(int sock, int *goteof)
+{
+	unsigned char *header_ptr;
+	size_t bytes_read;
+	uint32_t header;
+	ssize_t r;
+
+	bytes_read = 0;
+	header_ptr = (unsigned char *)&header;
+	while (bytes_read < sizeof(header)) {
+		r = read(sock, header_ptr + bytes_read, sizeof(header) - bytes_read);
+		if (r == 0) {
+			*goteof = 1;
+			return (0);
+		} else if (r < 0) {
+			if (errno == EINTR) {
+				continue;
+			}
+			err(1, "%s: read header failed", __func__);
+		}
+		bytes_read += r;
+	}
+	return (header);
+}
+
+void
+tty_handle_resize(int ttyfd, struct winsize *wsize)
+{
+	/* Do the window re-size now */
 	if (ioctl(ttyfd, TIOCSWINSZ, wsize) == -1) {
 		err(1, "ioctl(TIOCSWINSZ): failed");
 	}
 }
 
-void
-tty_console_session(const char *instance, int sock, int ttyfd)
+struct winsize
+tty_read_winsize_change(int sock, int *goteof)
 {
-	char buf[1024], *vptr;
-	uint32_t *cmd;
-	ssize_t bytes;
+	size_t payload_size, payload_read;
+	unsigned char *payload_ptr;
+	struct winsize wsize;
+	ssize_t r;
 
-	printf("tty_console_session: enter, reading commands from client\n");
-	for (;;) {
-		bzero(buf, sizeof(buf));
-		ssize_t cc = read(sock, buf, sizeof(buf));
-		if (cc == 0) {
-			printf("read EOF from socket\n");
+	payload_ptr = (unsigned char *)&wsize;
+	payload_size = sizeof(wsize);
+	payload_read = 0;
+	while (payload_read < payload_size) {
+		r = read(sock, payload_ptr + payload_read, payload_size - payload_read);
+		if (r == 0) {
+			*goteof = 1;
+			break;
+		} else if (r < 0) {
+			if (errno == EINTR) {
+				continue;
+			}
+			err(1, "%s: read resize payload failed", __func__);
+		}
+		payload_read += r;
+	}
+	return (wsize);
+}
+
+void
+tty_copy_from_sock_to_tty(int sock, int ttyfd, int *goteof)
+{
+	unsigned char buf[TERM_BUF_SIZE];
+	ssize_t w, r, written;
+
+	while ((r = read(sock, buf, sizeof(buf))) > 0) {
+		if (r == 0) {
+			*goteof = 1;
+		}
+		written = 0;
+		while (written < r) {
+			w = write(ttyfd, buf + written, r - written);
+			if (w < 0) {
+				err(1, "%s: tty write failed", __func__);
+			}
+			written += w;
+		}
+		if (r < TERM_BUF_SIZE) {
 			break;
 		}
-		if (cc == -1 && errno == EINTR) {
-			continue;
+		if (r < 0 && errno != EINTR) {
+			err(1, "%s: tty read failed", __func__);
 		}
-		if (cc == -1) {
-			err(1, "%s: read failed", __func__);
+	}
+}
+
+void
+tty_console_session(const char *instance, int sock, int ttyfd) {
+	struct winsize wsize;
+	uint32_t header;
+	int eof;
+
+	printf("tty_console_session: enter, reading commands from client\n");
+	tty_set_raw(ttyfd);
+	eof = 0;
+	while (!eof) {
+		header = tty_read_header(sock, &eof);
+		if (eof) {
+			continue;
 		}
 		/*
 		 * NB: There probably needs to be a better way to do this 
@@ -102,25 +197,25 @@ tty_console_session(const char *instance, int sock, int ttyfd)
 		if (cblock_instance_is_dead(instance)) {
 			break;
 		}
-		vptr = buf;
-		cmd = (uint32_t *)vptr;
-		switch (*cmd) {
+		switch (header) {
 		case PRISON_IPC_CONSOL_RESIZE:
-			tty_handle_resize(ttyfd, buf);
+			wsize = tty_read_winsize_change(sock, &eof);
+			if (eof) {
+				continue;
+			}
+			tty_handle_resize(ttyfd, &wsize);
 			break;
 		case PRISON_IPC_CONSOLE_DATA:
-			vptr += sizeof(uint32_t);
-			cc -= sizeof(uint32_t);
-			bytes = write(ttyfd, vptr, cc);
-			if (bytes != cc) {
-				err(1, "tty_write failed");
+			tty_copy_from_sock_to_tty(sock, ttyfd, &eof);
+			if (eof) {
+				continue;
 			}
 			break;
 		default:
-			errx(1, "unknown console instruction");
+			errx(1, "unknown console instruction %u", header);
 		}
 	}
-	printf("console dis-connected\n");
+	printf("console disconnected\n");
 }
 
 char *
