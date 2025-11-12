@@ -1,0 +1,22 @@
+cellblocks:
+  - image: base:14.3
+    description: postfix smtp server
+    fdescfs: true
+    network: vlan0
+    volumes:
+      - type: ufs
+        origin: /dev/zvol/pool0/db-storage
+        mountpoint: /data
+        perms: rw
+      - type: zfs
+        origin: pool0/dataset
+        mountpoint: /zfs/dataset
+        perms: rw
+  - image: nginx
+    description: nginx http service
+    network: vlan0
+    volumes:
+      - type: ufs
+        origin: /storage/vol3/www-content
+        mountpoint: /www
+        perms: rw

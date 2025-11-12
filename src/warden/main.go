@@ -115,8 +115,11 @@ func processVolumes(vols []Volume, cmdLine *CmdVec) {
 }
 
 func ProcessManifest(gcfg Config, prog string) ([]CmdVec, error) {
-	cellblockCount := 1
 	cmdvec := make([]CmdVec, 0)
+	if len(gcfg.Cellblocks) == 0 {
+		return cmdvec, fmt.Errorf("no cellblocks defined in config")
+	}
+	cellblockCount := 1
 	for _, cb := range gcfg.Cellblocks {
 		cmd := CmdVec{}
 		cmd.SetProg(prog)
