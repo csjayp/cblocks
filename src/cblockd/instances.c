@@ -35,6 +35,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <libutil.h>
 #include <string.h>
 
 #include "termbuf.h"

@@ -29,8 +29,10 @@
 #include <sys/select.h>
 #include <sys/ioctl.h>
 #include <sys/param.h>
+#include <sys/uio.h>
 #include <sys/un.h>
 #include <sys/ttycom.h>
+
 #include <netinet/in.h>
 
 #include <stdio.h>
@@ -43,6 +45,7 @@
 #include <stdlib.h>
 #include <err.h>
 #include <stdint.h>
+#include <locale.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -89,18 +92,13 @@ console_usage(void)
 void
 console_reset_tty(void)
 {
-	struct termios def;
+	struct termios t;
 
-	cfmakesane(&def);
-	otermios.c_cflag = def.c_cflag | (otermios.c_cflag & CLOCAL);
-	otermios.c_iflag = def.c_iflag;
-	/* preserve user-preference flags in lflag */
-#define LKEEP	(ECHOKE|ECHOE|ECHOK|ECHOPRT|ECHOCTL|ALTWERASE|TOSTOP|NOFLSH)
-	otermios.c_lflag = def.c_lflag | (otermios.c_lflag & LKEEP);
-	otermios.c_oflag = def.c_oflag;
-	if (tcsetattr(STDIN_FILENO, TCSANOW, &otermios) == -1) {
-		err(1, "tcsetattr(TCSANOW)");
-	}
+	tcgetattr(STDIN_FILENO, &t);
+	t.c_lflag &= ~(ICANON | ECHO);
+	t.c_iflag &= ~(IXON | ICRNL);
+	t.c_oflag &= ~(OPOST);
+	tcsetattr(STDIN_FILENO, TCSANOW, &t);
 }
 
 int
@@ -158,27 +156,22 @@ console_tty_handle_socket(int sock)
 	return (0);
 }
 
-static void
-console_tty_send_resize(int sock)
+static void console_tty_send_resize(int sock)
 {
+	unsigned char buf[sizeof(uint32_t) + sizeof(struct winsize)];
 	struct winsize wsize;
-	char *buf, *vptr;
-	ssize_t len;
-	uint32_t *cmd;
+	unsigned char *vptr;
+	uint32_t cmd_val;
 
-	len = sizeof(struct winsize) + sizeof(uint32_t) + 1;
-	buf = calloc(1, len);
-	if (buf == NULL) {
-		err(1, "calloc failed");
-	}
-	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &wsize) == -1) {
-		err(1, "ioctl(TIOCGWINSZ): failed");
-	}
 	vptr = buf;
-	cmd = (uint32_t *)vptr;
-	*cmd = PRISON_IPC_CONSOL_RESIZE;
-	vptr += sizeof(uint32_t);
-	bcopy(&wsize, vptr, sizeof(wsize));
+	cmd_val = PRISON_IPC_CONSOL_RESIZE;
+	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &wsize) == -1) {
+		err(1, "ioctl(TIOCGWINSZ) failed");
+	}
+	memcpy(vptr, &cmd_val, sizeof(cmd_val));
+	vptr += sizeof(cmd_val);
+	memcpy(vptr, &wsize, sizeof(wsize));
+	ssize_t len = sizeof(buf);
 	if (write(sock, buf, len) != len) {
 		err(1, "tty send resize failed");
 	}
@@ -187,36 +180,40 @@ console_tty_send_resize(int sock)
 static int
 console_tty_handle_stdin(int sock)
 {
-	char buf[4096], *vptr;
-	uint32_t *cmd;
-	ssize_t cc;
+	unsigned char buf[4096];
+	struct iovec iov[2];
+	ssize_t n, i, total;
+	uint32_t header;
 
-	vptr = buf;
-	cmd = (uint32_t *)buf;
-	*cmd = PRISON_IPC_CONSOLE_DATA;
-	vptr += sizeof(uint32_t);
-	cc = read(STDIN_FILENO, vptr, sizeof(buf) - sizeof(uint32_t));
-	if (cc == 0) {
-		return (1);
-	}
-	if (cc == -1 && errno == EINTR) {
+	n = read(STDIN_FILENO, buf, sizeof(buf));
+	if (n == -1 && errno == EINTR) {
 		return (0);
-	}
-	if (cc == -1) {
+	} else if (n == -1) {
 		err(1, "read failed");
 	}
-	/*
-	 * If we get ^Q exit. This probably should be configurable.
-	 */
-	if (cc == 1 && *vptr == 0x11) {
-		return (1);
+	for (i = 0; i < n; i++) {
+		/* Ctrl+Q should be configurable */
+		if (buf[i] == 0x11) {
+			(void) fprintf(stderr,
+			    "\n\n[Ctrl-Q: disconnect sequence]\n");
+			close(sock);
+			return (1);
+		}
 	}
 	if (need_resize) {
 		console_tty_send_resize(sock);
 		need_resize = 0;
 	}
-	if (write(sock, buf, cc + sizeof(uint32_t)) == -1 && errno == EPIPE) {
-		return (0);
+	header = PRISON_IPC_CONSOLE_DATA;
+	iov[0].iov_base = &header;
+	iov[0].iov_len  = sizeof(header);
+	iov[1].iov_base = buf;
+	iov[1].iov_len  = n;
+	total = writev(sock, iov, 2);
+	if (total != (ssize_t)(sizeof(header) + n)) {
+		perror("writev header+data");
+		close(sock);
+		return (1);
 	}
 	return (0);
 }
@@ -226,6 +223,7 @@ console_evloop(int sock)
 {
 	int done;
 
+	console_tty_set_raw_mode(STDIN_FILENO);
 	done = 0;
 	while (!done) {
 		done = console_mplex(sock);
@@ -265,7 +263,6 @@ void
 console_tty_console_session(int sock)
 {
 
-	console_tty_set_raw_mode(STDIN_FILENO);
 	signal(SIGWINCH, console_handle_window_resize);
 	console_evloop(sock);
 }
@@ -295,7 +292,6 @@ console_connect_console(int sock, struct console_config *ccp)
 		    ccp->c_name, resp.p_errbuf);
 		return;
 	}
-	console_tty_set_raw_mode(STDIN_FILENO);
 	console_tty_console_session(sock);
 }
 
@@ -305,6 +301,7 @@ console_main(int argc, char *argv [], int cltlsock)
 	struct console_config cc;
 	int option_index, c;
 
+	setlocale(LC_CTYPE, "C.UTF-8");
 	bzero(&cc, sizeof(cc));
 	reset_getopt_state();
 	while (1) {
