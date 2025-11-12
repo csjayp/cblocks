@@ -1,9 +1,8 @@
 # cellblock orchestration
-# sudo cblock network --create --type nat --netmask 192.168.0.0/24 --interface em0 --name vlan0
 
 cellblocks:
   - image: base:14.3
-    description: postfix smtp server
+    description: HTTP server Foobar
     fdescfs: true
     network: vlan0
     ports:

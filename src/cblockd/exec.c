@@ -135,7 +135,7 @@ dispatch_generic_command(int sock)
 			err(1, "error argv vectors: HINT: increase cmd_vec");
 		}
 		vec_finalize(cmd_vec);
-		vec_env = vec_init(16);
+		vec_env = vec_init(8);
 		vec_append(vec_env, DEFAULT_PATH);
 		char buf[128];
 		sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);

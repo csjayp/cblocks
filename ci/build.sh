@@ -7,5 +7,6 @@ export ASSUME_ALWAYS_YES=YES
 
 pkg install go125
 make
+make test
 make install
 make clean

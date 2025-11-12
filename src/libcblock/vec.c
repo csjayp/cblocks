@@ -147,6 +147,7 @@ vec_append(vec_t *vec, char *string)
 		return;
 	}
 	if (vec->vec_used == vec->vec_alloc) {
+		fprintf(stderr, "vec_append: overflow\n");
 		vec->vec_flag = VEC_OVERFLOW;
 		return;
 	}
@@ -172,6 +173,7 @@ vec_merge(vec_t *from, vec_t *to)
 	int k;
 
 	if ((from->vec_used + to->vec_used) > to->vec_alloc) {
+		fprintf(stderr, "vec_append: overflow\n");
 		return (VEC_OVERFLOW);
 	}
 	for (k = 0; k < from->vec_used; k++) {
