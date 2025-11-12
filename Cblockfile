@@ -2,7 +2,7 @@ FROM freebsd:14.3
 
 ENV ASSUME_ALWAYS_YES = "YES"
 ENV LC_ALL = "C"
-RUN "pkg install go125 golangci-lint-2.6.0"
+RUN "pkg install go125"
 ENV PATH = "/usr/local/go125/bin:$PATH"
 RUN "go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
 RUN "mkdir /build"
