@@ -120,7 +120,6 @@ console_tty_set_raw_mode(int fd)
 	tbuf.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
 	tbuf.c_cflag &= ~(CSIZE | PARENB);
 	tbuf.c_cflag |= CS8;
-	tbuf.c_oflag &= ~(OPOST);
 	tbuf.c_cc[VMIN] = 1;
 	tbuf.c_cc[VTIME] = 0;
 	if (tcsetattr(fd, TCSAFLUSH, &tbuf) == -1) {
