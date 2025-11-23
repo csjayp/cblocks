@@ -65,6 +65,8 @@ static void
 network_usage(void)
 {
 	(void) fprintf(stderr,
+	    "Usage: cblock network [OPTIONS]\n\n"
+	    "Options\n"
 	    " -c, --create            Create new network configuration\n"
 	    " -d, --destroy           Destroy network configuration\n"
 	    " -n, --name=NAME         Name for network configuration\n"
