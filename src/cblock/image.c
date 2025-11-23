@@ -56,6 +56,8 @@ static void
 image_usage(void)
 {
 	(void) fprintf(stderr,
+	    "Usage: cblock images [OPTIONS]\n\n"
+	    "Options\n"
 	    " -h, --help                  Print help\n"
 	    " -p, --prune                 Remove stopped/dead images\n"
 	    " -q, --quiet                 Do not print column headers\n");
