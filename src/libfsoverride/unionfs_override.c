@@ -107,6 +107,7 @@ mv_wrapper(const char *oldpath, const char *newpath)
         argv[3] = (char *) newpath;
         argv[4] = NULL;
         (void) execv(*argv, argv);
+	_exit(1);
     }
     status = 0;
     while (1) {
