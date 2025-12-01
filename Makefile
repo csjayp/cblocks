@@ -6,6 +6,9 @@ cblock: cblockd
 cblockd: libcblock.so
 	make -C src/cblockd
 
+libfsoverride.so:
+	make -C src/libfsoverride
+
 libcblock.so:
 	make -C src/libcblock
 
