@@ -139,7 +139,7 @@ tty_io_queue_loop(void *arg __attribute__((unused)))
 				err(1, "%s: read failed:", __func__);
 			}
 			termbuf_append(&pi->p_ttybuf, buf, cc);
-			if (pi->p_state != STATE_CONNECTED) {
+			if ((pi->p_state & STATE_CONNECTED) == 0) {
 				continue;
 			}
 			len = cc;
@@ -187,7 +187,6 @@ dispatch_signal_instance(int sock)
 		sock_ipc_must_write(sock, &resp, sizeof(resp));
 		return (1);
 	}
-	pthread_mutex_unlock(&cblock_mutex);
 	resp.p_ecode = 0;
 	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "OK %d", csi.p_sig);
 	sock_ipc_must_write(sock, &resp, sizeof(resp));
