@@ -208,7 +208,7 @@ daemonize(struct global_params *gcp)
 	int fd;
 
 	if (gcp->c_logfile) {
-		fd = open(gcp->c_logfile, O_WRONLY | O_CREAT, 0700);
+		fd = open(gcp->c_logfile, O_WRONLY | O_CREAT, 0600);
 	} else {
 		gcp->c_logfile = "/dev/null";
 		fd = open("/dev/null", O_WRONLY);
@@ -238,6 +238,7 @@ main(int argc, char *argv [], char *env[])
 	pthread_t thr;
 	char *r;
 
+	zfs_selected = 0;
 	gcfg.c_data_dir = DEFAULT_DATA_DIR;
 	gcfg.global_env = env;
 	gcfg.c_callback = cblock_handle_request;
@@ -275,6 +276,7 @@ main(int argc, char *argv [], char *env[])
 			if (*r != '\0') {
 				errx(1, "invalid TTY buf size: %s", optarg);
 			}
+			break;
 		case '4':
 			gcfg.c_family = PF_INET;
 			break;
@@ -310,7 +312,7 @@ main(int argc, char *argv [], char *env[])
 		}
 	}
 	if (gcfg.c_family != PF_UNSPEC && gcfg.c_name) {
-		errx(1, "-4, -6 and --unix-sock are incompatable");
+		errx(1, "-4, -6 and --unix-sock are incompatible");
 	}
 	if (gcfg.c_underlying_fs == NULL) {
 		errx(1, "must specify underlying file system:\n"

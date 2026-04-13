@@ -82,7 +82,7 @@ cblock_create_pid_file(struct cblock_instance *p)
 	snprintf(pid_buf, sizeof(pid_buf), "%d", p->p_pid);
 	p->p_pid_file_path = strdup(pid_path);
 	p->p_pid_file = open(pid_path, flags, mode);
-	assert(p->p_pid_file != 0);
+	assert(p->p_pid_file != -1);
 	if (p->p_pid_file == -1) {
 		warn("open(%s)", pid_path);
 		return (-1);
@@ -126,6 +126,9 @@ cblock_populate_instance_entries(size_t max_ents)
 	counter = 0;
 	pthread_mutex_lock(&cblock_mutex);
 	TAILQ_FOREACH(p, &pr_head, p_glue) {
+		if (counter >= max_ents) {
+			break;
+		}
 		cur = &vec[counter];
 		strlcpy(cur->p_instance_name, p->p_instance_tag,
 		    sizeof(cur->p_instance_name));
@@ -135,9 +138,6 @@ cblock_populate_instance_entries(size_t max_ents)
 		strlcpy(cur->p_tty_line, p->p_ttyname,
 		    sizeof(cur->p_tty_line));
 		cur->p_start_time = p->p_launch_time;
-		if (counter == max_ents) {
-			break;
-		}
 		switch (p->p_type) {
 		case PRISON_TYPE_BUILD:
 			(void) snprintf(cur->p_type, sizeof(cur->p_type),
@@ -251,14 +251,14 @@ cblock_remove(struct cblock_instance *pi)
 	}
 	CBLOCKD_CBLOCK_DESTROY(pi->p_instance_tag, pi->p_status);
 	cblock_fork_cleanup(pi->p_instance_tag, instance_type, -1, gcfg.c_verbose);
-	assert(pi->p_ttyfd != 0);
+	assert(pi->p_ttyfd != -1);
 	(void) close(pi->p_ttyfd);
 	TAILQ_REMOVE(&pr_head, pi, p_glue);
 	cur = pi->p_ttybuf.t_tot_len;
 	while (cur > 0) {
 		cur = termbuf_remove_oldest(&pi->p_ttybuf);
 	}
-	assert(pi->p_pid_file != 0);
+	assert(pi->p_pid_file != -1);
 	close(pi->p_pid_file);
 	if (unlink(pi->p_pid_file_path) == -1) {
 		warn("unable to remove pidfile");

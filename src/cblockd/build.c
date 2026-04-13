@@ -76,7 +76,7 @@ waitpid_ignore_intr(pid_t pid, int *status)
 		rpid = waitpid(pid, status, 0);
 		if (rpid == -1 && errno == EINTR) {
 			continue;
-		} else if (pid == -1) {
+		} else if (rpid == -1) {
 			err(1, "waitpid failed");
 		}
 		break;
@@ -123,7 +123,7 @@ static char *
 build_get_stage_deps(struct build_context *bcp, int stage_index)
 {
 	struct build_step *step;
-	char retbuf[256], *p;
+	char retbuf[256], tmp[32], *p;
 	int k, j;
 
 	bzero(retbuf, sizeof(retbuf));
@@ -141,7 +141,8 @@ build_get_stage_deps(struct build_context *bcp, int stage_index)
 		 * and fix it so that it's not using a statically
 		 * sized stack buffer.
 		 */
-		sprintf(retbuf, "%s %d", retbuf, j);
+		snprintf(tmp, sizeof(tmp), " %d", j);
+		strlcat(retbuf, tmp, sizeof(retbuf));
 	}
 	p = retbuf;
 	/*
