@@ -47,6 +47,9 @@ fi
 
 chflags -R noschg forge/ && rm -fr forge/
 rm -fr forge.tgz && mkdir forge
+
+make -C ../src/libfsoverride
+
 cd forge
 
 rm -fr libmap.conf
@@ -98,6 +101,9 @@ for bin in $BINS; do
     dname=$(dirname $(echo $bpath | sed -E s,^/,,g))
     cp $bpath bin/
 done
+
+cp ../src/libfsoverride/libfsoverride.so lib/
+echo "libfsoverride.so /tmp/cblock_forge/lib/libfsoverride.so" >> libmap.conf
 
 tar -czpf ../forge.tgz .
 cblockd --${cblockd_fs}  --data-directory ${cblockd_data_dir} --create-forge ../forge.tgz

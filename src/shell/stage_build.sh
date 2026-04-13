@@ -64,7 +64,7 @@ init_build()
           "allow.chflags=1" \
           "osrelease=$osrelease" \
           "path="${build_root} \
-          exec.start="/tmp/cblock_forge/bin/sh /tmp/cblock-bootstrap.sh"
+          exec.start="env LD_PRELOAD=/tmp/cblock_forge/lib/libfsoverride.so /tmp/cblock_forge/bin/sh /tmp/cblock-bootstrap.sh"
     else
         # regular builds
         jail -c \
@@ -74,7 +74,7 @@ init_build()
           "allow.chflags=1" \
           "osrelease=$osrelease" \
           "path="${build_root} \
-          exec.start="/bin/sh /tmp/cblock-bootstrap.sh"
+          exec.start="env LD_PRELOAD=/usr/local/lib/libfsoverride.so /bin/sh /tmp/cblock-bootstrap.sh"
     fi
     #
     # Cleanup artifacts that were in /tmp just in case subsequent stages want

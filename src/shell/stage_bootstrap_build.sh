@@ -60,6 +60,24 @@ bind_devfs()
     devfs -m "${build_root}/${stage_index}/root/dev" rule applyset
 }
 
+install_fsoverride()
+{
+    if [ ! -d "${build_root}/${stage_index}/root/usr/local/lib" ]; then
+        mkdir -p "${build_root}/${stage_index}/root/usr/local/lib"
+    fi
+    cp /usr/local/lib/libfsoverride.so \
+      "${build_root}/${stage_index}/root/usr/local/lib/libfsoverride.so"
+}
+
+bind_fdescfs()
+{
+    if [ ! -d "${build_root}/${stage_index}/root/dev/fd" ]; then
+        mkdir -p "${build_root}/${stage_index}/root/dev/fd"
+    fi
+    mount -t fdescfs -o linrdlnk fdescfs \
+      "${build_root}/${stage_index}/root/dev/fd"
+}
+
 prepare_file_system()
 {
     # Check to see if the tag has been specified. If not, then prepend latest
@@ -168,6 +186,8 @@ bootstrap()
       \nbuild_root=${build_root} \
       \nstage_index=${stage_index}\nstages=${stage_deps_mount}\n" > "$VARS"
     bind_devfs
+    bind_fdescfs
+    install_fsoverride
 
     if [ "${stage_name}" ]; then
         if [ ! -d "${build_root}/images" ]; then

@@ -36,20 +36,60 @@
 #include <string.h>
 #include <limits.h>
 
+/*
+ * fdescfs is expected to be mounted at this path with the linrdlnk option:
+ *   mount -t fdescfs -o linrdlnk fdescfs /dev/fd
+ * With linrdlnk, each entry FDESCFS_PATH/<fd> is a symlink to the referenced
+ * file or directory. To resolve a dirfd + relative path, readlink(2) is used
+ * to obtain the directory's real path, which is then joined with the filename.
+ */
+#define	FDESCFS_PATH	"/dev/fd"
+
 typedef int (*orig_rename_type)(const char *, const char *);
 typedef int (*orig_renameat_type)(int, const char *, int, const char *);
+
+static orig_rename_type orig_rename;
+static orig_renameat_type orig_renameat;
+
 static int mv_wrapper(const char *, const char *);
 
+static int
+fdesc_resolve(int dirfd, const char *path, char *buf, size_t bufsz)
+{
+	char linkpath[PATH_MAX], dirpath[PATH_MAX];
+	ssize_t n;
+
+	snprintf(linkpath, sizeof(linkpath), FDESCFS_PATH "/%d", dirfd);
+	n = readlink(linkpath, dirpath, sizeof(dirpath) - 1);
+	if (n == -1) {
+		return (-1);
+	}
+	dirpath[n] = '\0';
+	snprintf(buf, bufsz, "%s/%s", dirpath, path);
+	return (0);
+}
+
+static __attribute__((constructor)) void
+fsoverride_init(void)
+{
+
+	orig_rename = (orig_rename_type)dlsym(RTLD_NEXT, "rename");
+	if (orig_rename == NULL) {
+		fprintf(stderr, "libfsoverride: dlsym(rename) failed: %s\n",
+		    dlerror());
+	}
+	orig_renameat = (orig_renameat_type)dlsym(RTLD_NEXT, "renameat");
+	if (orig_renameat == NULL) {
+		fprintf(stderr, "libfsoverride: dlsym(renameat) failed: %s\n",
+		    dlerror());
+	}
+}
 
 int
 rename(const char *oldpath, const char *newpath)
 {
-	static orig_rename_type orig_rename;
 
-	if (!orig_rename) {
-		orig_rename = (orig_rename_type)dlsym(RTLD_NEXT, "rename");
-	}
-	if (orig_rename && orig_rename(oldpath, newpath) == 0) {
+	if (orig_rename != NULL && orig_rename(oldpath, newpath) == 0) {
 		return (0);
 	}
 	return (mv_wrapper(oldpath, newpath));
@@ -59,28 +99,29 @@ int
 renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath)
 {
 	char full_old[PATH_MAX], full_new[PATH_MAX];
-	static orig_renameat_type orig_renameat;
 
-	if (!orig_renameat) {
-		orig_renameat = (orig_renameat_type)dlsym(RTLD_NEXT, "renameat");
-	}
-	if (orig_renameat && orig_renameat(olddirfd, oldpath, newdirfd, newpath) == 0) {
+	if (orig_renameat != NULL &&
+	    orig_renameat(olddirfd, oldpath, newdirfd, newpath) == 0) {
 		return (0);
 	}
 	if (olddirfd == AT_FDCWD) {
-		(void) snprintf(full_old, sizeof(full_old), "%s", oldpath);
+		strlcpy(full_old, oldpath, sizeof(full_old));
 	} else {
-		fprintf(stderr, "using fdesfs\n");
-		(void) snprintf(full_old, sizeof(full_old), "/dev/fd/%d", olddirfd);
+		if (fdesc_resolve(olddirfd, oldpath, full_old,
+		    sizeof(full_old)) == -1) {
+			return (-1);
+		}
 	}
 	if (newdirfd == AT_FDCWD) {
-		snprintf(full_new, sizeof(full_new), "%s", newpath);
+		strlcpy(full_new, newpath, sizeof(full_new));
 	} else {
-		fprintf(stderr, "using fdesfs\n");
-		snprintf(full_new, sizeof(full_new), "/dev/fd/%d", newdirfd);
+		if (fdesc_resolve(newdirfd, newpath, full_new,
+		    sizeof(full_new)) == -1) {
+			return (-1);
+		}
 	}
 	if (strcmp(full_old, full_new) == 0) {
-		return 0;
+		return (0);
 	}
 	return (mv_wrapper(full_old, full_new));
 }
@@ -88,36 +129,44 @@ renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath)
 static int
 mv_wrapper(const char *oldpath, const char *newpath)
 {
-    int status, cc;
-    char *argv[8];
-    pid_t pid;
+	int status, cc;
+	char *argv[8];
+	pid_t pid;
 
-    pid = fork();
-    if (pid == -1) {
-        fprintf(stderr, "fork failed: %s\n", strerror(errno));
-        return -1;
-    }
-    if (pid == 0) {
-        close(1);
-        close(2);
-        unsetenv("LD_PRELOAD");
-        argv[0] = "/bin/mv";
-        argv[1] = "-f";
-        argv[2] = (char *) oldpath;
-        argv[3] = (char *) newpath;
-        argv[4] = NULL;
-        (void) execv(*argv, argv);
-	_exit(1);
-    }
-    status = 0;
-    while (1) {
-        cc = waitpid(pid, &status, 0);
-        if (cc == -1 && errno == EINTR) {
-            continue;
-        } else if (cc == -1) {
-            fprintf(stderr, "waitpid failed: %s\n", strerror(errno));
-        }
-        break;
-    }
-    return status;
+	pid = fork();
+	if (pid == -1) {
+		fprintf(stderr, "libfsoverride: fork failed: %s\n",
+		    strerror(errno));
+		return (-1);
+	}
+	if (pid == 0) {
+		close(STDIN_FILENO);
+		close(STDOUT_FILENO);
+		close(STDERR_FILENO);
+		unsetenv("LD_PRELOAD");
+		argv[0] = "/bin/mv";
+		argv[1] = "-f";
+		argv[2] = (char *) oldpath;
+		argv[3] = (char *) newpath;
+		argv[4] = NULL;
+		(void) execv(*argv, argv);
+		_exit(1);
+	}
+	status = 0;
+	while (1) {
+		cc = waitpid(pid, &status, 0);
+		if (cc == -1 && errno == EINTR) {
+			continue;
+		} else if (cc == -1) {
+			fprintf(stderr, "libfsoverride: waitpid failed: %s\n",
+			    strerror(errno));
+			return (-1);
+		}
+		break;
+	}
+	if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+		return (0);
+	}
+	errno = EIO;
+	return (-1);
 }
