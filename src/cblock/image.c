@@ -73,7 +73,7 @@ image_prune(struct image_config *icp __attribute__((unused)), int ctlsock)
 	cmd = PRISON_IPC_GENERIC_COMMAND;
 	bzero(&arg, sizeof(arg));
 	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
-	sprintf(arg.p_cmdname, "image_prune");
+	snprintf(arg.p_cmdname, sizeof(arg.p_cmdname), "image_prune");
 	sock_ipc_must_write(ctlsock, &arg, sizeof(arg));
 	sock_ipc_from_sock_to_tty(ctlsock);
 }
@@ -87,7 +87,7 @@ image_get(struct image_config *icp __attribute__((unused)), int ctlsock)
 	cmd = PRISON_IPC_GENERIC_COMMAND;
 	bzero(&arg, sizeof(arg));
 	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
-	sprintf(arg.p_cmdname, "image_list");
+	snprintf(arg.p_cmdname, sizeof(arg.p_cmdname), "image_list");
 	sock_ipc_must_write(ctlsock, &arg, sizeof(arg));
 	sock_ipc_from_sock_to_tty(ctlsock);
 }
@@ -102,7 +102,7 @@ image_main(int argc, char *argv [], int ctlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "qhl", image_options,
+		c = getopt_long(argc, argv, "qhp", image_options,
 		    &option_index);
 		if (c == -1) {
 			break;
@@ -110,6 +110,9 @@ image_main(int argc, char *argv [], int ctlsock)
 		switch (c) {
 		case 'p':
 			ic.i_do_prune = 1;
+			break;
+		case 'q':
+			ic.i_quiet = 1;
 			break;
 		case 'h':
 			image_usage();

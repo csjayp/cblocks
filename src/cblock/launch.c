@@ -103,7 +103,6 @@ launch_container(int sock, struct launch_config *lcp)
 	vec_t *vec;
 
 	if (lcp->l_terminal != NULL) {
-		printf("setting term\n");
 		term = lcp->l_terminal;
 	} else {
 		term = getenv("TERM");

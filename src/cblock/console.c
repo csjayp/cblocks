@@ -92,13 +92,8 @@ console_usage(void)
 void
 console_reset_tty(void)
 {
-	struct termios t;
 
-	tcgetattr(STDIN_FILENO, &t);
-	t.c_lflag &= ~(ICANON | ECHO);
-	t.c_iflag &= ~(IXON | ICRNL);
-	t.c_oflag &= ~(OPOST);
-	tcsetattr(STDIN_FILENO, TCSANOW, &t);
+	tcsetattr(STDIN_FILENO, TCSANOW, &otermios);
 }
 
 int
@@ -141,9 +136,17 @@ console_tty_handle_socket(int sock)
 	switch (cmd) {
 	case PRISON_IPC_CONSOLE_TO_CLIENT:
 		sock_ipc_must_read(sock, &len, sizeof(len));
+		if (len == 0 || len > 1024 * 1024) {
+			warnx("console: invalid frame length %zu", len);
+			return (1);
+		}
 		buf = malloc(len);
+		if (buf == NULL) {
+			err(1, "malloc failed");
+		}
 		sock_ipc_must_read(sock, buf, len);
 		(void) write(STDIN_FILENO, buf, len);
+		free(buf);
 		break;
 	case PRISON_IPC_CONSOLE_SESSION_DONE:
 		console_reset_tty();
@@ -238,7 +241,7 @@ console_mplex(int sock)
 	FD_ZERO(&rfds);
 	FD_SET(sock, &rfds);
 	FD_SET(STDIN_FILENO, &rfds);
-	error = select(sock + 1, &rfds, NULL, NULL, NULL);
+	error = select(MAX(sock, STDIN_FILENO) + 1, &rfds, NULL, NULL, NULL);
 	if (error == -1 && errno == EINTR) {
 		return (0);
 	}

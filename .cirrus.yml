@@ -3,6 +3,6 @@ env:
 
 freebsd_14_task:
   freebsd_instance:
-    image_family: freebsd-14-2
+    image_family: freebsd-14-4
   build_script:
     - ./ci/build.sh

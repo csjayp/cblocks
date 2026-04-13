@@ -64,6 +64,7 @@ sock_ipc_connect_inet(struct global_params *gc)
 	if (connect(s, res->ai_addr, res->ai_addrlen) == -1) {
 		err(1, "connect failed");
 	}
+	freeaddrinfo(res0);
 	return (s);
 }
 
@@ -81,7 +82,7 @@ sock_ipc_connect_unix(struct global_params *gc)
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, gc->c_name, sizeof(addr.sun_path)-1);
 	if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
-		err(1, "bind(PF_UNIX) failed");
+		err(1, "connect(PF_UNIX) failed");
 	}
 	return (sock);
 }

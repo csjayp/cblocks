@@ -134,7 +134,7 @@ instance_signal(struct instance_config *icp, int ctlsock)
 
 	cmd = PRISON_IPC_SIGNAL_INSTANCE;
 	bzero(&csi, sizeof(csi));
-	sprintf(csi.p_instance, "%s", icp->i_instance);
+	strlcpy(csi.p_instance, icp->i_instance, sizeof(csi.p_instance));
 	/*
 	 * We are using SIG constants but we probably need to abstract these
 	 * for cross architecture/platform communications
@@ -169,7 +169,7 @@ instance_main(int argc, char *argv [], int ctlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "qhl", instance_options,
+		c = getopt_long(argc, argv, "qhlk:ps:", instance_options,
 		    &option_index);
 		if (c == -1) {
 			break;

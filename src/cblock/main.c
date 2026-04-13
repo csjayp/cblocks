@@ -164,7 +164,7 @@ main(int argc, char *argv [])
 	gcfg.c_name = "/var/run/cblock.sock";
 	while (1) {
 		option_index = 0;
-		c = getopt_long(sc_index, main_argv, "h46U:s:p:h", long_options,
+		c = getopt_long(sc_index, main_argv, "h46U:s:p:", long_options,
 		    &option_index);
 		if (c == -1) {
 			break;
@@ -172,7 +172,6 @@ main(int argc, char *argv [])
 		switch (c) {
 		case 'h':
 			usage();
-			exit(1);
 		case '4':
 			gcfg.c_family = PF_INET;
 			break;
@@ -196,6 +195,7 @@ main(int argc, char *argv [])
 			break;
 		}
 	}
+	free(main_argv);
 	if (gcfg.c_host) {
 		ctlsock = sock_ipc_connect_inet(&gcfg);
 	} else {

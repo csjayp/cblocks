@@ -74,7 +74,7 @@ struct build_manifest *
 build_manifest_load(struct build_config *bcp)
 {
 	struct build_manifest *bmp;
-	char manifest_path[128];
+	char manifest_path[PATH_MAX];
 	extern char *yyfile;
 	FILE *f;
 
@@ -209,8 +209,10 @@ build_send_context(int sock, struct build_config *bcp)
 	    sb.st_size);
 	fflush(stdout);
 	if (sock_ipc_from_to(fd, sock, sb.st_size) == -1) {
+		close(fd);
 		err(1, "sock_ipc_from_to: failed");
 	}
+	close(fd);
 	if (unlink(bcp->b_context_path) == -1) {
 		err(1, "failed to cleanup build context");
 	}
@@ -242,7 +244,6 @@ build_generate_context(struct build_config *bcp)
 		err(1, "failed to generate random file");
 	}
 	snprintf(dst, sizeof(dst), "%s.tar.gz", build_context_path);
-	build_context_path = mktemp(template);
 	print_bold_prefix(stdout),
 	fprintf(stdout, "Preparing local build context...\n");
 	fflush(stdout);
