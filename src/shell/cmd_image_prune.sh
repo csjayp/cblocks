@@ -24,25 +24,9 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
+. "$(dirname "$0")/common.sh"
 data_dir=""
 obliterate="no"
-
-get_vol()
-{
-    printf "%s" "$1" | sed -E "s,^/(.*),\1,g"
-}
-
-images()
-{
-    find "${data_dir}/images" \
-      -mindepth 1 -maxdepth  1 -type d
-}
-
-symlinks()
-{
-    find "${data_dir}/images" \
-      -mindepth 1 -maxdepth  1 -type l
-}
 
 do_image_purge()
 {
@@ -67,7 +51,7 @@ do_image_purge()
         printf "Removing un-referenced image: %s\n" $(basename $image)
         case $CBLOCK_FS in
         zfs)
-            vol=$(get_vol $image)
+            vol=$(path_to_vol $image)
             zfs destroy -r "$vol"
             rm -fr "$vol"
             ;;

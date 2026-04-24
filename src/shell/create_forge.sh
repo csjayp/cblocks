@@ -24,14 +24,11 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
+. "$(dirname "$0")/common.sh"
 data_dir=$1
 forge_path=$2
 
 set -e
-path_to_vol()
-{
-    printf "%s" "$1" | sed -E "s,^/(.*),\1,g"
-}
 
 create_forge()
 {

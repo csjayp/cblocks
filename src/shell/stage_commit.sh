@@ -26,6 +26,8 @@
 #
 set -e
 
+. "$(dirname "$0")/common.sh"
+
 build_root=$1
 build_index=$2
 data_dir=$3
@@ -34,11 +36,6 @@ n_stages=$5
 instance="$6"
 fim_spec_mode="$7"
 build_tag="$8"
-
-path_to_vol()
-{
-    echo -n "$1" | sed -E "s,^/(.*),\1,g"
-}
 
 commit_image()
 {
