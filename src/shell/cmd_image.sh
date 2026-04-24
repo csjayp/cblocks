@@ -24,6 +24,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
+. "$(dirname "$0")/common.sh"
 data_dir=$1
 
 humanize()
@@ -55,18 +56,6 @@ humanize()
         quo=$(echo "$val / 1000000000" | bc -l)
         printf "%.2fG" "${quo}"
     fi
-}
-
-images()
-{
-    find "${data_dir}/images" \
-      -mindepth 1 -maxdepth  1 -type d
-}
-
-symlinks()
-{
-    find "${data_dir}/images" \
-      -mindepth 1 -maxdepth  1 -type l
 }
 
 ret_bytes_transferred()

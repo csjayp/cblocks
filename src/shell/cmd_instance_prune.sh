@@ -24,13 +24,9 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
+. "$(dirname "$0")/common.sh"
 data_dir=""
 obliterate="no"
-
-get_vol()
-{
-    printf "%s" "$1" | sed -E "s,^/(.*),\1,g"
-}
 
 instances()
 {
@@ -54,7 +50,7 @@ do_instance_purge()
         echo Removing stale instance: "$instance"
         case $CBLOCK_FS in
         zfs)
-            vol=$(get_vol $instance_path)
+            vol=$(path_to_vol $instance_path)
             #
             # Other file systems?
             if [ -c "${instance_path}/root/dev/null" ]; then

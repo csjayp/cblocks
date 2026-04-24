@@ -38,6 +38,8 @@ fi
 
 stage_deps_dir=""
 
+. "$(dirname "$0")/common.sh"
+
 bind_devfs()
 {
     if [ ! -d "${build_root}/${stage_index}/dev" ]; then
@@ -128,11 +130,6 @@ prepare_file_system()
           "${build_root_vol}/${stage_index}"
         ;;
     esac
-}
-
-path_to_vol()
-{
-    echo -n "$1" | sed -E "s,^/(.*),\1,g"
 }
 
 get_dep_list()

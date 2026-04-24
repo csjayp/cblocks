@@ -23,6 +23,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
+. "$(dirname "$0")/common.sh"
 data_root="$1"
 image_name="$2"
 instance_id="$3"
@@ -264,18 +265,6 @@ emit_entrypoint()
     else
         echo "${CMD}"
     fi
-}
-
-get_default_ip()
-{
-    netif=`route get www.fastly.com | grep -F 'interface:' | awk '{ print $2 }'`
-    ipv4=`ifconfig ${netif} | egrep "inet " | tail -n 1 | awk '{ print $2 }'`
-    echo "${ipv4}"
-}
-
-path_to_vol()
-{
-    echo -n "$1" | sed -E "s,^/(.*),\1,g"
 }
 
 is_broadcast()

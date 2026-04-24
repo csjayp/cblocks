@@ -24,7 +24,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
-BINS="cp fetch ln mkdir mktemp rm sh tar"
+BINS="env cp fetch ln mkdir mktemp rm sh tar"
 ETCS="protocols resolv.conf services"
 CAPATH="/usr/local/share/certs/ca-root-nss.crt"
 
@@ -89,6 +89,10 @@ get_unique_libs()
     dump_libs | sort | uniq
 }
 
+# libdl for runtime linking hack
+mkdir -p usr/lib
+cp -p /usr/lib/libdl.so usr/lib/libdl.so.1
+
 for lib in $(get_unique_libs); do
     dname=$(dirname $(echo $lib | sed -E s,^/,,g))
     libname=$(basename $lib)
@@ -102,7 +106,7 @@ for bin in $BINS; do
     cp $bpath bin/
 done
 
-cp ../src/libfsoverride/libfsoverride.so lib/
+cp ../../src/libfsoverride/libfsoverride.so lib/
 echo "libfsoverride.so /tmp/cblock_forge/lib/libfsoverride.so" >> libmap.conf
 
 tar -czpf ../forge.tgz .

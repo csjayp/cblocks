@@ -24,14 +24,10 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
+. "$(dirname "$0")/common.sh"
 data_root="$1"
 instance="$2"
 type=$3
-
-path_to_vol()
-{
-    echo -n "$1" | sed -E "s,^/(.*),\1,g"
-}
 
 netif_get_desc()
 {
@@ -118,6 +114,7 @@ cleanup()
         rm -Wfr "${data_root}/instances/${instance}/images"
         stage_list=$(echo "${data_root}"/instances/"${instance}"/[0-9]*)
         for d in $stage_list; do
+            umount -f "${d}/root/dev/fd"
             umount -f "${d}/root/dev"
             case $CBLOCK_FS in
             ufs)

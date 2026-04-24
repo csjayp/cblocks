@@ -1,6 +1,7 @@
 TARGETS=cmd_image.sh \
 	cmd_image_prune.sh \
 	cmd_instance_prune.sh \
+	common.sh \
 	create_forge.sh \
 	network.sh \
 	stage_bootstrap_build.sh \

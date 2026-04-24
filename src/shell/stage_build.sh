@@ -24,14 +24,9 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
-set -e 
+set -e
 
-get_default_ip()
-{
-    netif=`route get www.fastly.com | grep -F 'interface:' | awk '{ print $2 }'`
-    ipv4=`ifconfig ${netif} | egrep "inet " | tail -n 1 | awk '{ print $2 }'`
-    echo "${ipv4}"
-}
+. "$(dirname "$0")/common.sh"
 
 build_root=$1
 instance_id=$2
