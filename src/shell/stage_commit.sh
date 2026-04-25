@@ -97,8 +97,10 @@ commit_image()
       tar -C "${src}" --exclude="/tmp" \
       --no-xattrs \
       --exclude="/dev" \
-      -cf - . | dd bs=4096 2> ${dest}/TOTALS | \
+      -cf - . | \
     tar -xpf - -C "${data_dir}/images/${image_name}.${instance}"
+    du -sk "${dest}" | awk '{ printf "%d bytes transferred\n", $1 * 1024 }' \
+      > "${dest}/TOTALS"
     # NB: we need to do this atomically
     #
     if [ -h "${data_dir}/images/${image_name}:${build_tag}" ]; then
