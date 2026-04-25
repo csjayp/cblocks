@@ -88,6 +88,59 @@ pts that are required for cblockd's operation (note: sequencing is important, be
 % sudo make install DESTDIR=/ssdvol0/cblocks 
 ```
 
+## UFS Performance Tuning
+
+When using the UFS backend, cblocks uses unionfs to layer container images. Union
+vnodes are created lazily on first file access and are subject to normal vnode
+recycling when idle, so pressure scales with what containers are actively doing
+rather than image size. Each accessed file requires roughly two vnodes: one union
+vnode and one UFS vnode for the lower (image) layer. The lower layer vnode is
+shared across all containers using the same base image, so for N containers the
+cost per accessed file is 1 shared lower vnode plus N union vnodes. Files that are
+written to incur a third vnode for the upper (per-instance) layer. During startup
+and any operation that walks the filesystem (package installs, find, rsync) union
+vnodes accumulate quickly, and running several busy containers against the same base
+image can exhaust the default vnode limit more quickly than a non-union workload.
+
+### Checking vnode pressure
+
+```
+% sysctl vfs.numvnodes vfs.vnode.param.limit vfs.freevnodes vfs.wantfreevnodes
+```
+
+If `vfs.numvnodes` is above 80% of `vfs.vnode.param.limit`, or `vfs.freevnodes`
+is consistently below `vfs.wantfreevnodes`, the system is under vnode pressure and
+containers may experience degraded lookup performance as the kernel races to recycle
+vnodes.
+
+### Calculating a new limit
+
+Each vnode consumes 448 bytes. A reasonable budget is 4-5% of physical RAM:
+
+```
+% python3 -c "import os; mem=int(os.popen('sysctl -n hw.physmem').read()); print(int(mem * 0.05 / 448))"
+```
+
+### Applying the new limit
+
+To apply immediately:
+
+```
+% sysctl kern.maxvnodes=<new_value>
+```
+
+To make it permanent, add to `/etc/sysctl.conf`:
+
+```
+kern.maxvnodes=<new_value>
+```
+
+### Example
+
+On a host with ~4GB RAM the default limit is around 176,000 vnodes. With cblocks
+running several containers backed by UFS/unionfs, a value of 350,000 is more
+appropriate and costs roughly 75MB of additional kernel memory.
+
 ## Setting up networking
 
 For NAT networks use the following command:
