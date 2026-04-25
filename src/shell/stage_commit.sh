@@ -97,8 +97,8 @@ commit_image()
       tar -C "${src}" --exclude="/tmp" \
       --no-xattrs \
       --exclude="/dev" \
-      -b 128 -cf - . | \
-    tar -b 128 -xpf - -C "${data_dir}/images/${image_name}.${instance}"
+      -b 32 -cf - . | \
+    tar -b 32 -xpf - -C "${data_dir}/images/${image_name}.${instance}"
     du -sk "${dest}" | awk '{ printf "%d bytes transferred\n", $1 * 1024 }' \
       > "${dest}/TOTALS"
     # NB: we need to do this atomically
