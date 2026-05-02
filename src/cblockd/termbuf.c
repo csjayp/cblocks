@@ -53,7 +53,7 @@ termbuf_to_contig(struct tty_buffer *ttyb)
 	}
 	buf = malloc(ttyb->t_tot_len + 1);
 	if (buf == NULL) {
-		err(1, "calloc(termbuf_to_contig) failed)");
+		err(1, "malloc(termbuf_to_contig) failed");
 	}
 	vptr = buf;
 	TAILQ_FOREACH(tbp, &ttyb->t_head, t_glue) {
@@ -67,6 +67,7 @@ termbuf_to_contig(struct tty_buffer *ttyb)
 		}
 		vptr += tbp->t_len;
 	}
+	buf[ttyb->t_tot_len] = '\0';
 	return (buf);
 }
 
@@ -124,7 +125,7 @@ termbuf_append(struct tty_buffer *ttyb, u_char *bytes, size_t len)
 static void
 termbuf_print_buf(struct termbuf *tbp)
 {
-	u_char *p;
+	u_char *p = NULL;
 
 	switch (tbp->t_flag) {
 	case TERMBUF_STATIC:
@@ -133,6 +134,8 @@ termbuf_print_buf(struct termbuf *tbp)
 	case TERMBUF_DYNAMIC:
 		p = tbp->t_dynamic;
 		break;
+	default:
+		return;
 	}
 	(void) fwrite(p, 1, tbp->t_len, stdout);
 }
@@ -152,7 +155,7 @@ termbuf_print_queue(termbuf_head_t *head)
 int
 main(int argc, char *argv [])
 {
-	struct tty_buffer ttyb;
+	struct tty_buffer ttyb = { 0 };
 	char *p;
 
 	gcfg.c_tty_buf_size = 1024;
@@ -172,7 +175,9 @@ main(int argc, char *argv [])
 	termbuf_append(&ttyb, (u_char *)p, strlen(p));
 	termbuf_print_queue(&ttyb.t_head);
 	printf("---\n");
-	printf("%s\n", termbuf_to_contig(&ttyb));
+	p = termbuf_to_contig(&ttyb);
+	printf("%s\n", p);
+	free(p);
 	return (0);
 }
 #endif	/* __TEST_TERMBUF_CODE__ */
