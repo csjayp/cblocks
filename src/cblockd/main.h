@@ -47,6 +47,7 @@ struct global_params {
 	char		*c_logfile;
 	char		*c_forge_path;
 	int		 c_inet;
+	char		*c_metrics_port;
 };
 
 #endif

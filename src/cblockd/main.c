@@ -48,6 +48,7 @@
 
 #include "termbuf.h"
 #include "main.h"
+#include "metrics.h"
 #include "sock_ipc.h"
 #include "dispatch.h"
 
@@ -92,6 +93,7 @@ static struct option long_options[] = {
 	{ "sock-owner",		required_argument, 0, 'o' },
 	{ "logfile",		required_argument, 0, 'l' },
 	{ "create-forge",	required_argument, 0, 'f' },
+	{ "metrics-listen",	required_argument, 0, 'm' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -100,23 +102,24 @@ usage(void)
 {
 
 	(void) fprintf(stderr,
+	    "Usage: cblockd [OPTIONS]\n\n"
 	    "Options\n"
-	    " -4, --ipv4                  IPv4 sockets only\n"
-	    " -6, --ipv6                  IPv6 sockets only\n"
-	    " -I, --inet                  Listen on ip4/ip6 network\n"
-	    " -U, --unix-sock=PATH        Path to UNIX socket\n"
-	    " -s, --listen-host=HOST      Listen host/address\n"
-	    " -p, --listen-port=PORT      Listen on port\n"
-	    " -T, --tty-buffer-size=SIZE  Store at most SIZE bytes in console\n"
-	    " -d, --data-directory        Where the cblockd data/spools/images are stored\n"
-	    " -u, --ufs                   UFS as the underlying file system\n"
-	    " -z, --zfs                   ZFS as the underlying file system\n"
-	    " -N, --fuse-unionfs          FUSE unionfs as the underlying file system\n"
-	    " -v, --verbose               Increase verbosity\n"
-	    " -b, --background            Launch daemon into the background\n"
-	    " -o, --sock-owner=USER       Allow user/groups to connect to socket\n"
-	    " -l, --logfile=FILE          Path to cblock daemon log\n"
-	    " -f, --create-forge=FILE     Create the base image to forge containers\n"
+	    " -4, --ipv4                      IPv4 sockets only\n"
+	    " -6, --ipv6                      IPv6 sockets only\n"
+	    " -I, --inet                      Listen on ip4/ip6 network\n"
+	    " -U, --unix-sock=PATH            Path to UNIX socket\n"
+	    " -s, --listen-host=HOST          Listen host/address\n"
+	    " -p, --listen-port=PORT          Listen on port\n"
+	    " -T, --tty-buffer-size=SIZE      Store at most SIZE bytes in console\n"
+	    " -d, --data-directory            Where the cblockd data/spools/images are stored\n"
+	    " -u, --ufs                       UFS as the underlying file system\n"
+	    " -z, --zfs                       ZFS as the underlying file system\n"
+	    " -v, --verbose                   Increase verbosity\n"
+	    " -b, --background                Launch daemon into the background\n"
+	    " -o, --sock-owner=USER           Allow user/groups to connect to socket\n"
+	    " -l, --logfile=FILE              Path to cblock daemon log\n"
+	    " -f, --create-forge=FILE         Create the base image to forge containers\n"
+	    " -m, --metrics-listen=ADDR:PORT  Prometheus metrics export HTTP port\n"
 	);
 	exit(1);
 }
@@ -286,6 +289,9 @@ main(int argc, char *argv [], char *env[])
 		case 'U':
 			gcfg.c_name = optarg;
 			break;
+		case 'm':
+			gcfg.c_metrics_port = optarg;
+			break;
 		case 's':
 			gcfg.c_host = optarg;
 			break;
@@ -323,6 +329,9 @@ main(int argc, char *argv [], char *env[])
 	fprintf(stdout, "%s\n", banner);
 	fprintf(stdout, "version %s\n", "0.0.0");
 	initialize_data_directory(zfs_selected);
+	if (gcfg.c_metrics_port) {
+		(void) metrics_setup_listener(&gcfg);
+	}
 	if (gcfg.c_forge_path != NULL) {
 		return (create_forge(gcfg.c_forge_path));
 	}
