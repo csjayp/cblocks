@@ -168,7 +168,7 @@ func LaunchCellblocks(yamlData []byte, prefix string) {
 		log.Fatalf("failed to process manifest: %s\n", err)
 	}
 	for _, cmd := range clist {
-		fmt.Printf("%s", strings.Join(cmd.Args, " "))
+		fmt.Printf("%s\n", strings.Join(cmd.Args, " "))
 	}
 }
 
