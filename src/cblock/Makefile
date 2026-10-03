@@ -2,7 +2,7 @@ CC	?= cc
 CFLAGS	= -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -fno-omit-frame-pointer -fsanitize=address -fstack-protector -g -I $(PREFIX)/include -I../include
 TARGETS	= cblock
 LIBS	= -lcblock -lpthread -lbsm
-OBJ	= build.o console.o launch.o y.tab.o lex.yy.o main.o sock_ipc.o instance.o network.o image.o
+OBJ	= build.o console.o launch.o y.tab.o lex.yy.o main.o sock_ipc.o instance.o image.o
 PREFIX	?= /usr/local
 all:	$(TARGETS)
 

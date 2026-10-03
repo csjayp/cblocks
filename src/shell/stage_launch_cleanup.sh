@@ -29,23 +29,6 @@ data_root="$1"
 instance="$2"
 type=$3
 
-netif_get_desc()
-{
-    ifconfig -D $1 | grep description | awk '{ print $2 }'
-}
-
-netif_get_bridge_by_name()
-{
-    for n in $(ifconfig -l); do
-        desc=$(netif_get_desc $n)
-        if [ "$desc" = "$1" ]; then
-            echo "$n"
-            return
-        fi
-    done
-    echo "someNonExistentInterface24567"
-}
-
 network_cleanup()
 {
     if [ ! -f "$data_root"/networks/cur ]; then
@@ -61,22 +44,20 @@ network_cleanup()
         type=$(echo "$ln" | awk -F, '{ print $1 }')
         case $type in
         bridge)
+            # Destroying one end of the epair destroys both, and the bridge
+            # drops the member on its own.
             epair=$(echo $ln | awk -F, '{ print $3 }')
-            net_name=$(echo $ln | awk -F, '{ print $4 }')
-            bridgeif=$(netif_get_bridge_by_name $net_name)
-            ifconfig "${epair}a" down
-            ifconfig "$bridgeif" deletem "${epair}a"
             ifconfig "${epair}a" destroy
             ;;
         nat)
             version=$(echo "$ln" | cut -f 5 -d,)
             ip=$(echo "$ln" | awk -F, '{ print $3 }')
+            netif=$(echo "$ln" | awk -F, '{ print $4 }')
             if [ "$version" = "6" ]; then
-                ifconfig cblock0 inet6 "${ip}" delete
+                ifconfig "$netif" inet6 "${ip}" delete
             else
-                pfctl -a cblock-nat/"${instance}" -Fa
                 pfctl -a cblock-rdr/"${instance}" -Fa
-                ifconfig cblock0 "${ip}"/32 delete
+                ifconfig "$netif" inet "${ip}"/32 delete
             fi
             ;;
         esac

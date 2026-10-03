@@ -80,7 +80,7 @@ launch_usage(void)
 	    " -h, --help                 Print help\n"
 	    " -n, --name=NAME            Name of container image to launch\n"
 	    " -t, --terminal=TERM        Terminal type to use (TERM)\n"
-	    " -N, --network=NETWORK      Attach container to specified network\n"
+	    " -N, --network=NETIF        Attach container to bridge or NAT interface\n"
 	    " -V, --volume=VOLUMESPEC    Mount volume into the container\n"
 	    " -F, --fdescfs              Mount file-descriptor file system\n"
 	    " -T, --tmpfs                Mount in-memory ephemeral tmpfs\n"
@@ -255,8 +255,7 @@ launch_main(int argc, char *argv [], int ctlsock)
 	}
 	if (lc.l_network == NULL) {
 		warnx("Must specify network to attach container to");
-		warnx("Use: cblock network --create ...");
-		warnx("Or use one of: --network, --host-networking");
+		warnx("Use one of: --network, --host-networking");
 		exit(1);
 	}
 		
