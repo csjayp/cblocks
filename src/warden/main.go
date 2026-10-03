@@ -131,6 +131,8 @@ func ProcessManifest(gcfg Config, prog string) ([]CmdVec, error) {
 		cmd.AddOption("name", cb.Image)
 		if cb.Network != "" {
 			cmd.AddOption("network", cb.Network)
+		} else if len(cb.Ports) > 0 {
+			return cmdvec, fmt.Errorf("block number %d has port mappings but no network, port mappings are not supported with host networking\n", cellblockCount)
 		}
 		if cb.Fdescfs {
 			cmd.AddBool("fdescfs")

@@ -80,10 +80,13 @@ Next, start the daemon:
 % sudo service cblockd start
 ```
 
-Now that you know where your root directory is, you can install the support scri
-pts that are required for cblockd's operation (note: sequencing is important, because cblockd will create the necessary directories for your support scripts).
+Now that you know where your root directory is, you can install the support scripts
+that are required for cblockd's operation. cblockd creates the `lib` directory the
+scripts are installed into when it starts; if you are installing the scripts before
+cblockd has been started, create it first:
 
 ```
+% sudo mkdir -p /ssdvol0/cblocks/lib
 % cd src/shell
 % sudo make install DESTDIR=/ssdvol0/cblocks 
 ```
