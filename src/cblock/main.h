@@ -43,7 +43,6 @@ int		console_main(int, char **, int);
 int		launch_main(int, char **, int);
 int		build_main(int, char **, int);
 int		instance_main(int, char **, int);
-int		network_main(int, char **, int);
 int		image_main(int, char **, int);
 
 int		console_tty_set_raw_mode(int);

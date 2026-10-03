@@ -3,7 +3,6 @@ TARGETS=cmd_image.sh \
 	cmd_instance_prune.sh \
 	common.sh \
 	create_forge.sh \
-	network.sh \
 	stage_bootstrap_build.sh \
 	stage_build.sh \
 	stage_commit.sh \
@@ -14,4 +13,3 @@ dummy:
 
 install:
 	install -m 0555 $(TARGETS) $(DESTDIR)/lib
-	touch $(DESTDIR)/networks/network_list

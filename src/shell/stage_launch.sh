@@ -37,77 +37,91 @@ image_dir=""
 
 #set -e
 
-net_is_ip6()
-{   
-    while read ln; do
-        n_name=$(echo "$ln" | awk -F, '{ print $2 }')
-        n_version=$(echo "$ln" | awk -F, '{ print $5 }')
-        if [ $n_name = "$1" ]; then
-            echo $n_version
-            return
-        fi
-    done < ${data_root}/networks/network_list
-    echo 4
-}
-
-get_bridge_netif_by_network()
+# The network is an interface configured by the administrator: a bridge
+# (VNET instance attached via epair), a loopback carrying the NAT subnet as its
+# base address (non-VNET instance with an address alias), or __host__.
+network_type()
 {
-    for netif in $(ifconfig -l); do
-        net=$(ifconfig $netif | grep description: | awk '{ print $2 }')
-        if [ "$net" = "$1" ]; then
-            echo $netif
-        fi
-    done
-    exit 1
+    if [ "$network" = "__host__" ]; then
+        echo host
+        return
+    fi
+    if [ "$network" = "lo0" ] || ! ifconfig "$network" >/dev/null 2>&1; then
+        echo none
+        return
+    fi
+    case $(ifconfig -D "$network" | awk '/groups:/ { print $2 }') in
+    bridge)
+        echo bridge
+        ;;
+    lo)
+        echo nat
+        ;;
+    *)
+        echo none
+        ;;
+    esac
 }
 
-network_is_bridge() {
-    while IFS=',' read -r type name netif; do
-        if [ "$name" = "$network" ] && [ "$type" = "bridge" ]; then
-            echo TRUE
-            return
-        fi
-    done < $data_root/networks/network_list
-    echo FALSE
+# Print the NAT subnet the administrator assigned to the loopback, e.g.
+# 10.0.0.1/24. Instance aliases are host addresses (/32 or /128) so they are
+# skipped, as are IPv6 link-local addresses.
+nat_base_cidr()
+{
+    ifconfig -f inet:cidr,inet6:cidr "$network" $1 | \
+      awk -v fam=$1 '$1 == fam && $2 !~ /^fe80:/ && $2 !~ /\/(32|128)$/ \
+      { print $2; exit }'
+}
+
+nat_ip_version()
+{
+    if [ "$(nat_base_cidr inet)" ]; then
+        echo 4
+    elif [ "$(nat_base_cidr inet6)" ]; then
+        echo 6
+    fi
+}
+
+# Outbound interface for port redirects: the loopback's description if the
+# administrator set one, otherwise the interface holding the default route.
+nat_outif()
+{
+    _desc=$(ifconfig "$network" | awk '/description:/ { print $2 }')
+    if [ "$_desc" ] && ifconfig "$_desc" >/dev/null 2>&1; then
+        echo "$_desc"
+        return
+    fi
+    route -n get default 2>/dev/null | awk '/interface:/ { print $2 }'
 }
 
 get_jail_interface()
 {
-    bridge=$(network_is_bridge)
-    case $bridge in
-    TRUE)
-        # NB: big cleanup on errors here needed!
-        epair=$(ifconfig epair create)
-        if [ $? -ne 0 ]; then
-            echo "Failed to create epair interface"
-            exit 1
-        fi
-        epair_unit=$(echo $epair | sed -E "s/epair([0-9]+)a/\1/g")
-        ifconfig epair${epair_unit}a up && ifconfig epair${epair_unit}b up
-        if [ $? -ne 0 ]; then
-            echo "Failed to bring epair interfaces up"
-            exit 1
-        fi
-        netif=$(get_bridge_netif_by_network $network)
-        ifconfig $netif addm epair${epair_unit}a
-        if [ $? -ne 0 ]; then
-            echo "Failed to add epair interface to bridge $netif ($network)"
-            exit 1
-        fi
-        # Make sure the underlying bridge interface is UP
-        ifconfig $netif up
-        if [ $? -ne 0 ]; then
-            echo "Unable to bring bridge interface $netif UP"
-            exit 1
-        fi
-        echo epair${epair_unit}b
-        echo "bridge,${instance_id},epair${epair_unit},$network" >> \
-          $data_root/networks/cur
-        ;;
-    *)
-        echo "Only bridges are supported at this time"
-        exit 1
-    esac
+    # NB: big cleanup on errors here needed!
+    epair=$(ifconfig epair create)
+    if [ $? -ne 0 ]; then
+        echo "Failed to create epair interface" >&2
+        return 1
+    fi
+    epair_unit=$(echo $epair | sed -E "s/epair([0-9]+)a/\1/g")
+    ifconfig epair${epair_unit}a up && ifconfig epair${epair_unit}b up
+    if [ $? -ne 0 ]; then
+        echo "Failed to bring epair interfaces up" >&2
+        return 1
+    fi
+    ifconfig $network addm epair${epair_unit}a
+    if [ $? -ne 0 ]; then
+        echo "Failed to add epair interface to bridge $network" >&2
+        return 1
+    fi
+    # Make sure the underlying bridge interface is UP
+    ifconfig $network up
+    if [ $? -ne 0 ]; then
+        echo "Unable to bring bridge interface $network UP" >&2
+        return 1
+    fi
+    echo epair${epair_unit}b
+    echo "bridge,${instance_id},epair${epair_unit},$network" >> \
+      $data_root/networks/cur
 }
 
 setup_port_redirects()
@@ -230,8 +244,7 @@ config_devfs()
         # devfs -m ${devfs_mount} rule applyset
         ;;
     esac
-    bridge=$(network_is_bridge)
-    if [ "$bridge" = "TRUE" ]; then
+    if [ "$(network_type)" = "bridge" ]; then
         bpf_allowed=$(devfs rule -s 5000 show | grep -c "bpf\* unhide")
         if [ "$bpf_allowed" -eq 0 ]; then
             devfs -m ${devfs_mount} ruleset 5000
@@ -303,7 +316,8 @@ is_assigned()
         echo "invalid ip version"
         exit 1
     esac
-    for ip in $(ifconfig cblock0 | grep "$family" | awk '{ print $2 }'); do
+    for ip in $(ifconfig "$network" $family | awk -v fam=$family \
+      '$1 == fam { print $2 }'); do
         if [ "$ip" = "$1" ]; then
             echo yes
             return 0
@@ -314,90 +328,73 @@ is_assigned()
 
 network_is_defined()
 {
-    if [ "$network" = "__host__" ]; then
+    case $(network_type) in
+    host|bridge)
         return 0
+        ;;
+    nat)
+        ;;
+    *)
+        echo "Network $network is not a bridge or NAT loopback interface"
+        exit 1
+        ;;
+    esac
+    case $(nat_ip_version) in
+    4)
+        fwd=net.inet.ip.forwarding
+        ;;
+    6)
+        fwd=net.inet6.ip6.forwarding
+        ;;
+    *)
+        echo "NAT interface $network has no network address configured"
+        exit 1
+        ;;
+    esac
+    if [ "$(sysctl -n $fwd)" != "1" ]; then
+        echo "$fwd must be enabled for NAT networks (see gateway_enable)"
+        exit 1
     fi
-    while read ln; do
-        n_name=$(echo $ln | awk -F, '{ print $2 }')
-        if [ "$n_name" = "$network" ]; then
-            return $(true)
-        fi
-    done < $data_root/networks/network_list
-    echo "Network $network is not defined"
-    exit 1
 }
 
 network_to_ip6()
 {
-    while read ln; do
-        n_type=$(echo $ln | awk -F, '{ print $1 }')
-        if [ "$n_type" != "nat" ]; then
-            continue
+    net_addr=$(nat_base_cidr inet6)
+    for ip in $(subcalc inet6 $net_addr print | grep -v "^;"); do
+        if [ $(is_assigned $ip 6) = "no" ] && \
+           [ $(is_broadcast $net_addr $ip 6) = "no" ]; then
+            ifconfig "$network" inet6 "${ip}/128" alias
+            echo "${ip}"
+            echo "nat,${instance_id},${ip},$network,6" >> \
+              $data_root/networks/cur
+            return
         fi
-        n_name=$(echo $ln | awk -F, '{ print $2 }')
-        if [ "$n_name" != "$network" ]; then
-            continue
-        fi
-        net_addr=$(echo $ln | awk -F, '{ print $4 }')
-        out_if=$(echo $ln | awk -F, '{ print $3 }')
-        version=$(echo $ln | awk -F, '{ print $5 }')
-        if [ $version != "6" ]; then
-            continue
-        fi
-        for ip in $(subcalc inet6 $net_addr print | grep -v "^;"); do
-            if [ $(is_assigned $ip $version) = "no" ] && \
-               [ $(is_broadcast $net_addr $ip $version) = "no" ]; then
-                ifconfig cblock0 inet6 "${ip}/128" alias
-                echo "${ip}"
-                echo "nat,${instance_id},${ip},$network,6" >> \
-                  $data_root/networks/cur
-                return
-            fi
-        done
-    done < $data_root/networks/network_list
+    done
     exit 1
 }
 
 network_to_ip()
 {
-    while read ln; do
-        n_type=$(echo $ln | awk -F, '{ print $1 }')
-        if [ "$n_type" != "nat" ]; then
-            continue
-        fi
-        n_name=$(echo $ln | awk -F, '{ print $2 }')
-        if [ "$n_name" != "$network" ]; then
-            continue
-        fi
-        net_addr=$(echo $ln | awk -F, '{ print $4 }')
-        out_if=$(echo $ln | awk -F, '{ print $3 }')
-        for ip in $(subcalc inet $net_addr print | grep -v "^;"); do
-            if [ $(is_assigned $ip "4") = "no" ] && \
-               [ $(is_broadcast $net_addr $ip "4") = "no" ]; then
-                ifconfig cblock0 inet "${ip}/32" alias
-                echo "nat on $out_if from ${ip}/32 to any -> ($out_if)" | \
-                    pfctl -a cblock-nat/${instance_id} -f -
-                echo "nat,${instance_id},${ip},$network,4" >> \
-                  $data_root/networks/cur
-                echo "${ip}"
-                setup_port_redirects "$ports" "$ip" "$out_if" | \
-                  pfctl -a cblock-rdr/${instance_id} -f -
-                return
+    net_addr=$(nat_base_cidr inet)
+    for ip in $(subcalc inet $net_addr print | grep -v "^;"); do
+        if [ $(is_assigned $ip 4) = "no" ] && \
+           [ $(is_broadcast $net_addr $ip 4) = "no" ]; then
+            ifconfig "$network" inet "${ip}/32" alias
+            echo "nat,${instance_id},${ip},$network,4" >> \
+              $data_root/networks/cur
+            echo "${ip}"
+            rdr_rules=$(setup_port_redirects "$ports" "$ip" "$(nat_outif)")
+            if [ "$rdr_rules" ]; then
+                echo "$rdr_rules" | pfctl -a cblock-rdr/${instance_id} -f -
             fi
-        done
-    done < $data_root/networks/network_list
+            return
+        fi
+    done
     exit 1
 }
 
 do_launch()
 {
-    if [ $(sysctl net.inet.ip.forwarding | awk '{ print $2 }') != "1" ]; then
-        sysctl net.inet.ip.forwarding=1 2>&1 >/dev/null
-        if [ $? -ne 0 ]; then
-            echo "failed to enable forwarding"
-            exit 1
-        fi
-    fi
     img_tag="${image_name}:${tag}"
     if [ ! -h "${data_root}/images/${img_tag}" ]; then
         echo "[FATAL]: no such image ${image_name} downloaded"
@@ -428,10 +425,10 @@ do_launch()
         mnt_cmd=$(emit_mount_specification "$mount_spec")
         eval $mnt_cmd
     fi
-    is_bridge=$(network_is_bridge)
+    net_type=$(network_type)
     set $(emit_entrypoint)
-    if [ "$is_bridge" = "TRUE" ]; then
-       netif=$(get_jail_interface)
+    if [ "$net_type" = "bridge" ]; then
+       netif=$(get_jail_interface) || exit 1
        jail -c \
           "host.hostname=${instance_hostname}" \
           "vnet" \
@@ -442,10 +439,18 @@ do_launch()
           "path=${instance_root}" \
           command="$@"
     else
-        if [ "$network" = "__host__" ]; then
-            ip4=$(get_default_ip)
+        if [ "$net_type" = "host" ]; then
+            netspec="ip4.addr=$(get_default_ip)"
+        elif [ $(nat_ip_version) = "6" ]; then
+            ip=$(network_to_ip6)
+            netspec="ip6.addr=$ip"
         else
-            ip4=$(network_to_ip)
+            ip=$(network_to_ip)
+            netspec="ip4.addr=$ip"
+        fi
+        if [ "$net_type" = "nat" ] && [ ! "$ip" ]; then
+            echo "No free addresses left on NAT interface $network"
+            exit 1
         fi
         jailcmd=""
         if [ -f "${image_dir}/AUDITCFG" ]; then
@@ -454,11 +459,6 @@ do_launch()
         jailcmd="$jailcmd jail -c host.hostname=${instance_hostname} "
         jailcmd="$jailcmd name=${image_name}-${instance_hostname} "
         jailcmd="$jailcmd allow.chflags=1 path=${instance_root} "
-        if [ $(net_is_ip6 $network) = "6" ]; then
-            netspec="ip6.addr=$(network_to_ip6)"
-        else
-            netspec="ip4.addr=$ip4"
-        fi
         jailcmd="$jailcmd $netspec osrelease=$(emit_os_release) command=$@"
         eval $jailcmd
     fi

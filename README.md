@@ -143,46 +143,59 @@ appropriate and costs roughly 75MB of additional kernel memory.
 
 ## Setting up networking
 
-For NAT networks use the following command:
+Networks are plain FreeBSD interfaces configured by the administrator in
+`rc.conf(5)` and `pf.conf(5)`. Containers are attached to them by interface
+name with `cblock launch --network <interface>`. The interface type selects
+the networking mode:
+
+* A bridge: the container gets its own VNET network stack attached to the
+  bridge with an epair. Address configuration (e.g. DHCP) is up to the
+  container.
+* A loopback with an address: NAT mode. The address and prefix define the
+  subnet containers are allocated from, each container address is added as an
+  alias on the loopback, and the jail is bound to it.
+
+Example `/etc/rc.conf`:
 
 ```
-% sudo cblock network --create --type nat --netmask 10.0.0.0/24 --interface em0 --name vlan0
-% sudo cblock network
-   TYPE       NAME  NETIF   NET
-    nat      vlan0    em0   10.0.0.0/24
-%
+cloned_interfaces="bridge0 lo1"
+
+# Bridged network "l2net" on re0
+ifconfig_bridge0_name="l2net"
+ifconfig_l2net="addm re0 up"
+
+# NAT network "natnet", containers get addresses from 10.0.0.0/24
+ifconfig_lo1_name="natnet"
+ifconfig_natnet="inet 10.0.0.1/24"
+ifconfig_natnet_descr="re0"
+
+gateway_enable="YES"
+pf_enable="YES"
 ```
-For bridged networks perform the following:
+
+NAT networks require PF. Add an outbound NAT rule for each NAT network and the
+anchor cblocks uses to load port mappings to `/etc/pf.conf`:
 
 ```
-% sudo cblock network --create --type bridge --interface re0 --name l2net
-Bridge bridge1 configured and ready for containers
-bridge1: flags=8802<BROADCAST,SIMPLEX,MULTICAST> metric 0 mtu 1500
-	description: l2net
-	options=10<VLAN_HWTAGGING>
-	ether 58:9c:fc:10:0a:4c
-	id 00:00:00:00:00:00 priority 32768 hellotime 2 fwddelay 15
-	maxage 20 holdcnt 6 proto rstp maxaddr 2000 timeout 1200
-	root id 00:00:00:00:00:00 priority 0 ifcost 0 port 0
-	bridge flags=0<>
-	member: re0 flags=143<LEARNING,DISCOVER,AUTOEDGE,AUTOPTP>
-	        port 1 priority 128 path cost 55 vlan protocol 802.1q
-	groups: bridge
-	nd6 options=9<PERFORMNUD,IFDISABLED>
-% sudo cblock network
-   TYPE       NAME  NETIF   NET
- bridge      l2net    re0   -
-%
+nat on re0 from (natnet:network) to any -> (re0)
+rdr-anchor "cblock-rdr/*"
 ```
+
+Use the parenthesized `(natnet:network)` form so the ruleset still loads if
+the interface does not exist yet.
+
+Port mappings marked public are redirected from the interface named in the
+loopback's description (`ifconfig_natnet_descr`), or from the interface
+holding the default route if no description is set. Non-public port mappings
+are only reachable from the host via localhost.
+
+```
+% sudo cblock launch --name nginx --network natnet --port 443:443:public
+% sudo cblock launch --name nginx --network l2net
+```
+
 NOTE: IMPORTANT: If you have your bridged network bound to your external interface, you will be exposed
 to attack from the internet and will probably want to configure a firewall!
-
-If users are using NAT mode network they must be using PF and have the following anchors defined:
-
-```
-rdr-anchor "cblock-rdr/*"
-nat-anchor "cblock-nat/*"
-```
 
 ## Creating the base Forge image
 
