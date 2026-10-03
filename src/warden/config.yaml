@@ -27,4 +27,3 @@ cellblocks:
 
   - image: porter
     tmpfs: true
-    network: host

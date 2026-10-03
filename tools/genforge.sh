@@ -45,7 +45,9 @@ if [ -z "$cblockd_data_dir" ] || [ -z "$cblockd_fs" ]; then
    exit 1
 fi
 
-chflags -R noschg forge/ && rm -fr forge/
+if [ -d forge ]; then
+    chflags -R noschg forge/ && rm -fr forge/
+fi
 rm -fr forge.tgz && mkdir forge
 
 make -C ../src/libfsoverride

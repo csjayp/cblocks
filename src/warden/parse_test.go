@@ -31,6 +31,9 @@ var yamlWithFalsePseudoFs []byte
 //go:embed fixtures/launchWithMultiBlocks.yaml
 var yamlLaunchWithMultiBlocks []byte
 
+//go:embed fixtures/launchPortsNoNetwork.yaml
+var yamlLaunchPortsNoNetwork []byte
+
 func TestLaunchCellblocks(t *testing.T) {
 	prog := "/usr/local/bin/cblock"
 	testCases := []struct {
@@ -142,6 +145,12 @@ func TestLaunchCellblocks(t *testing.T) {
 				},
 			},
 			wantError: false,
+		},
+		{
+			name:         "port mappings with host networking",
+			yamlData:     yamlLaunchPortsNoNetwork,
+			expectCmdVec: []CmdVec{},
+			wantError:    true,
 		},
 		{
 			name:         "cellblock with no image specification",
