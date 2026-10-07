@@ -56,7 +56,7 @@ network_cleanup()
             if [ "$version" = "6" ]; then
                 ifconfig "$netif" inet6 "${ip}" delete
             else
-                pfctl -a cblock-rdr/"${instance}" -Fa
+                pfctl -a cblock-rdr/"${instance}" -F nat
                 ifconfig "$netif" inet "${ip}"/32 delete
             fi
             ;;

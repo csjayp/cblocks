@@ -29,12 +29,10 @@
 #include <sys/ioctl.h>
 #include <sys/param.h>
 #include <sys/un.h>
-#include <sys/ttycom.h>
 #include <netinet/in.h>
 
 #include <stdio.h>
 #include <signal.h>
-#include <termios.h>
 #include <errno.h>
 #include <pthread.h>
 #include <string.h>
@@ -141,7 +139,7 @@ main(int argc, char *argv [])
 {
 	int option_index, c, ctlsock, sc_index, j;
 	struct sub_command *scp;
-	char **main_argv;
+	char **main_argv, errbuf[128];
 
 	sc_index = locate_sub_command(argc, argv);
 	if (sc_index == -1) {
@@ -171,6 +169,7 @@ main(int argc, char *argv [])
 		switch (c) {
 		case 'h':
 			usage();
+			break;
 		case '4':
 			gcfg.c_family = PF_INET;
 			break;
@@ -199,6 +198,9 @@ main(int argc, char *argv [])
 		ctlsock = sock_ipc_connect_inet(&gcfg);
 	} else {
 		ctlsock = sock_ipc_connect_unix(&gcfg);
+	}
+	if (proto_hello_client(ctlsock, errbuf, sizeof(errbuf)) == -1) {
+		errx(1, "%s", errbuf);
 	}
 	return ((*scp->sc_callback)(argc, argv, ctlsock));
 }

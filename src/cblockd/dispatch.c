@@ -103,10 +103,8 @@ tty_io_queue_loop(void *arg __attribute__((unused)))
 	struct timeval tv;
 	u_char buf[8192];
 	int maxfd, error;
-	uint32_t cmd;
 	fd_set rfds;
 	ssize_t cc;
-	size_t len;
 
 	while (1) {
 		cblock_reap_children();
@@ -142,11 +140,8 @@ tty_io_queue_loop(void *arg __attribute__((unused)))
 			if ((pi->p_state & STATE_CONNECTED) == 0) {
 				continue;
 			}
-			len = cc;
-			cmd = PRISON_IPC_CONSOLE_TO_CLIENT;
-			sock_ipc_must_write(pi->p_peer_sock, &cmd, sizeof(cmd));
-			sock_ipc_must_write(pi->p_peer_sock, &len, sizeof(len));
-			sock_ipc_must_write(pi->p_peer_sock, buf, cc);
+			(void) wire_send_frame(pi->p_peer_sock,
+			    PRISON_IPC_CONSOLE_TO_CLIENT, buf, cc);
 		}
 		pthread_mutex_unlock(&cblock_mutex);
 	}
@@ -161,7 +156,10 @@ dispatch_signal_instance(int sock)
 	struct cblock_instance *pi;
 
 	bzero(&resp, sizeof(resp));
-	sock_ipc_must_read(sock, &csi, sizeof(csi));
+	if (proto_recv_signal(sock, &csi) == -1) {
+		warnx("failed to read signal request");
+		return (1);
+	}
 	pthread_mutex_lock(&cblock_mutex);
 	pi = cblock_lookup_instance(csi.p_instance);
 	if (pi == NULL) {
@@ -169,7 +167,7 @@ dispatch_signal_instance(int sock)
 		(void) snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
 		    "%s invalid container", csi.p_instance);
 		resp.p_ecode = 1;
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		(void) proto_send_response(sock, &resp);
 		return (1);
 	}
 	switch (csi.p_sig) {
@@ -184,12 +182,12 @@ dispatch_signal_instance(int sock)
 		(void) snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
 		    "illegal signal specification: %d", csi.p_sig);
 		resp.p_ecode = 1;
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		(void) proto_send_response(sock, &resp);
 		return (1);
 	}
 	resp.p_ecode = 0;
 	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "OK %d", csi.p_sig);
-	sock_ipc_must_write(sock, &resp, sizeof(resp));
+	(void) proto_send_response(sock, &resp);
         return (1);
 }
 
@@ -201,13 +199,15 @@ dispatch_connect_console(int sock)
 	struct cblock_response resp;
 	struct cblock_instance *pi;
 	char *tty_block, *trimmed;
+	size_t len, off, chunk;
 	ssize_t tty_buflen;
-	uint32_t cmd;
-	size_t len;
 	int ttyfd;
 
 	bzero(&resp, sizeof(resp));
-	sock_ipc_must_read(sock, &pcc, sizeof(pcc));
+	if (proto_recv_console_connect(sock, &pcc) == -1) {
+		warnx("failed to read console connect request");
+		return (1);
+	}
 	pthread_mutex_lock(&cblock_mutex);
 	pi = cblock_lookup_instance(pcc.p_instance);
 	if (pi == NULL) {
@@ -215,7 +215,7 @@ dispatch_connect_console(int sock)
 		snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
 		    "%s invalid container", pcc.p_instance);
 		resp.p_ecode = 1;
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		(void) proto_send_response(sock, &resp);
 		return (1);
 	}
 	if ((pi->p_state & STATE_CONNECTED) != 0) {
@@ -223,7 +223,7 @@ dispatch_connect_console(int sock)
 		snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
 		    "%s console already attached", pcc.p_instance);
 		resp.p_ecode = 1;
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		(void) proto_send_response(sock, &resp);
 		return (1);
 	}
 	CBLOCKD_CBLOCK_CONSOLE_ATTACH(pcc.p_instance);
@@ -234,18 +234,25 @@ dispatch_connect_console(int sock)
 	pi->p_peer_sock = sock;
 	pthread_mutex_unlock(&cblock_mutex);
 	resp.p_ecode = 0;
-	sock_ipc_must_write(sock, &resp, sizeof(resp));
+	(void) proto_send_response(sock, &resp);
 	if (tty_block) {
-		cmd = PRISON_IPC_CONSOLE_TO_CLIENT;
-		sock_ipc_must_write(sock, &cmd, sizeof(cmd));
+		/*
+		 * Replay the console history, splitting it up so no single
+		 * frame exceeds the protocol maximum.
+		 */
 		trimmed = tty_trim_buffer(tty_block, tty_buflen, &len);
-		sock_ipc_must_write(sock, &len, sizeof(len));
-		sock_ipc_must_write(sock, trimmed, len);
+		for (off = 0; off < len; off += chunk) {
+			chunk = MIN(len - off, CBLOCK_CONSOLE_CHUNK);
+			(void) wire_send_frame(sock,
+			    PRISON_IPC_CONSOLE_TO_CLIENT, trimmed + off, chunk);
+		}
 		free(tty_block);
 	}
-	if (tcsetattr(ttyfd, TCSANOW, &pcc.p_termios) == -1) {
-		err(1, "tcsetattr(TCSANOW) console connect");
-	}
+	/*
+	 * NB: we no longer apply the client's termios to the pty. The
+	 * structure is not portable across operating systems, and
+	 * tty_console_session() puts the pty into raw mode regardless.
+	 */
 	if (ioctl(ttyfd, TIOCSWINSZ, &pcc.p_winsize) == -1) {
 		err(1, "ioctl(TIOCSWINSZ): failed");
 	}
@@ -265,10 +272,9 @@ dispatch_launch_cblock(int sock)
 	struct cblock_instance *pi;
 	vec_t *cmd_vec, *env_vec;
 	struct cblock_launch pl;
-	ssize_t cc;
 
-	cc = sock_ipc_must_read(sock, &pl, sizeof(pl));
-	if (cc == 0) {
+	if (proto_recv_launch(sock, &pl) == -1) {
+		warnx("failed to read launch request");
 		return (0);
 	}
 	pi = calloc(1, sizeof(*pi));
@@ -337,7 +343,7 @@ dispatch_launch_cblock(int sock)
 	resp.p_ecode = 0;
 	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "%s",
 	    pi->p_instance_tag);
-	sock_ipc_must_write(sock, &resp, sizeof(resp));
+	(void) proto_send_response(sock, &resp);
 	vec_free(cmd_vec);
 	vec_free(env_vec);
 	return (1);
@@ -357,10 +363,13 @@ dispatch_work(void *arg)
 	p = (struct cblock_peer *)arg;
 	printf("newly accepted socket: %d\n", p->p_sock);
 	done = 0;
+	if (proto_hello_server(p->p_sock) == -1) {
+		warnx("protocol hello failed, dropping connection");
+		done = 1;
+	}
 	while (!done) {
 		printf("waiting for command\n");
-		cc = sock_ipc_may_read(p->p_sock, &cmd, sizeof(cmd));
-		if (cc == 1) {
+		if (sock_ipc_read_u32(p->p_sock, &cmd) == -1) {
 			break;
 		}
 		switch (cmd) {

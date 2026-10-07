@@ -87,17 +87,16 @@ dispatch_generic_command(int sock)
 	 * 0 here.
 	 */
 	vec = vec_init(0);
-	marshalled = NULL;
-	sock_ipc_must_read(sock, &arg, sizeof(arg));
+	if (proto_recv_generic_command(sock, &arg, &marshalled) == -1) {
+		warnx("failed to read generic command");
+		vec_free(vec);
+		return (1);
+	}
 	printf("got command %s\n", arg.p_cmdname);
-	if (arg.p_mlen != 0) {
-		marshalled = malloc(arg.p_mlen);
-		if (marshalled == NULL) {
-			return (1);
-		}
-		sock_ipc_must_read(sock, marshalled, arg.p_mlen);
+	if (marshalled != NULL) {
 		printf("read marshalled data\n");
 		vec_unmarshal(vec, marshalled, arg.p_mlen);
+		free(marshalled);
 		vec_finalize(vec);
 	}
 	script = lookup_script(arg.p_cmdname);

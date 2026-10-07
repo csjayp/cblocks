@@ -78,22 +78,18 @@ static void
 instance_get(struct instance_config *icp, int ctlsock)
 {
 	struct instance_ent *ent, *cur;
-	uint32_t cmd, k;
-	size_t count;
+	size_t count, k;
 	time_t now;
 
-	count = 0;
-	cmd = PRISON_IPC_GET_INSTANCES;
-	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
-	sock_ipc_must_read(ctlsock, &count, sizeof(count));
+	if (sock_ipc_write_u32(ctlsock, PRISON_IPC_GET_INSTANCES) == -1) {
+		errx(1, "failed to send instance request");
+	}
+	if (proto_recv_instances(ctlsock, &ent, &count) == -1) {
+		errx(1, "failed to read instance list");
+	}
 	if (count == 0) {
 		return;
 	}
-	ent = malloc(count * sizeof(struct instance_ent));
-	if (ent == NULL) {
-		err(1, "malloc for instance list failed");
-	}
-	sock_ipc_must_read(ctlsock, ent, count * sizeof(struct instance_ent));
 	if (!icp->i_quiet) {
 		printf("%-10.10s  %-15.15s %-12.12s %-7.7s %-11.11s %10.10s\n",
 		    "INSTANCE", "IMAGE", "TTY", "PID", "TYPE", "UP");
@@ -109,19 +105,20 @@ instance_get(struct instance_config *icp, int ctlsock)
 		    cur->p_type,
 		    now - cur->p_start_time);
 	}
+	free(ent);
 }
 
 static void
 instance_prune(struct instance_config *icp __attribute__((unused)), int ctlsock)
 {
 	struct cblock_generic_command arg;
-	uint32_t cmd;
 
-	cmd = PRISON_IPC_GENERIC_COMMAND;
 	bzero(&arg, sizeof(arg));
-	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
-	sprintf(arg.p_cmdname, "instance_prune");
-	sock_ipc_must_write(ctlsock, &arg, sizeof(arg));
+	snprintf(arg.p_cmdname, sizeof(arg.p_cmdname), "instance_prune");
+	if (sock_ipc_write_u32(ctlsock, PRISON_IPC_GENERIC_COMMAND) == -1 ||
+	    proto_send_generic_command(ctlsock, &arg, NULL) == -1) {
+		errx(1, "failed to send prune request");
+	}
 	sock_ipc_from_sock_to_tty(ctlsock);
 }
 
@@ -130,11 +127,9 @@ instance_signal(struct instance_config *icp, int ctlsock)
 {
 	struct cblock_signal_instance csi;
 	struct cblock_response resp;
-	uint32_t cmd;
 
-	cmd = PRISON_IPC_SIGNAL_INSTANCE;
 	bzero(&csi, sizeof(csi));
-	strlcpy(csi.p_instance, icp->i_instance, sizeof(csi.p_instance));
+	snprintf(csi.p_instance, sizeof(csi.p_instance), "%s", icp->i_instance);
 	/*
 	 * We are using SIG constants but we probably need to abstract these
 	 * for cross architecture/platform communications
@@ -150,9 +145,13 @@ instance_signal(struct instance_config *icp, int ctlsock)
 		(void) fprintf(stderr, "error: bad sigop: %d\n", icp->i_sigop);
 		exit(1);
 	}
-	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
-	sock_ipc_must_write(ctlsock, &csi, sizeof(csi));
-	sock_ipc_must_read(ctlsock, &resp, sizeof(resp));
+	if (sock_ipc_write_u32(ctlsock, PRISON_IPC_SIGNAL_INSTANCE) == -1 ||
+	    proto_send_signal(ctlsock, &csi) == -1) {
+		errx(1, "failed to send signal request");
+	}
+	if (proto_recv_response(ctlsock, &resp) == -1) {
+		errx(1, "failed to read signal response");
+	}
 	if (resp.p_ecode != 0) {
 		printf("ERROR: got error status back: %d msg: %s\n",
 		    resp.p_ecode, resp.p_errbuf);

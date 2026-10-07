@@ -3,7 +3,7 @@ CC	?= cc
 CFLAGS	= -Wall -Wno-zero-length-array -Wextra -Wpedantic -Wshadow -Wformat=2 -fno-omit-frame-pointer -fsanitize=address -fstack-protector -g -I $(PREFIX)/include -I../include/ -Wno-zero-length-array
 TARGETS	= cblockd
 OBJ	= main.o sock_ipc.o dispatch.o termbuf.o build.o instances.o exec.o tty.o util.o cblock.o
-LIBS	= -lpthread -lutil -lcblock -lcrypto
+LIBS	= ../libcblock/libcblock.a -lpthread -lutil -lcrypto
 PREFIX	?= /usr/local
 
 all:	$(TARGETS)
@@ -17,8 +17,8 @@ probes.o: $(OBJ)
 probes.h: probes.d
 	dtrace -o probes.h -h -s probes.d
 
-cblockd: $(OBJ) probes.o
-	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib -L../libcblock probes.o
+cblockd: $(OBJ) probes.o ../libcblock/libcblock.a
+	$(CC) $(CFLAGS) -o $@ $(OBJ) $(LIBS) -L $(PREFIX)/lib probes.o
 
 clean:
 	rm -fr *.o $(TARGETS) *.core *.plist *.outa probes.h
