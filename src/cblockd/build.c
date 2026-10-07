@@ -634,28 +634,28 @@ dispatch_build_recieve(int sock)
 	bzero(&resp, sizeof(resp));
 	if (proto_recv_build_context(sock, &bctx.pbc) == -1) {
 		printf("didn't get proper build context headers\n");
-		return (0);
+		return (-1);
 	}
 	if (bctx.pbc.p_nstages > MAX_BUILD_STAGES ||
 	    bctx.pbc.p_nsteps > MAX_BUILD_STEPS) {
 		resp.p_ecode = -1;
 		sprintf(resp.p_errbuf, "too many build stages/steps\n");
 		(void) proto_send_response(sock, &resp);
-		return (1);
+		return (-1);
 	}
 	bctx.stages = calloc(bctx.pbc.p_nstages, sizeof(*bctx.stages));
 	if (bctx.stages == NULL) {
 		resp.p_ecode = -1;
 		sprintf(resp.p_errbuf, "out of memory");
 		(void) proto_send_response(sock, &resp);
-		return (1);
+		return (-1);
 	}
 	bctx.steps = calloc(bctx.pbc.p_nsteps, sizeof(*bctx.steps));
 	if (bctx.steps == NULL) {
 		resp.p_ecode = -1;
 		sprintf(resp.p_errbuf, "out of memory");
 		(void) proto_send_response(sock, &resp);
-		return (1);
+		return (-1);
 	}
 	j = 0;
 	for (k = 0; k < bctx.pbc.p_nstages; k++) {
@@ -675,7 +675,7 @@ dispatch_build_recieve(int sock)
 		snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
 		    "malformed build stage or step");
 		(void) proto_send_response(sock, &resp);
-		return (0);
+		return (-1);
 	}
 	bctx.instance = gen_sha256_instance_id(bctx.pbc.p_image_name);
 	fd = dispatch_build_set_outfile(&bctx, resp.p_errbuf,
@@ -687,7 +687,7 @@ dispatch_build_recieve(int sock)
 		free(bctx.instance);
 		resp.p_ecode = -1;
 		(void) proto_send_response(sock, &resp);
-		return (1);
+		return (-1);
         }
 	if (sock_ipc_from_to(sock, fd, bctx.pbc.p_context_size) == -1) {
 		free(bctx.steps);
@@ -695,7 +695,7 @@ dispatch_build_recieve(int sock)
 		free(bctx.instance);
 		close(fd);
 		warn("sock_ipc_from_to failed");
-		return (1);
+		return (-1);
 	}
 	close(fd);
 	pi = calloc(1, sizeof(*pi));
@@ -709,7 +709,7 @@ dispatch_build_recieve(int sock)
 	pi->p_pid = forkpty(&pi->p_ttyfd, pi->p_ttyname, NULL, NULL);
 	if (pi->p_pid == -1) {
 		warn("failed to fork build job");
-		return (1);
+		return (-1);
 	}
 	if (pi->p_pid > 0) {
 		CBLOCKD_CBLOCK_CREATE(pi->p_instance_tag);
@@ -725,7 +725,7 @@ dispatch_build_recieve(int sock)
 		free(bctx.steps);
 		free(bctx.stages);
 		free(bctx.instance);
-		return (1);
+		return (0);
 	}
 	/*
 	 * Child process, all stdout/stdin is routed to the PTY
@@ -752,5 +752,5 @@ dispatch_build_recieve(int sock)
 	free(bctx.instance);
 	_exit(0);
 	/* NOT REACHED */
-	return (1);
+	return (0);
 }

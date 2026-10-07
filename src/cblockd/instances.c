@@ -52,6 +52,7 @@ dispatch_get_instances(int sock)
 {
 	struct instance_ent *ents;
 	size_t count;
+	int error;
 
 	count = cblock_instance_get_count();
 	ents = NULL;
@@ -61,7 +62,7 @@ dispatch_get_instances(int sock)
 			count = 0;
 		}
 	}
-	(void) proto_send_instances(sock, ents, count);
+	error = proto_send_instances(sock, ents, count);
 	free(ents);
-	return (1);
+	return (error);
 }

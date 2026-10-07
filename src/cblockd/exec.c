@@ -90,7 +90,7 @@ dispatch_generic_command(int sock)
 	if (proto_recv_generic_command(sock, &arg, &marshalled) == -1) {
 		warnx("failed to read generic command");
 		vec_free(vec);
-		return (1);
+		return (-1);
 	}
 	printf("got command %s\n", arg.p_cmdname);
 	if (marshalled != NULL) {
@@ -102,16 +102,16 @@ dispatch_generic_command(int sock)
 	script = lookup_script(arg.p_cmdname);
 	if (script == NULL) {
 		warnx("invalid command");
-		return (1);
+		return (-1);
 	}
 	if (pipe2(pipefds, O_CLOEXEC) == -1) {
 		warn("pipe2 failed");
-		return (1); 
+		return (-1);
 	}
 	pid = fork();
 	if (pid == -1) {
 		warn("fork failed");
-		return (1);
+		return (-1);
 	}
 	if (pid == 0) {
 		char script_path[1024], **argv;
@@ -158,11 +158,15 @@ dispatch_generic_command(int sock)
 		}
 		if (cc == -1) {
 			warn("read (pipe) failed");
-			return (1);
+			return (-1);
 		}
 		warn("execve failed %d", error);
 		break;
 	}
+	close(pipefds[0]);
+	/*
+	 * XXX: the script's exit status is not reported to the client yet.
+	 */
 	waitpid_ignore_intr(pid, &error);
-	return (error);
+	return (0);
 }
