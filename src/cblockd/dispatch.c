@@ -158,7 +158,7 @@ dispatch_signal_instance(int sock)
 	bzero(&resp, sizeof(resp));
 	if (proto_recv_signal(sock, &csi) == -1) {
 		warnx("failed to read signal request");
-		return (1);
+		return (-1);
 	}
 	pthread_mutex_lock(&cblock_mutex);
 	pi = cblock_lookup_instance(csi.p_instance);
@@ -168,7 +168,7 @@ dispatch_signal_instance(int sock)
 		    "%s invalid container", csi.p_instance);
 		resp.p_ecode = 1;
 		(void) proto_send_response(sock, &resp);
-		return (1);
+		return (-1);
 	}
 	switch (csi.p_sig) {
 	case SIGTERM:
@@ -183,12 +183,12 @@ dispatch_signal_instance(int sock)
 		    "illegal signal specification: %d", csi.p_sig);
 		resp.p_ecode = 1;
 		(void) proto_send_response(sock, &resp);
-		return (1);
+		return (-1);
 	}
 	resp.p_ecode = 0;
 	snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "OK %d", csi.p_sig);
 	(void) proto_send_response(sock, &resp);
-        return (1);
+	return (0);
 }
 
 int
@@ -206,7 +206,7 @@ dispatch_connect_console(int sock)
 	bzero(&resp, sizeof(resp));
 	if (proto_recv_console_connect(sock, &pcc) == -1) {
 		warnx("failed to read console connect request");
-		return (1);
+		return (-1);
 	}
 	pthread_mutex_lock(&cblock_mutex);
 	pi = cblock_lookup_instance(pcc.p_instance);
@@ -216,7 +216,7 @@ dispatch_connect_console(int sock)
 		    "%s invalid container", pcc.p_instance);
 		resp.p_ecode = 1;
 		(void) proto_send_response(sock, &resp);
-		return (1);
+		return (-1);
 	}
 	if ((pi->p_state & STATE_CONNECTED) != 0) {
 		pthread_mutex_unlock(&cblock_mutex);
@@ -224,7 +224,7 @@ dispatch_connect_console(int sock)
 		    "%s console already attached", pcc.p_instance);
 		resp.p_ecode = 1;
 		(void) proto_send_response(sock, &resp);
-		return (1);
+		return (-1);
 	}
 	CBLOCKD_CBLOCK_CONSOLE_ATTACH(pcc.p_instance);
 	pi->p_state = STATE_CONNECTED;
@@ -258,7 +258,7 @@ dispatch_connect_console(int sock)
 	}
 	tty_console_session(pcc.p_instance, sock, ttyfd);
 	cblock_detach_console(pcc.p_instance);
-	return (1);
+	return (0);
 }
 
 int
@@ -275,7 +275,7 @@ dispatch_launch_cblock(int sock)
 
 	if (proto_recv_launch(sock, &pl) == -1) {
 		warnx("failed to read launch request");
-		return (0);
+		return (-1);
 	}
 	pi = calloc(1, sizeof(*pi));
 	if (pi == NULL) {
@@ -346,7 +346,7 @@ dispatch_launch_cblock(int sock)
 	(void) proto_send_response(sock, &resp);
 	vec_free(cmd_vec);
 	vec_free(env_vec);
-	return (1);
+	return (0);
 }
 
 void *
@@ -399,8 +399,15 @@ dispatch_work(void *arg)
 			 * NB: maybe best to send a response
 			 */
 			warnx("unknown command %u", cmd);
-			done = 1;
+			cc = -1;
 			break;
+		}
+		/*
+		 * After a failed request the client may still be sending
+		 * the rest of it, so the stream can no longer be trusted.
+		 */
+		if (cc == -1) {
+			done = 1;
 		}
 	}
 	close(p->p_sock);

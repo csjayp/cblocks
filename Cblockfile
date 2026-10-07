@@ -1,11 +1,12 @@
-FROM freebsd:14.3
+FROM base
 
 ENV ASSUME_ALWAYS_YES = "YES"
 ENV LC_ALL = "C"
-RUN "pkg install go125"
+RUN "pkg install go125 git"
 ENV PATH = "/usr/local/go125/bin:$PATH"
 RUN "go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
 RUN "mkdir /build"
+RUN "git config --global --add safe.directory /build"
 RUN "mkdir -p /usr/local/etc/rc.d"
 ADD . /build
 WORKDIR "/build"
