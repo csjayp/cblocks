@@ -42,9 +42,37 @@ symlinks()
       -mindepth 1 -maxdepth 1 -type l
 }
 
+ip_to_int()
+{
+    echo "$1" | awk -F. '{ print (($1 * 256 + $2) * 256 + $3) * 256 + $4 }'
+}
+
+# Print the IPv4 address used for traffic over the default route: the
+# address on the default interface whose subnet contains the gateway,
+# which is the one the kernel picks as the source address. Some clouds
+# (GCE) put the address in a /32 that does not contain the gateway; in
+# that case fall back to the interface's first (primary) address.
 get_default_ip()
 {
-    netif=`route get www.fastly.com | grep -F 'interface:' | awk '{ print $2 }'`
-    ipv4=`ifconfig ${netif} | egrep "inet " | tail -n 1 | awk '{ print $2 }'`
-    echo "${ipv4}"
+    route_info=$(route -n get default)
+    gateway=$(echo "$route_info" | awk '/gateway:/ { print $2 }')
+    netif=$(echo "$route_info" | awk '/interface:/ { print $2 }')
+    first=""
+    for addr in $(ifconfig "$netif" inet | awk '/inet / { print $2 "/" $4 }'); do
+        ipv4=${addr%/*}
+        mask=${addr#*/}
+        if [ -z "$first" ]; then
+            first=$ipv4
+        fi
+        case "$gateway" in
+        *.*.*.*)
+            if [ $(( $(ip_to_int "$ipv4") & mask )) -eq \
+                 $(( $(ip_to_int "$gateway") & mask )) ]; then
+                echo "$ipv4"
+                return
+            fi
+            ;;
+        esac
+    done
+    echo "$first"
 }
