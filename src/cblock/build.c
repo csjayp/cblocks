@@ -264,17 +264,34 @@ build_generate_context(struct build_config *bcp)
 		err(1, "fork faild");
 	}
 	if (pid == 0) {
-		argv[0] = "/usr/bin/tar";
-		argv[1] = "-C";
-		argv[2] = bcp->b_path;
-		argv[3] = "-cpf";
-		argv[4] = build_context_path;
-		argv[5] = ".";
-		argv[6] = NULL;
-		execve(*argv, argv, NULL);
+		/*
+		 * Leave out extended attributes, ACLs and, on macOS, the
+		 * AppleDouble metadata (COPYFILE_DISABLE). The server can't
+		 * use any of them, so there is no point in sending them.
+		 *
+		 * tar is looked up in PATH since it is not always in
+		 * /usr/bin (Alpine has it in /bin).
+		 */
+		if (setenv("COPYFILE_DISABLE", "1", 1) == -1) {
+			err(1, "setenv failed");
+		}
+		argv[0] = "tar";
+		argv[1] = "--no-xattrs";
+		argv[2] = "--no-acls";
+		argv[3] = "-C";
+		argv[4] = bcp->b_path;
+		argv[5] = "-cpf";
+		argv[6] = build_context_path;
+		argv[7] = ".";
+		argv[8] = NULL;
+		execvp(*argv, argv);
 		err(1, "failed to exec tar for build context");
 	}
 	waitpid_ignore_intr(pid, &status);
+	if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+		(void) unlink(build_context_path);
+		errx(1, "tar failed to create the build context");
+	}
 	if (rename(build_context_path, dst) == -1) {
 		err(1, "could not rename build context");
 	}

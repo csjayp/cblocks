@@ -49,10 +49,11 @@ requires `flex` and `bison`. On Debian or Ubuntu:
 ```
 
 On Alpine, musl does not provide `<sys/queue.h>`, so also install
-`bsd-compat-headers`:
+`bsd-compat-headers`. `cblock build` also needs GNU tar, since BusyBox tar
+does not support the options it uses:
 
 ```
-% sudo apk add build-base flex bison bsd-compat-headers
+% sudo apk add build-base flex bison bsd-compat-headers tar
 ```
 
 ## Installing
