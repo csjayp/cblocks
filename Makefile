@@ -28,7 +28,11 @@ install:
 client-only-install:
 	make -C src/cblock install
 
+deb: client-only
+	sh tools/mkdeb.sh
+
 clean:
+	rm -f cblock_*.deb
 	make -C src/libcblock clean
 	make -C src/libfsoverride clean
 	make -C src/cblockd clean
