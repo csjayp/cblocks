@@ -54,7 +54,7 @@ waitpid_ignore_intr(pid_t pid, int *status)
 		rpid = waitpid(pid, status, 0);
 		if (rpid == -1 && errno == EINTR) {
 			continue;
-		} else if (pid == -1) {
+		} else if (rpid == -1) {
 			err(1, "waitpid failed");
 		}
 		break;

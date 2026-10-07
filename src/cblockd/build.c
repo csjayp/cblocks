@@ -67,23 +67,6 @@ struct build_copy_from {
 };
 typedef TAILQ_HEAD( , build_copy_from) build_copy_from_t;
 
-pid_t
-waitpid_ignore_intr(pid_t pid, int *status)
-{
-	pid_t rpid;
-
-	while (1) {
-		rpid = waitpid(pid, status, 0);
-		if (rpid == -1 && errno == EINTR) {
-			continue;
-		} else if (rpid == -1) {
-			err(1, "waitpid failed");
-		}
-		break;
-	}
-	return (rpid);
-}
-
 static int
 build_emit_add_instruction(struct build_step *bsp, FILE *fp)
 {
