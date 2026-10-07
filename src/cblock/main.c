@@ -87,8 +87,11 @@ usage(void)
 	    " -6, --ipv6                IPv6 sockets only\n"
 	    " -U, --unix-sock=PATH      Path to UNIX socket\n"
 	    " -s, --host=HOST           Connect to host/address\n"
-	    " -p, --port=PORT           Conect to port\n"
+	    " -p, --port=PORT           Connect to port\n"
 	    " -h, --help                Display program usage\n\n"
+	    "Environment\n"
+	    " CBLOCK_HOST               Default for --host\n"
+	    " CBLOCK_PORT               Default for --port\n\n"
 	    "Commands:\n");
 	for (scp = sub_command_list; scp->sc_name != NULL; scp++) {
 		(void) fprintf(stderr,
@@ -139,7 +142,7 @@ main(int argc, char *argv [])
 {
 	int option_index, c, ctlsock, sc_index, j;
 	struct sub_command *scp;
-	char **main_argv, errbuf[128];
+	char **main_argv, errbuf[128], *env;
 
 	sc_index = locate_sub_command(argc, argv);
 	if (sc_index == -1) {
@@ -159,6 +162,16 @@ main(int argc, char *argv [])
 	gcfg.c_family = PF_UNSPEC;
 	gcfg.c_port = "3333";
 	gcfg.c_name = "/var/run/cblock.sock";
+	/*
+	 * The environment provides defaults; command line options override
+	 * them.
+	 */
+	if ((env = getenv("CBLOCK_HOST")) != NULL && *env != '\0') {
+		gcfg.c_host = env;
+	}
+	if ((env = getenv("CBLOCK_PORT")) != NULL && *env != '\0') {
+		gcfg.c_port = env;
+	}
 	while (1) {
 		option_index = 0;
 		c = getopt_long(sc_index, main_argv, "h46U:s:p:", long_options,
@@ -177,7 +190,12 @@ main(int argc, char *argv [])
 			gcfg.c_family = PF_INET6;
 			break;
 		case 'U':
+			/*
+			 * An explicit UNIX socket wins over a host from
+			 * CBLOCK_HOST.
+			 */
 			gcfg.c_name = optarg;
+			gcfg.c_host = NULL;
 			break;
 		case 's':
 			gcfg.c_host = optarg;
