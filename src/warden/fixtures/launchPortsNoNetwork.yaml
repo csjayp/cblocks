@@ -1,0 +1,6 @@
+cellblocks:
+  - image: base:14.3
+    description: HTTP server on host networking
+    ports:
+      - host_port: 80
+        container_port: 80
