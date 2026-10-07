@@ -86,16 +86,16 @@ cblockd_fs="ufs"
 Alternatively for ZFS:
 
 ```
-% sudo zfs create ssdvol0/cblocks
-% sudo zfs create ssdvol0/cblocks/instances
-% sudo zfs create ssdvol0/cblocks/images
+% sudo zfs create zroot/cblocks
+% sudo zfs create zroot/cblocks/instances
+% sudo zfs create zroot/cblocks/images
 ```
 
 Modify the rc.conf to include the setup (make sure to substitute the ZFS path with your own):
 
 ```
 cblockd_enable=YES
-cblockd_data_dir="/ssdvol0/cblocks"
+cblockd_data_dir="/zroot/cblocks"
 cblockd_fs="zfs"
 ```
 
@@ -111,9 +111,9 @@ scripts are installed into when it starts; if you are installing the scripts bef
 cblockd has been started, create it first:
 
 ```
-% sudo mkdir -p /ssdvol0/cblocks/lib
+% sudo mkdir -p /zroot/cblocks/lib
 % cd src/shell
-% sudo make install DESTDIR=/ssdvol0/cblocks 
+% sudo make install DESTDIR=/zroot/cblocks
 ```
 
 ## UFS Performance Tuning
