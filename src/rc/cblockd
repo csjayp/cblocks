@@ -6,6 +6,10 @@
 #
 # cblockd_enable (bool):  Set to NO by default.
 #                         Set it to YES to enable cblockd.
+# cblockd_flags (str):    Not set by default. If set, these are the only
+#                         arguments passed to cblockd, and every other
+#                         cblockd_* setting below is ignored. Include
+#                         --background, or the rc script will not return.
 
 . /etc/rc.subr
 
@@ -16,35 +20,40 @@ command="/usr/local/bin/${name}"
 load_rc_config $name
 
 : ${cblockd_enable:="NO"}
+: ${cblockd_flags:=""}
 : ${cblockd_data_dir:=""}
 : ${cblockd_fs:="ufs"}
 : ${cblockd_sock_path:="/var/run/cblock.sock"}
 : ${cblockd_sock_owner:=""}
 : ${cblockd_logfile:="/var/log/cblockd.log"}
 
-if [ ! "$cblockd_data_dir" ]; then
-    echo "cblockd: data directory must be specified"
-    exit 1
-fi
+# rc.subr passes cblockd_flags to the daemon itself, so when it is set
+# leave command_args empty and let it replace the generated arguments.
+if [ -z "$cblockd_flags" ]; then
+    if [ ! "$cblockd_data_dir" ]; then
+        echo "cblockd: data directory must be specified"
+        exit 1
+    fi
 
-case "$cblockd_fs" in
-ufs)
-    fs="--ufs"
-    ;;
-zfs)
-    fs="--zfs"
-    ;;
-*)
-    echo "cblockd: invalid file system"
-    exit 1
-esac
+    case "$cblockd_fs" in
+    ufs)
+        fs="--ufs"
+        ;;
+    zfs)
+        fs="--zfs"
+        ;;
+    *)
+        echo "cblockd: invalid file system"
+        exit 1
+    esac
 
-command_args="--unix-sock $cblockd_sock_path $fs --background --data-directory $cblockd_data_dir"
-if [ "$cblockd_sock_owner" ]; then
-    command_args="$command_args --sock-owner $cblockd_sock_owner"
-fi
-if [ "$cblockd_logfile" ]; then
-    command_args="$command_args --logfile $cblockd_logfile"
+    command_args="--unix-sock $cblockd_sock_path $fs --background --data-directory $cblockd_data_dir"
+    if [ "$cblockd_sock_owner" ]; then
+        command_args="$command_args --sock-owner $cblockd_sock_owner"
+    fi
+    if [ "$cblockd_logfile" ]; then
+        command_args="$command_args --logfile $cblockd_logfile"
+    fi
 fi
 unset cblockd_data_dir cblockd_fs cblockd_sock_path cblockd_sock_owner
 
