@@ -25,18 +25,20 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+/* For FNM_CASEFOLD on glibc and musl; ignored elsewhere. */
+#define _GNU_SOURCE
+
 #include <sys/types.h>
 #include <sys/queue.h>
 
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include <fnmatch.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <err.h>
 #include <assert.h>
-
-#include <bsm/libbsm.h>
 
 #include <cblock/libcblock.h>
 
@@ -158,9 +160,13 @@ entry_def:
 	| AUDITCFG STRING
 	{
 		struct build_manifest *bmp;
-		struct au_class_ent *acp;
-		char *ap, *bp, *copy;
 
+		/*
+		 * The audit class database lives on the server, so the
+		 * class names are not checked here.
+		 *
+		 * XXX: cblockd should validate them.
+		 */
 		bmp = get_current_build_manifest();
 		if (bmp->auditcfg != NULL) {
 			errx(1, "AUDITCFG: has already been specified");
@@ -169,22 +175,6 @@ entry_def:
 		if (bmp->auditcfg == NULL) {
 			err(1, "failed to dup audit config");
 		}
-		copy = strdup($2);
-		bp = copy;
-		/*
-		 * Maybe we should make this into an actual list instead
-		 * of a string?
-		 */
-		while ((ap = strsep(&copy, ",")) != NULL) {
-			if (strlen(ap) == 0) {
-				continue;
-			}
-			acp = getauclassnam(ap);
-			if (acp == NULL) {
-				errx(1, "invalid audit class name: %s", ap);
-			}
-		}
-		free(bp);
 	}
 	| OSRELEASE STRING
 	{
@@ -227,10 +217,11 @@ copy_spec:
 		if (!match) {
 			errx(1, "stage specification %sdoes not exist", $2);
 		}
-		strlcpy(b_step->step_data.step_copy_from.sc_source, $3,
-		    sizeof(b_step->step_data.step_copy_from.sc_source));
-		strlcpy(b_step->step_data.step_copy_from.sc_dest, $4,
-		    sizeof(b_step->step_data.step_copy_from.sc_dest));
+		snprintf(b_step->step_data.step_copy_from.sc_source,
+		    sizeof(b_step->step_data.step_copy_from.sc_source),
+		    "%s", $3);
+		snprintf(b_step->step_data.step_copy_from.sc_dest,
+		    sizeof(b_step->step_data.step_copy_from.sc_dest), "%s", $4);
 		cur_build_step->stage_index = stage_counter;
 		snprintf(b_step->step_string, sizeof(b_step->step_string),
 		    "COPY --FROM %s %s %s", $2, $3, $4);
@@ -262,10 +253,11 @@ copy_spec:
 		if (!match) {
 			errx(1, "stage specification %d does not exist", $2);
 		}
-		strlcpy(b_step->step_data.step_copy_from.sc_source, $3,
-		    sizeof(b_step->step_data.step_copy_from.sc_source));
-		strlcpy(b_step->step_data.step_copy_from.sc_dest, $4,
-		    sizeof(b_step->step_data.step_copy_from.sc_dest));
+		snprintf(b_step->step_data.step_copy_from.sc_source,
+		    sizeof(b_step->step_data.step_copy_from.sc_source),
+		    "%s", $3);
+		snprintf(b_step->step_data.step_copy_from.sc_dest,
+		    sizeof(b_step->step_data.step_copy_from.sc_dest), "%s", $4);
 		cur_build_step->stage_index = stage_counter;
 		snprintf(b_step->step_string, sizeof(b_step->step_string),
 		    "COPY --FROM %d %s %s", $2, $3, $4);
@@ -281,10 +273,10 @@ copy_spec:
 		assert(cur_build_stage != NULL);
 		bsp = cur_build_stage;
 		b_step = cur_build_step;
-		strlcpy(b_step->step_data.step_copy.sc_source, $1,
-		    sizeof(b_step->step_data.step_copy.sc_source));
-		strlcpy(b_step->step_data.step_copy.sc_dest, $2,
-		    sizeof(b_step->step_data.step_copy.sc_dest));
+		snprintf(b_step->step_data.step_copy.sc_source,
+		    sizeof(b_step->step_data.step_copy.sc_source), "%s", $1);
+		snprintf(b_step->step_data.step_copy.sc_dest,
+		    sizeof(b_step->step_data.step_copy.sc_dest), "%s", $2);
 		cur_build_step->stage_index = stage_counter;
 		snprintf(b_step->step_string, sizeof(b_step->step_string),
 		    "COPY %s %s", $1, $2);
@@ -314,8 +306,8 @@ op_spec:
 		assert(cur_build_stage != NULL);
 		bsp = cur_build_stage;
 		b_step = cur_build_step;
-		strlcpy(b_step->step_data.step_cmd, $3,
-		    sizeof(b_step->step_data.step_cmd));
+		snprintf(b_step->step_data.step_cmd,
+		    sizeof(b_step->step_data.step_cmd), "%s", $3);
 		cur_build_step->stage_index = stage_counter;
 		snprintf(b_step->step_string,
 		    sizeof(b_step->step_string), "RUN %s", $3);
@@ -350,10 +342,10 @@ op_spec:
 		 * it accordinly as need be.
 		 */
 		b_step->step_data.step_add.sa_op = ADD_TYPE_FILE;
-		strlcpy(b_step->step_data.step_add.sa_source, $3,
-		    sizeof(b_step->step_data.step_add.sa_source));
-		strlcpy(b_step->step_data.step_add.sa_dest, $4,
-		    sizeof(b_step->step_data.step_add.sa_dest));
+		snprintf(b_step->step_data.step_add.sa_source,
+		    sizeof(b_step->step_data.step_add.sa_source), "%s", $3);
+		snprintf(b_step->step_data.step_add.sa_dest,
+		    sizeof(b_step->step_data.step_add.sa_dest), "%s", $4);
 		/*
 		 * Is this a URL that will need to be fectched?
 		 */
@@ -417,8 +409,8 @@ op_spec:
 		bsp = cur_build_stage;
 		assert(b_step != NULL);
 		assert(bsp != NULL);
-		strlcpy(b_step->step_data.step_root_pivot.sr_dir,
-                    $3, sizeof(b_step->step_data.step_root_pivot.sr_dir));
+		snprintf(b_step->step_data.step_root_pivot.sr_dir,
+                    sizeof(b_step->step_data.step_root_pivot.sr_dir), "%s", $3);
 		cur_build_step->stage_index = stage_counter;
 		snprintf(b_step->step_string, sizeof(b_step->step_string),
 		    "ROOTPIVOT %s", $3);
@@ -444,10 +436,10 @@ op_spec:
                 bsp = cur_build_stage;
                 assert(b_step != NULL);
                 assert(bsp != NULL);
-                strlcpy(b_step->step_data.step_env.se_key,
-		    $3, sizeof(b_step->step_data.step_env.se_key));
-		strlcpy(b_step->step_data.step_env.se_value,
-		    $5, sizeof(b_step->step_data.step_env.se_value));
+                snprintf(b_step->step_data.step_env.se_key,
+		    sizeof(b_step->step_data.step_env.se_key), "%s", $3);
+		snprintf(b_step->step_data.step_env.se_value,
+		    sizeof(b_step->step_data.step_env.se_value), "%s", $5);
 		cur_build_step->stage_index = stage_counter;
 		snprintf(b_step->step_string, sizeof(b_step->step_string),
 		    "ENV %s=%s", $3, $5);
@@ -474,8 +466,8 @@ op_spec:
 		bsp = cur_build_stage;
 		assert(b_step != NULL);
 		assert(bsp != NULL);
-		strlcpy(b_step->step_data.step_workdir.sw_dir,
-		    $3, sizeof(b_step->step_data.step_workdir.sw_dir));
+		snprintf(b_step->step_data.step_workdir.sw_dir,
+		    sizeof(b_step->step_data.step_workdir.sw_dir), "%s", $3);
 		cur_build_step->stage_index = stage_counter;
 		snprintf(b_step->step_string, sizeof(b_step->step_string),
 		    "WORKDIR %s", $3);
@@ -495,8 +487,8 @@ from_spec:
 
 		bsp = cur_build_stage;
 		assert(bsp != NULL);
-		strlcpy(bsp->bs_base_container, $1,
-		    sizeof(bsp->bs_base_container));
+		snprintf(bsp->bs_base_container,
+		    sizeof(bsp->bs_base_container), "%s", $1);
 	}
 	| STRING AS STRING
 	{
@@ -504,9 +496,9 @@ from_spec:
 
 		bsp = cur_build_stage;
 		assert(bsp != NULL);
-		strlcpy(bsp->bs_name, $3, sizeof(bsp->bs_name));
-		strlcpy(bsp->bs_base_container, $1,
-		    sizeof(bsp->bs_base_container));
+		snprintf(bsp->bs_name, sizeof(bsp->bs_name), "%s", $3);
+		snprintf(bsp->bs_base_container,
+		    sizeof(bsp->bs_base_container), "%s", $1);
 	}
 	;
 

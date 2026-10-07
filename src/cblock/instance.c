@@ -129,7 +129,7 @@ instance_signal(struct instance_config *icp, int ctlsock)
 	struct cblock_response resp;
 
 	bzero(&csi, sizeof(csi));
-	strlcpy(csi.p_instance, icp->i_instance, sizeof(csi.p_instance));
+	snprintf(csi.p_instance, sizeof(csi.p_instance), "%s", icp->i_instance);
 	/*
 	 * We are using SIG constants but we probably need to abstract these
 	 * for cross architecture/platform communications

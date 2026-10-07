@@ -308,8 +308,8 @@ console_connect_console(int sock, struct console_config *ccp)
 	console_is_tty = isatty(STDIN_FILENO);
 	bzero(&pcc, sizeof(pcc));
 	console_get_winsize(&pcc.p_winsize);
-	strlcpy(pcc.p_instance, ccp->c_name, sizeof(pcc.p_instance));
-	strlcpy(pcc.p_name, ccp->c_name, sizeof(pcc.p_name));
+	snprintf(pcc.p_instance, sizeof(pcc.p_instance), "%s", ccp->c_name);
+	snprintf(pcc.p_name, sizeof(pcc.p_name), "%s", ccp->c_name);
 	if (sock_ipc_write_u32(sock, PRISON_IPC_CONSOLE_CONNECT) == -1 ||
 	    proto_send_console_connect(sock, &pcc) == -1) {
 		errx(1, "failed to send console connect request");

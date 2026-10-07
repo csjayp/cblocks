@@ -169,6 +169,7 @@ main(int argc, char *argv [])
 		switch (c) {
 		case 'h':
 			usage();
+			break;
 		case '4':
 			gcfg.c_family = PF_INET;
 			break;

@@ -31,6 +31,30 @@ In addition to the C compilers, the Go toolchain is required for building compon
 % make
 ```
 
+## Building the client only
+
+The `cblock` client can be built on its own, for example on a Linux host or
+CI runner that talks to a remote cblock daemon. This builds `libcblock` and
+the `cblock` client, but not the daemon, Warden or `libfsoverride`.
+`libcblock` is linked statically, so only the `cblock` binary is installed.
+
+The client builds on FreeBSD, macOS and Linux (glibc or musl) with no
+extra configuration. Besides a C compiler and `make`, the Cblockfile parser
+requires `flex` and `bison`. On Debian or Ubuntu:
+
+```
+% sudo apt-get install build-essential flex bison
+% make client-only
+% sudo make client-only-install
+```
+
+On Alpine, musl does not provide `<sys/queue.h>`, so also install
+`bsd-compat-headers`:
+
+```
+% sudo apk add build-base flex bison bsd-compat-headers
+```
+
 ## Installing
 
 First, install the binaries and create the root file system for your cellblock daemon:

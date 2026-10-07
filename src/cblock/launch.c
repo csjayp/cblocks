@@ -114,18 +114,18 @@ launch_container(int sock, struct launch_config *lcp)
 		if (args == NULL) {
 			err(1, "failed to alloc memory for vec");
 		}
-		strlcpy(pl.p_entry_point_args, args,
-		    sizeof(pl.p_entry_point_args));
+		snprintf(pl.p_entry_point_args,
+		    sizeof(pl.p_entry_point_args), "%s", args);
 		free(args);
 		vec_free(lcp->l_vec);
 	}
 	pl.p_verbose = lcp->l_verbose;
-	strlcpy(pl.p_tag, lcp->l_tag, sizeof(pl.p_tag));
-	strlcpy(pl.p_name, lcp->l_name, sizeof(pl.p_name));
-	strlcpy(pl.p_term, term, sizeof(pl.p_term));
-	strlcpy(pl.p_volumes, lcp->l_volumes, sizeof(pl.p_volumes));
-	strlcpy(pl.p_ports, lcp->l_ports, sizeof(pl.p_ports));
-	strlcpy(pl.p_network, lcp->l_network, sizeof(pl.p_network));
+	snprintf(pl.p_tag, sizeof(pl.p_tag), "%s", lcp->l_tag);
+	snprintf(pl.p_name, sizeof(pl.p_name), "%s", lcp->l_name);
+	snprintf(pl.p_term, sizeof(pl.p_term), "%s", term);
+	snprintf(pl.p_volumes, sizeof(pl.p_volumes), "%s", lcp->l_volumes);
+	snprintf(pl.p_ports, sizeof(pl.p_ports), "%s", lcp->l_ports);
+	snprintf(pl.p_network, sizeof(pl.p_network), "%s", lcp->l_network);
 	if (sock_ipc_write_u32(sock, cmd) == -1 ||
 	    proto_send_launch(sock, &pl) == -1) {
 		errx(1, "failed to send launch request");

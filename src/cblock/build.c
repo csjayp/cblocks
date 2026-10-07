@@ -39,6 +39,7 @@
 #include <err.h>
 #include <stdint.h>
 #include <fcntl.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "main.h"
@@ -182,27 +183,28 @@ build_send_context(int sock, struct build_config *bcp)
 	pbc.p_build_fim_spec = bcp->b_fim_spec;
 	pbc.p_context_size = sb.st_size;
 	pbc.p_verbose = bcp->b_verbose;
-	strlcpy(pbc.p_term, term, sizeof(pbc.p_term));
-	strlcpy(pbc.p_image_name, bcp->b_name, sizeof(pbc.p_image_name));
-	strlcpy(pbc.p_cblock_file, bcp->b_cblock_file,
-	    sizeof(pbc.p_cblock_file));
+	snprintf(pbc.p_term, sizeof(pbc.p_term), "%s", term);
+	snprintf(pbc.p_image_name, sizeof(pbc.p_image_name), "%s", bcp->b_name);
+	snprintf(pbc.p_cblock_file,
+	    sizeof(pbc.p_cblock_file), "%s", bcp->b_cblock_file);
 	if (bcp->b_bmp->osrelease) {
-		strlcpy(pbc.p_os_release, bcp->b_bmp->osrelease,
-		    sizeof(pbc.p_os_release));
+		snprintf(pbc.p_os_release,
+		    sizeof(pbc.p_os_release), "%s", bcp->b_bmp->osrelease);
 	}
 	if (bcp->b_bmp->auditcfg) {
-		strlcpy(pbc.p_auditcfg, bcp->b_bmp->auditcfg,
-		    sizeof(pbc.p_auditcfg));
+		snprintf(pbc.p_auditcfg,
+		    sizeof(pbc.p_auditcfg), "%s", bcp->b_bmp->auditcfg);
 	}
 	if (bcp->b_bmp->entry_point) {
-		strlcpy(pbc.p_entry_point, bcp->b_bmp->entry_point,
-		    sizeof(pbc.p_entry_point));
+		snprintf(pbc.p_entry_point,
+		    sizeof(pbc.p_entry_point), "%s", bcp->b_bmp->entry_point);
 	}
 	if (bcp->b_bmp->entry_point_args) {
-		strlcpy(pbc.p_entry_point_args, bcp->b_bmp->entry_point_args,
-		    sizeof(pbc.p_entry_point_args));
+		snprintf(pbc.p_entry_point_args,
+		    sizeof(pbc.p_entry_point_args), "%s",
+		    bcp->b_bmp->entry_point_args);
 	}
-	strlcpy(pbc.p_tag, bcp->b_tag, sizeof(pbc.p_tag));
+	snprintf(pbc.p_tag, sizeof(pbc.p_tag), "%s", bcp->b_tag);
 	build_init_stage_count(bcp, &pbc);
 	if (proto_send_build_context(sock, &pbc) == -1) {
 		errx(1, "failed to send build context");

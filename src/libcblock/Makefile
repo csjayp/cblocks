@@ -1,21 +1,16 @@
 CC	?= cc
-CFLAGS	= -Wall -fno-omit-frame-pointer -g -fstack-protector -fsanitize=address -I../include
-TARGETS	= libcblock.so
-OBJ	= vec.o print.o wire.o proto.o
-PREFIX	?= /usr/local
+CFLAGS	= -Wall -fno-omit-frame-pointer -g -fstack-protector -I../include
+TARGETS	= libcblock.a
+OBJ	= libcblock.o vec.o print.o wire.o proto.o
 
 all:	$(TARGETS)
 
 .c.o:
-	$(CC) $(CFLAGS) -c $< -fPIC
+	$(CC) $(CFLAGS) -c $<
 
-libcblock.so: $(OBJ)
-	$(CC) -fPIC -shared -o libcblock.so libcblock.c -I. $(OBJ)
-
-install:
-	[ -d $(PREFIX)/lib ] || mkdir -p $(PREFIX)/lib
-	install -m 0555 $(TARGETS) $(PREFIX)/lib
-	ldconfig -m
+libcblock.a: $(OBJ)
+	rm -f libcblock.a
+	ar rcs libcblock.a $(OBJ)
 
 clean:
-	rm -fr *.o *.so
+	rm -fr *.o *.a *.so
