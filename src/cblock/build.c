@@ -29,7 +29,6 @@
 #include <sys/queue.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
-#include <sys/ttycom.h>
 
 #include <stdio.h>
 #include <errno.h>
@@ -38,7 +37,6 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <err.h>
-#include <termios.h>
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -139,13 +137,17 @@ build_send_stages(int sock, struct build_config *bcp)
 
 	TAILQ_FOREACH_REVERSE(stage, &bcp->b_bmp->stage_head,
 	    tailhead_stage, stage_glue) {
-		sock_ipc_must_write(sock, stage, sizeof(*stage));
+		if (proto_send_build_stage(sock, stage) == -1) {
+			errx(1, "failed to send build stage");
+		}
 	}
 	TAILQ_FOREACH_REVERSE(stage, &bcp->b_bmp->stage_head,
 	    tailhead_stage, stage_glue) {
 		TAILQ_FOREACH_REVERSE(step, &stage->step_head,
 		    tailhead_step, step_glue) {
-			sock_ipc_must_write(sock, step, sizeof(*step));
+			if (proto_send_build_step(sock, step) == -1) {
+				errx(1, "failed to send build step");
+			}
 		}
 	}
 }
@@ -158,8 +160,8 @@ build_send_context(int sock, struct build_config *bcp)
 	int fd, status;
 	struct stat sb;
 	vec_t *vec;
+	uint32_t ustatus;
 	char *term;
-	u_int cmd;
 
 	if (stat(bcp->b_context_path, &sb) == -1) {
 		err(1, "stat failed");
@@ -170,12 +172,13 @@ build_send_context(int sock, struct build_config *bcp)
 	}
 	term = getenv("TERM");
 	if (term == NULL) {
-		errx(1, "Can not determine TERM type\n");
+		term = CBLOCK_DEFAULT_TERM;
 	}
 	bzero(&pbc, sizeof(pbc));
 	bzero(&resp, sizeof(resp));
-	cmd = PRISON_IPC_SEND_BUILD_CTX;
-	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
+	if (sock_ipc_write_u32(sock, PRISON_IPC_SEND_BUILD_CTX) == -1) {
+		errx(1, "failed to send build request");
+	}
 	pbc.p_build_fim_spec = bcp->b_fim_spec;
 	pbc.p_context_size = sb.st_size;
 	pbc.p_verbose = bcp->b_verbose;
@@ -201,7 +204,9 @@ build_send_context(int sock, struct build_config *bcp)
 	}
 	strlcpy(pbc.p_tag, bcp->b_tag, sizeof(pbc.p_tag));
 	build_init_stage_count(bcp, &pbc);
-	sock_ipc_must_write(sock, &pbc, sizeof(pbc));
+	if (proto_send_build_context(sock, &pbc) == -1) {
+		errx(1, "failed to send build context");
+	}
 	build_send_stages(sock, bcp);
 	print_bold_prefix(stdout);
 	fprintf(stdout,
@@ -216,10 +221,12 @@ build_send_context(int sock, struct build_config *bcp)
 	if (unlink(bcp->b_context_path) == -1) {
 		err(1, "failed to cleanup build context");
 	}
-        sock_ipc_must_read(sock, &resp, sizeof(resp));
-        if (resp.p_ecode != 0) {
-                err(1, "failed to spawn container");
-        }
+	if (proto_recv_response(sock, &resp) == -1) {
+		errx(1, "failed to read build response");
+	}
+	if (resp.p_ecode != 0) {
+		errx(1, "failed to spawn container: %s", resp.p_errbuf);
+	}
 	vec = vec_init(8);
 	vec_append(vec, "console");
 	vec_append(vec, "--name");
@@ -227,7 +234,10 @@ build_send_context(int sock, struct build_config *bcp)
 	vec_finalize(vec);
 	console_main(vec->vec_used, vec_return(vec), sock);
 	vec_free(vec);
-	sock_ipc_must_read(sock, &status, sizeof(status));
+	if (sock_ipc_read_u32(sock, &ustatus) == -1) {
+		errx(1, "connection closed before build status was received");
+	}
+	status = ustatus;
 	return (status);
 }
 

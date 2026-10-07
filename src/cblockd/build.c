@@ -645,13 +645,11 @@ dispatch_build_recieve(int sock)
 
 	struct cblock_response resp;
 	struct build_context bctx;
-	ssize_t cc;
-	int fd;
+	int fd, k, j;
 
 	bzero(&bctx, sizeof(bctx));
 	bzero(&resp, sizeof(resp));
-	cc = sock_ipc_must_read(sock, &bctx.pbc, sizeof(bctx.pbc));
-	if (cc == 0) {
+	if (proto_recv_build_context(sock, &bctx.pbc) == -1) {
 		printf("didn't get proper build context headers\n");
 		return (0);
 	}
@@ -659,27 +657,43 @@ dispatch_build_recieve(int sock)
 	    bctx.pbc.p_nsteps > MAX_BUILD_STEPS) {
 		resp.p_ecode = -1;
 		sprintf(resp.p_errbuf, "too many build stages/steps\n");
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		(void) proto_send_response(sock, &resp);
 		return (1);
 	}
 	bctx.stages = calloc(bctx.pbc.p_nstages, sizeof(*bctx.stages));
 	if (bctx.stages == NULL) {
 		resp.p_ecode = -1;
 		sprintf(resp.p_errbuf, "out of memory");
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		(void) proto_send_response(sock, &resp);
 		return (1);
 	}
 	bctx.steps = calloc(bctx.pbc.p_nsteps, sizeof(*bctx.steps));
 	if (bctx.steps == NULL) {
 		resp.p_ecode = -1;
 		sprintf(resp.p_errbuf, "out of memory");
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		(void) proto_send_response(sock, &resp);
 		return (1);
 	}
-	sock_ipc_must_read(sock, bctx.stages,
-	    bctx.pbc.p_nstages * sizeof(*bctx.stages));
-	sock_ipc_must_read(sock, bctx.steps,
-	    bctx.pbc.p_nsteps * sizeof(*bctx.steps));
+	j = 0;
+	for (k = 0; k < bctx.pbc.p_nstages; k++) {
+		if (proto_recv_build_stage(sock, &bctx.stages[k]) == -1) {
+			break;
+		}
+	}
+	for (j = 0; k == bctx.pbc.p_nstages && j < bctx.pbc.p_nsteps; j++) {
+		if (proto_recv_build_step(sock, &bctx.steps[j]) == -1) {
+			break;
+		}
+	}
+	if (k != bctx.pbc.p_nstages || j != bctx.pbc.p_nsteps) {
+		free(bctx.steps);
+		free(bctx.stages);
+		resp.p_ecode = -1;
+		snprintf(resp.p_errbuf, sizeof(resp.p_errbuf),
+		    "malformed build stage or step");
+		(void) proto_send_response(sock, &resp);
+		return (0);
+	}
 	bctx.instance = gen_sha256_instance_id(bctx.pbc.p_image_name);
 	fd = dispatch_build_set_outfile(&bctx, resp.p_errbuf,
 	    sizeof(resp.p_errbuf));
@@ -689,7 +703,7 @@ dispatch_build_recieve(int sock)
 		free(bctx.stages);
 		free(bctx.instance);
 		resp.p_ecode = -1;
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		(void) proto_send_response(sock, &resp);
 		return (1);
         }
 	if (sock_ipc_from_to(sock, fd, bctx.pbc.p_context_size) == -1) {
@@ -724,7 +738,7 @@ dispatch_build_recieve(int sock)
 		pthread_mutex_unlock(&cblock_mutex);
 		snprintf(resp.p_errbuf, sizeof(resp.p_errbuf), "%s",
 		    pi->p_instance_tag);
-		sock_ipc_must_write(sock, &resp, sizeof(resp));
+		(void) proto_send_response(sock, &resp);
 		free(bctx.steps);
 		free(bctx.stages);
 		free(bctx.instance);

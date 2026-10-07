@@ -31,6 +31,11 @@
 #define	INSTANCE_SIGOP_KILL	1
 #define	INSTANCE_SIGOP_STOP	2
 
+/*
+ * Used when TERM is not set, e.g.: when running from a CI job.
+ */
+#define	CBLOCK_DEFAULT_TERM	"xterm"
+
 struct global_params {
 	char		*c_name;
 	char		*c_host;

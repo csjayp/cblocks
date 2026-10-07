@@ -26,7 +26,6 @@
  */
 #include <sys/types.h>
 #include <sys/ioctl.h>
-#include <sys/ttycom.h>
 
 #include <stdio.h>
 #include <errno.h>
@@ -34,13 +33,11 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <err.h>
-#include <termios.h>
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
 
 #include <cblock/libcblock.h>
-#include <cblock/sbuf.h>
 
 #include "main.h"
 
@@ -107,6 +104,9 @@ launch_container(int sock, struct launch_config *lcp)
 	} else {
 		term = getenv("TERM");
 	}
+	if (term == NULL) {
+		term = CBLOCK_DEFAULT_TERM;
+	}
 	bzero(&pl, sizeof(pl));
 	cmd = PRISON_IPC_LAUNCH_PRISON;
 	if (lcp->l_vec != NULL) {
@@ -119,7 +119,6 @@ launch_container(int sock, struct launch_config *lcp)
 		free(args);
 		vec_free(lcp->l_vec);
 	}
-	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
 	pl.p_verbose = lcp->l_verbose;
 	strlcpy(pl.p_tag, lcp->l_tag, sizeof(pl.p_tag));
 	strlcpy(pl.p_name, lcp->l_name, sizeof(pl.p_name));
@@ -127,8 +126,13 @@ launch_container(int sock, struct launch_config *lcp)
 	strlcpy(pl.p_volumes, lcp->l_volumes, sizeof(pl.p_volumes));
 	strlcpy(pl.p_ports, lcp->l_ports, sizeof(pl.p_ports));
 	strlcpy(pl.p_network, lcp->l_network, sizeof(pl.p_network));
-	sock_ipc_must_write(sock, &pl, sizeof(pl));
-	sock_ipc_must_read(sock, &resp, sizeof(resp));
+	if (sock_ipc_write_u32(sock, cmd) == -1 ||
+	    proto_send_launch(sock, &pl) == -1) {
+		errx(1, "failed to send launch request");
+	}
+	if (proto_recv_response(sock, &resp) == -1) {
+		errx(1, "failed to read launch response");
+	}
 	if (resp.p_ecode != 0) {
 		warnx("failed to spawn container");
 		return;
@@ -150,14 +154,20 @@ launch_main(int argc, char *argv [], int ctlsock)
 {
 	struct launch_config lc;
 	int option_index, c;
-	struct sbuf *sb, *pb;
+	vec_t *volumes, *ports;
 	char *tag, *ptr;
 
 	bzero(&lc, sizeof(lc));
-	sb = sbuf_new_auto();
-	pb = sbuf_new_auto();
-	sbuf_cat(sb, "devfs");
-	sbuf_cat(sb, ",");
+	/*
+	 * Each option consumes at least one argument, so argc bounds the
+	 * number of volumes and ports.
+	 */
+	volumes = vec_init(argc + 1);
+	ports = vec_init(argc + 1);
+	if (volumes == NULL || ports == NULL) {
+		err(1, "vec_init failed");
+	}
+	vec_append(volumes, "devfs");
 	lc.l_tag = "latest";
 	lc.l_attach = 1;
 	lc.l_verbose = 0;
@@ -179,8 +189,7 @@ launch_main(int argc, char *argv [], int ctlsock)
 			lc.l_host_networking = 1;
 			break;
 		case 'P':
-			sbuf_cat(pb, optarg);
-			sbuf_cat(pb, ",");
+			vec_append(ports, optarg);
 			break;
 		case 'v':
 			lc.l_verbose = 1;
@@ -189,23 +198,19 @@ launch_main(int argc, char *argv [], int ctlsock)
 			lc.l_attach = 0;
 			break;
 		case 'T':
-			sbuf_cat(sb, "tmpfs");
-			sbuf_cat(sb, ",");
+			vec_append(volumes, "tmpfs");
 			break;
 		case 'N':
 			lc.l_network = optarg;
 			break;
 		case 'F':
-			sbuf_cat(sb, "fdescfs");
-			sbuf_cat(sb, ",");
+			vec_append(volumes, "fdescfs");
 			break;
 		case 'p':
-			sbuf_cat(sb, "procfs");
-			sbuf_cat(sb, ",");
+			vec_append(volumes, "procfs");
 			break;
 		case 'V':
-			sbuf_cat(sb, optarg);
-			sbuf_cat(sb, ",");
+			vec_append(volumes, optarg);
 			break;
 		case 'h':
 			launch_usage();
@@ -237,12 +242,16 @@ launch_main(int argc, char *argv [], int ctlsock)
 		ptr = strdup(tag);
 		lc.l_tag = ptr;
         }
-	sbuf_finish(sb);
-	sbuf_finish(pb);
-	lc.l_ports = sbuf_data(pb);
-	lc.l_volumes = sbuf_data(sb);
+	lc.l_volumes = vec_join(volumes, ',');
+	lc.l_ports = "";
+	if (ports->vec_used > 0) {
+		lc.l_ports = vec_join(ports, ',');
+	}
+	if (lc.l_volumes == NULL || lc.l_ports == NULL) {
+		err(1, "vec_join failed");
+	}
 	if (lc.l_host_networking) {
-		if (sbuf_len(pb) > 0) {
+		if (ports->vec_used > 0) {
 			warnx("Port mappings are not supported with host networking");
 			warnx("Create a NAT based network if you want this.");
 			exit(1);

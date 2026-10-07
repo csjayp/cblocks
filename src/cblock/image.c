@@ -68,13 +68,13 @@ static void
 image_prune(struct image_config *icp __attribute__((unused)), int ctlsock)
 {
 	struct cblock_generic_command arg;
-	uint32_t cmd;
 
-	cmd = PRISON_IPC_GENERIC_COMMAND;
 	bzero(&arg, sizeof(arg));
-	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
 	snprintf(arg.p_cmdname, sizeof(arg.p_cmdname), "image_prune");
-	sock_ipc_must_write(ctlsock, &arg, sizeof(arg));
+	if (sock_ipc_write_u32(ctlsock, PRISON_IPC_GENERIC_COMMAND) == -1 ||
+	    proto_send_generic_command(ctlsock, &arg, NULL) == -1) {
+		errx(1, "failed to send image request");
+	}
 	sock_ipc_from_sock_to_tty(ctlsock);
 }
 
@@ -82,13 +82,13 @@ static void
 image_get(struct image_config *icp __attribute__((unused)), int ctlsock)
 {
 	struct cblock_generic_command arg;
-	uint32_t cmd;
 
-	cmd = PRISON_IPC_GENERIC_COMMAND;
 	bzero(&arg, sizeof(arg));
-	sock_ipc_must_write(ctlsock, &cmd, sizeof(cmd));
 	snprintf(arg.p_cmdname, sizeof(arg.p_cmdname), "image_list");
-	sock_ipc_must_write(ctlsock, &arg, sizeof(arg));
+	if (sock_ipc_write_u32(ctlsock, PRISON_IPC_GENERIC_COMMAND) == -1 ||
+	    proto_send_generic_command(ctlsock, &arg, NULL) == -1) {
+		errx(1, "failed to send image request");
+	}
 	sock_ipc_from_sock_to_tty(ctlsock);
 }
 

@@ -420,8 +420,7 @@ do_launch()
     config_devfs
     # if mount_spec is *just* devfs skip over mount operations since
     # devfs is handled elsewhere.
-    # NB: handle trailing ',' character...
-    if [ "$mount_spec" != "devfs," ]; then
+    if [ "$mount_spec" != "devfs" ]; then
         mnt_cmd=$(emit_mount_specification "$mount_spec")
         eval $mnt_cmd
     fi

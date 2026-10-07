@@ -29,9 +29,7 @@
 #include <sys/select.h>
 #include <sys/ioctl.h>
 #include <sys/param.h>
-#include <sys/uio.h>
 #include <sys/un.h>
-#include <sys/ttycom.h>
 
 #include <netinet/in.h>
 
@@ -55,7 +53,14 @@
 #include "sock_ipc.h"
 
 struct termios otermios;
-int need_resize;
+volatile sig_atomic_t need_resize;
+
+/*
+ * When stdin is not a terminal (e.g.: CI runners) we do not touch terminal
+ * modes, and we stop reading stdin once it reaches EOF.
+ */
+static int console_is_tty;
+static int console_stdin_open;
 
 void	console_reset_tty(void);
 int	console_mplex(int);
@@ -93,6 +98,9 @@ void
 console_reset_tty(void)
 {
 
+	if (!console_is_tty) {
+		return;
+	}
 	tcsetattr(STDIN_FILENO, TCSANOW, &otermios);
 }
 
@@ -101,15 +109,15 @@ console_tty_set_raw_mode(int fd)
 {
 	struct termios tbuf;
 
+	if (tcgetattr(fd, &otermios) == -1) {
+		return (-1);
+	}
 	/*
 	 * We are committed to setting the TTY into raw raw mode, whatever
 	 * happens make sure we restore the TTY state to a clean, and sane
 	 * place to work.
 	 */
 	atexit(console_reset_tty);
-	if (tcgetattr(fd, &otermios) == -1) {
-		return (-1);
-	}
 	tbuf = otermios;
 	tbuf.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 	tbuf.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
@@ -123,58 +131,68 @@ console_tty_set_raw_mode(int fd)
 	return (0);
 }
 
+/*
+ * Use the size of the controlling terminal if we have one, otherwise fall
+ * back to the classic 80x24.
+ */
+static void
+console_get_winsize(struct winsize *wsize)
+{
+
+	if (console_is_tty &&
+	    ioctl(STDIN_FILENO, TIOCGWINSZ, wsize) != -1) {
+		return;
+	}
+	bzero(wsize, sizeof(*wsize));
+	wsize->ws_row = 24;
+	wsize->ws_col = 80;
+}
+
 static int
 console_tty_handle_socket(int sock)
 {
+	const void *buf;
+	struct wire w;
 	uint32_t cmd;
 	size_t len;
-	char *buf;
 
-	if (sock_ipc_may_read(sock, &cmd, sizeof(cmd))) {
+	if (sock_ipc_read_u32(sock, &cmd) == -1) {
 		return (1);
 	}
 	switch (cmd) {
 	case PRISON_IPC_CONSOLE_TO_CLIENT:
-		sock_ipc_must_read(sock, &len, sizeof(len));
-		if (len == 0 || len > 1024 * 1024) {
-			warnx("console: invalid frame length %zu", len);
+		if (wire_recv(sock, &w) == -1) {
+			warnx("console: failed to read console frame");
 			return (1);
 		}
-		buf = malloc(len);
-		if (buf == NULL) {
-			err(1, "malloc failed");
+		buf = w.w_buf;
+		len = w.w_len;
+		if (len > 0 && sock_ipc_must_write(STDOUT_FILENO,
+		    (void *)(uintptr_t)buf, len) != (ssize_t)len) {
+			wire_free(&w);
+			err(1, "console: write to stdout failed");
 		}
-		sock_ipc_must_read(sock, buf, len);
-		(void) write(STDIN_FILENO, buf, len);
-		free(buf);
+		wire_free(&w);
 		break;
 	case PRISON_IPC_CONSOLE_SESSION_DONE:
 		console_reset_tty();
 		return (1);
 		break;
 	default:
-		printf("invalid console frame type %d\n", cmd);
+		warnx("invalid console frame type %u", cmd);
+		return (1);
 	}
 	return (0);
 }
 
-static void console_tty_send_resize(int sock)
+static void
+console_tty_send_resize(int sock)
 {
-	unsigned char buf[sizeof(uint32_t) + sizeof(struct winsize)];
 	struct winsize wsize;
-	unsigned char *vptr;
-	uint32_t cmd_val;
 
-	vptr = buf;
-	cmd_val = PRISON_IPC_CONSOL_RESIZE;
-	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &wsize) == -1) {
-		err(1, "ioctl(TIOCGWINSZ) failed");
-	}
-	memcpy(vptr, &cmd_val, sizeof(cmd_val));
-	vptr += sizeof(cmd_val);
-	memcpy(vptr, &wsize, sizeof(wsize));
-	ssize_t len = sizeof(buf);
-	if (write(sock, buf, len) != len) {
+	console_get_winsize(&wsize);
+	if (sock_ipc_write_u32(sock, PRISON_IPC_CONSOL_RESIZE) == -1 ||
+	    proto_send_winsize(sock, &wsize) == -1) {
 		err(1, "tty send resize failed");
 	}
 }
@@ -183,9 +201,7 @@ static int
 console_tty_handle_stdin(int sock)
 {
 	unsigned char buf[4096];
-	struct iovec iov[2];
-	ssize_t n, i, total;
-	uint32_t header;
+	ssize_t n, i;
 
 	n = read(STDIN_FILENO, buf, sizeof(buf));
 	if (n == -1 && errno == EINTR) {
@@ -193,27 +209,27 @@ console_tty_handle_stdin(int sock)
 	} else if (n == -1) {
 		err(1, "read failed");
 	}
-	for (i = 0; i < n; i++) {
-		/* Ctrl+Q should be configurable */
-		if (buf[i] == 0x11) {
-			(void) fprintf(stderr,
-			    "\n\n[Ctrl-Q: disconnect sequence]\n");
-			close(sock);
-			return (1);
+	if (n == 0) {
+		/*
+		 * Nothing more to send, but keep relaying output until the
+		 * session is done.
+		 */
+		console_stdin_open = 0;
+		return (0);
+	}
+	if (console_is_tty) {
+		for (i = 0; i < n; i++) {
+			/* Ctrl+Q should be configurable */
+			if (buf[i] == 0x11) {
+				(void) fprintf(stderr,
+				    "\n\n[Ctrl-Q: disconnect sequence]\n");
+				close(sock);
+				return (1);
+			}
 		}
 	}
-	if (need_resize) {
-		console_tty_send_resize(sock);
-		need_resize = 0;
-	}
-	header = PRISON_IPC_CONSOLE_DATA;
-	iov[0].iov_base = &header;
-	iov[0].iov_len  = sizeof(header);
-	iov[1].iov_base = buf;
-	iov[1].iov_len  = n;
-	total = writev(sock, iov, 2);
-	if (total != (ssize_t)(sizeof(header) + n)) {
-		perror("writev header+data");
+	if (wire_send_frame(sock, PRISON_IPC_CONSOLE_DATA, buf, n) == -1) {
+		warn("console: failed to send data");
 		close(sock);
 		return (1);
 	}
@@ -225,7 +241,9 @@ console_evloop(int sock)
 {
 	int done;
 
-	console_tty_set_raw_mode(STDIN_FILENO);
+	if (console_is_tty) {
+		console_tty_set_raw_mode(STDIN_FILENO);
+	}
 	done = 0;
 	while (!done) {
 		done = console_mplex(sock);
@@ -236,12 +254,20 @@ int
 console_mplex(int sock)
 {
 	fd_set rfds;
-	int error;
+	int error, maxfd;
 
+	if (need_resize) {
+		need_resize = 0;
+		console_tty_send_resize(sock);
+	}
 	FD_ZERO(&rfds);
 	FD_SET(sock, &rfds);
-	FD_SET(STDIN_FILENO, &rfds);
-	error = select(MAX(sock, STDIN_FILENO) + 1, &rfds, NULL, NULL, NULL);
+	maxfd = sock;
+	if (console_stdin_open) {
+		FD_SET(STDIN_FILENO, &rfds);
+		maxfd = MAX(sock, STDIN_FILENO);
+	}
+	error = select(maxfd + 1, &rfds, NULL, NULL, NULL);
 	if (error == -1 && errno == EINTR) {
 		return (0);
 	}
@@ -253,11 +279,11 @@ console_mplex(int sock)
 			return (1);
 		}
 	}
-	if (FD_ISSET(STDIN_FILENO, &rfds)) {
+	if (console_stdin_open && FD_ISSET(STDIN_FILENO, &rfds)) {
 		if (console_tty_handle_stdin(sock)) {
 			return (1);
 		}
-        }
+	}
 	return (0);
 }
 
@@ -265,7 +291,11 @@ void
 console_tty_console_session(int sock)
 {
 
-	signal(SIGWINCH, console_handle_window_resize);
+	console_is_tty = isatty(STDIN_FILENO);
+	console_stdin_open = 1;
+	if (console_is_tty) {
+		signal(SIGWINCH, console_handle_window_resize);
+	}
 	console_evloop(sock);
 }
 
@@ -274,21 +304,19 @@ console_connect_console(int sock, struct console_config *ccp)
 {
 	struct cblock_console_connect pcc;
 	struct cblock_response resp;
-	uint32_t cmd;
 
+	console_is_tty = isatty(STDIN_FILENO);
 	bzero(&pcc, sizeof(pcc));
-	cmd = PRISON_IPC_CONSOLE_CONNECT;
-	if (tcgetattr(STDIN_FILENO, &pcc.p_termios) == -1) {
-		err(1, "tcgetattr(STDIN_FILENO) failed");
-	}
-	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &pcc.p_winsize) == -1) {
-		err(1, "ioctl(TIOCGWINSZ): failed");
-	}
+	console_get_winsize(&pcc.p_winsize);
 	strlcpy(pcc.p_instance, ccp->c_name, sizeof(pcc.p_instance));
 	strlcpy(pcc.p_name, ccp->c_name, sizeof(pcc.p_name));
-	sock_ipc_must_write(sock, &cmd, sizeof(cmd));
-	sock_ipc_must_write(sock, &pcc, sizeof(pcc));
-	sock_ipc_must_read(sock, &resp, sizeof(resp));
+	if (sock_ipc_write_u32(sock, PRISON_IPC_CONSOLE_CONNECT) == -1 ||
+	    proto_send_console_connect(sock, &pcc) == -1) {
+		errx(1, "failed to send console connect request");
+	}
+	if (proto_recv_response(sock, &resp) == -1) {
+		errx(1, "failed to read console connect response");
+	}
 	if (resp.p_ecode != 0) {
 		(void) printf("failed to attach console to %s: %s\n",
 		    ccp->c_name, resp.p_errbuf);

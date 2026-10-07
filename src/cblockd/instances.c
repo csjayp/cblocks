@@ -54,12 +54,14 @@ dispatch_get_instances(int sock)
 	size_t count;
 
 	count = cblock_instance_get_count();
-	sock_ipc_must_write(sock, &count, sizeof(count));
-	if (count == 0) {
-		return (1);
+	ents = NULL;
+	if (count > 0) {
+		ents = cblock_populate_instance_entries(count);
+		if (ents == NULL) {
+			count = 0;
+		}
 	}
-	ents = cblock_populate_instance_entries(count);
-	sock_ipc_must_write(sock, ents, count * sizeof(struct instance_ent));
+	(void) proto_send_instances(sock, ents, count);
 	free(ents);
 	return (1);
 }

@@ -30,16 +30,14 @@
 #include <sys/param.h>
 #include <sys/ioctl.h>
 #include <sys/queue.h>
-#include <sys/ttycom.h>
 #include <signal.h>
+#include <stdint.h>
 
 #ifdef __FreeBSD__
 #include <net/if.h>
 #else
 #define IF_NAMESIZE 16
 #endif
-
-#include <termios.h>
 
 struct tailhead_stage;
 struct tailhead_step;
@@ -67,6 +65,20 @@ enum {
 #define	PRISON_IPC_GENERIC_COMMAND	10
 #define	PRISON_IPC_NETWORK_CTL		11
 #define	PRISON_IPC_SIGNAL_INSTANCE	12
+
+/*
+ * Every connection starts with the client sending CBLOCK_PROTO_MAGIC and
+ * CBLOCK_PROTO_VERSION. Bump the version whenever the wire format changes.
+ */
+#define	CBLOCK_PROTO_MAGIC		0x43424c4b	/* "CBLK" */
+#define	CBLOCK_PROTO_VERSION		1
+
+/*
+ * Maximum size of a single framed message. Console output larger than this
+ * must be split into multiple frames.
+ */
+#define	CBLOCK_WIRE_MAX			(1024 * 1024)
+#define	CBLOCK_CONSOLE_CHUNK		(64 * 1024)
 
 struct instance_ent {
 	char					p_instance_name[MAX_PRISON_NAME];
@@ -124,7 +136,6 @@ struct cblock_console_connect {
 	char					p_name[MAX_PRISON_NAME];
 	char					p_instance[MAX_PRISON_NAME];
 	struct winsize				p_winsize;
-	struct termios				p_termios;
 	char					p_term[MAX_TERM_NAME];
 };
 
@@ -235,6 +246,20 @@ struct vec {
 
 typedef struct vec vec_t;
 
+/*
+ * Message buffer for the wire protocol. All integers are encoded in network
+ * byte order and strings are encoded as a 32-bit length followed by the
+ * bytes (no NUL terminator). Errors are sticky: once w_error is set every
+ * subsequent put/get is a no-op, so callers only need to check once.
+ */
+struct wire {
+	u_char					*w_buf;	/* message bytes */
+	size_t					 w_len;	/* bytes used in w_buf */
+	size_t					 w_cap;	/* bytes allocated for w_buf */
+	size_t					 w_off;	/* read position for wire_get_*() */
+	int					 w_error; /* set on overflow or decode error */
+};
+
 void		print_red(FILE *, char *, ...);
 void		print_bold_prefix(FILE *);
 pid_t		waitpid_ignore_intr(pid_t, int *);
@@ -252,5 +277,53 @@ ssize_t		sock_ipc_must_read(int, void *, size_t);
 ssize_t		sock_ipc_must_write(int, void *, size_t);
 ssize_t		sock_ipc_from_to(int, int, off_t);
 void		sock_ipc_from_sock_to_tty(int);
+int		sock_ipc_write_u32(int, uint32_t);
+int		sock_ipc_read_u32(int, uint32_t *);
+
+void		wire_init(struct wire *);
+void		wire_free(struct wire *);
+void		wire_put_bytes(struct wire *, const void *, size_t);
+void		wire_put_u16(struct wire *, uint16_t);
+void		wire_put_u32(struct wire *, uint32_t);
+void		wire_put_u64(struct wire *, uint64_t);
+void		wire_put_str(struct wire *, const char *);
+void		wire_put_blob(struct wire *, const void *, size_t);
+uint16_t	wire_get_u16(struct wire *);
+uint32_t	wire_get_u32(struct wire *);
+uint64_t	wire_get_u64(struct wire *);
+int		wire_get_int(struct wire *);
+void		wire_get_str(struct wire *, char *, size_t);
+const void *	wire_get_blob(struct wire *, size_t *);
+int		wire_finish(struct wire *);
+int		wire_send(int, struct wire *);
+int		wire_recv(int, struct wire *);
+int		wire_send_frame(int, uint32_t, const void *, size_t);
+
+int		proto_hello_client(int, char *, size_t);
+int		proto_hello_server(int);
+int		proto_send_response(int, const struct cblock_response *);
+int		proto_recv_response(int, struct cblock_response *);
+int		proto_send_launch(int, const struct cblock_launch *);
+int		proto_recv_launch(int, struct cblock_launch *);
+int		proto_send_signal(int, const struct cblock_signal_instance *);
+int		proto_recv_signal(int, struct cblock_signal_instance *);
+int		proto_send_console_connect(int,
+		    const struct cblock_console_connect *);
+int		proto_recv_console_connect(int, struct cblock_console_connect *);
+int		proto_send_winsize(int, const struct winsize *);
+int		proto_recv_winsize(int, struct winsize *);
+int		proto_send_generic_command(int,
+		    const struct cblock_generic_command *, const char *);
+int		proto_recv_generic_command(int, struct cblock_generic_command *,
+		    char **);
+int		proto_send_build_context(int,
+		    const struct cblock_build_context *);
+int		proto_recv_build_context(int, struct cblock_build_context *);
+int		proto_send_build_stage(int, const struct build_stage *);
+int		proto_recv_build_stage(int, struct build_stage *);
+int		proto_send_build_step(int, const struct build_step *);
+int		proto_recv_build_step(int, struct build_step *);
+int		proto_send_instances(int, const struct instance_ent *, size_t);
+int		proto_recv_instances(int, struct instance_ent **, size_t *);
 
 #endif	/* BUILD_DOT_H_ */

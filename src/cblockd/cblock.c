@@ -218,7 +218,6 @@ cblock_remove(struct cblock_instance *pi)
 {
 	extern struct global_params gcfg;
 	char *instance_type;
-	uint32_t cmd;
 	size_t cur;
 
 	/*
@@ -228,15 +227,15 @@ cblock_remove(struct cblock_instance *pi)
 	 * so we aren't performing socket io while this lock is held.
 	 */
 	if ((pi->p_state & STATE_CONNECTED) != 0) {
-		cmd = PRISON_IPC_CONSOLE_SESSION_DONE;
-		sock_ipc_must_write(pi->p_peer_sock, &cmd, sizeof(cmd));
+		(void) sock_ipc_write_u32(pi->p_peer_sock,
+		    PRISON_IPC_CONSOLE_SESSION_DONE);
 		/*
 		 * If this is a cellblock build, the peer will be waiting for
 		 * ultimate status code of the build job, so send it.
 		 */
 		if (pi->p_type == PRISON_TYPE_BUILD) {
-			sock_ipc_must_write(pi->p_peer_sock, &pi->p_status,
-			    sizeof(pi->p_status));
+			(void) sock_ipc_write_u32(pi->p_peer_sock,
+			    pi->p_status);
 		}
 	}
 	switch (pi->p_type) {
