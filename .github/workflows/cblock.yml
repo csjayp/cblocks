@@ -39,6 +39,11 @@ jobs:
           make client-only
           sudo make client-only-install
           command -v cblock
+          # The checkout is also the build context sent to vmcall. Remove
+          # the Linux objects, or make in the FreeBSD build will see
+          # libcblock.a as up to date and link it into cblockd.
+          make -C src/libcblock clean
+          make -C src/cblock clean
 
       - name: Set up ssh
         env:
