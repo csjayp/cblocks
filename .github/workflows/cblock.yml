@@ -1,0 +1,76 @@
+#
+# Build the cblock client on the runner, then use it to build this
+# repository's Cblockfile on vmcall.sqrt.ca over ssh.
+#
+# Repository settings:
+#   secrets.CBLOCK_SSH_KEY          private key for the ssh user
+#   secrets.CBLOCK_SSH_KNOWN_HOSTS  vmcall.sqrt.ca's known_hosts line(s)
+#   vars.CBLOCK_SSH_USER            ssh user on vmcall (default: ci); it
+#                                   must be in the cblock group
+#
+name: cblock
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# vmcall is a single build host, so run one build at a time.
+concurrency:
+  group: cblock-vmcall
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CBLOCK_HOST: ssh://vmcall.sqrt.ca
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flex bison
+
+      - name: Build and install the client
+        run: |
+          make client-only
+          sudo make client-only-install
+          command -v cblock
+
+      - name: Set up ssh
+        env:
+          SSH_KEY: ${{ secrets.CBLOCK_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.CBLOCK_SSH_KNOWN_HOSTS }}
+          SSH_USER: ${{ vars.CBLOCK_SSH_USER || 'ci' }}
+        run: |
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/cblock
+          chmod 0600 ~/.ssh/cblock
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # Every cblock command opens a new ssh session. Share one
+          # connection between them so the job does not trip the rate
+          # limit on the ssh port.
+          cat > ~/.ssh/config <<EOF
+          Host vmcall.sqrt.ca
+              User $SSH_USER
+              IdentityFile ~/.ssh/cblock
+              IdentitiesOnly yes
+              BatchMode yes
+              StrictHostKeyChecking yes
+              ControlMaster auto
+              ControlPath ~/.ssh/cm-%C
+              ControlPersist 10m
+          EOF
+
+      - name: Check the connection to cblockd
+        run: cblock instances
+
+      - name: Build the Cblockfile
+        run: cblock build -n cblocks-ci -t "${GITHUB_SHA::12}" .
+
+      - name: Close the ssh connection
+        if: always()
+        run: ssh -O exit vmcall.sqrt.ca || true
