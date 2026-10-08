@@ -114,10 +114,15 @@ prepare_file_system()
     # Make sure we use -o noatime otherwise read operations will result in
     # shadow objects being created which can impact performance.
     #
+    # whiteout=whenneeded only leaves a whiteout when a file from the image
+    # is removed. By default every removal leaves one, even for temporary
+    # files, and programs that do not skip whiteouts when reading
+    # directories (Go's os.RemoveAll) can loop forever on them.
+    #
     case $CBLOCK_FS in
     ufs)
-        mount -t unionfs -o noatime -o below "${base_root}"/root \
-          "${build_root}"/"${stage_index}"/root
+        mount -t unionfs -o noatime -o below -o whiteout=whenneeded \
+          "${base_root}"/root "${build_root}"/"${stage_index}"/root
         if [ ! -d "${build_root}/${stage_index}/root/tmp" ] ; then
             mkdir "${build_root}/${stage_index}/root/tmp"
         fi
