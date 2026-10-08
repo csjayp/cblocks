@@ -390,6 +390,16 @@ forge            latest                 10.17M  2021-05-27 00:32:08
 %
 ```
 
+To remove an image, give its name and tag (the tag defaults to `latest`):
+```
+% sudo cblock images --remove freebsd-13_4:latest
+Removed freebsd-13_4:latest
+%
+```
+If the image has other tags, only this tag is removed. The image itself is
+removed with its last tag, and cblockd refuses to remove an image that a
+running cellblock or build is using.
+
 ### Launching your Cellblock
 
 Now we are ready to launch the container. Note with `--host-networking` the cblock daemon

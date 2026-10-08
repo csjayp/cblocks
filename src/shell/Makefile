@@ -1,4 +1,5 @@
 TARGETS=cmd_image.sh \
+	cmd_image_remove.sh \
 	cmd_image_prune.sh \
 	cmd_instance_prune.sh \
 	common.sh \

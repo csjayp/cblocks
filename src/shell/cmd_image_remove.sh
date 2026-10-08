@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2020 Christian S.J. Peron
+# Copyright (c) 2026 Christian S.J. Peron
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -24,59 +24,71 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 #
+# Remove image tags: cmd_image_remove.sh -R DATA_DIR -- NAME[:TAG] ...
+# A missing tag means "latest". The image itself is deleted with its
+# last tag, unless a running instance or build is using it.
+#
 . "$(dirname "$0")/common.sh"
 data_dir=""
-obliterate="no"
 
-do_image_purge()
+remove_tag()
 {
-    for image in $(images); do
-        match="no"
-        for link in $(symlinks); do
-            target=$(readlink "$link")
-            if [ "$target" = "$image" ]; then
-                match="$link"
-                break
-            fi
-            if [ "$obliterate" = "yes" ]; then
-                rm $link
-            fi
-        done
-        if [ "$obliterate" = "yes" ]; then
-            match="no"
+    name="${1%%:*}"
+    tag="latest"
+    case "$1" in
+    *:*)
+        tag="${1#*:}"
+        ;;
+    esac
+    # The names come from the client. Keep them inside the images
+    # directory.
+    case "$name:$tag" in
+    -*|*/*|:*|*:|*:*:*)
+        echo "${1}: invalid image name"
+        return 1
+        ;;
+    esac
+    link="${data_dir}/images/${name}:${tag}"
+    if [ ! -h "$link" ]; then
+        echo "${name}:${tag}: no such image"
+        return 1
+    fi
+    image=$(readlink "$link")
+    for other in $(symlinks); do
+        if [ "$other" != "$link" ] && [ "$(readlink "$other")" = "$image" ]; then
+            rm "$link"
+            echo "Untagged ${name}:${tag}"
+            return 0
         fi
-        if [ "$match" != "no" ]; then
-            continue
-        fi
-        printf "Removing un-referenced image: %s\n" $(basename $image)
-        remove_image "$image"
     done
+    if image_in_use "$image"; then
+        echo "${name}:${tag}: image is in use, not removed"
+        return 1
+    fi
+    rm "$link"
+    remove_image "$image" || return 1
+    echo "Removed ${name}:${tag}"
 }
 
-while getopts "R:o" opt; do
+while getopts "R:" opt; do
     case $opt in
-        o)
-            echo "WARNING: You have selected to obliterate everything"
-            echo -n "Are you sure you know what you are doing? (yes/no): "
-            read answer
-            case $answer in
-            yes|YES)
-                obliterate="yes"
-                ;;
-            *)
-                exit 0
-                ;;
-            esac
-            ;;
         R)
             data_dir="$OPTARG"
-            ;;  
+            ;;
+        *)
+            exit 1
+            ;;
     esac
 done
+shift $((OPTIND - 1))
 
 if [ ! "$data_dir" ]; then
     echo "Must specify cblock data directory -R"
     exit 1
 fi
 
-do_image_purge
+status=0
+for arg in "$@"; do
+    remove_tag "$arg" || status=1
+done
+exit $status
