@@ -29,5 +29,6 @@
 
 int		sock_ipc_connect_inet(struct global_params *);
 int		sock_ipc_connect_unix(struct global_params *);
+int		sock_ipc_connect_ssh(struct global_params *);
 
 #endif

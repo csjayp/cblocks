@@ -44,6 +44,7 @@ struct global_params {
 	int		 c_verbose;
 	int		 c_background;
 	char		*c_sock_owner;
+	char		*c_sock_group;
 	char		*c_logfile;
 	char		*c_forge_path;
 	int		 c_inet;

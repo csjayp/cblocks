@@ -90,6 +90,7 @@ static struct option long_options[] = {
 	{ "verbose",		no_argument, 0, 'v' },
 	{ "background",		no_argument, 0, 'b' },
 	{ "sock-owner",		required_argument, 0, 'o' },
+	{ "sock-group",		required_argument, 0, 'g' },
 	{ "logfile",		required_argument, 0, 'l' },
 	{ "create-forge",	required_argument, 0, 'f' },
 	{ 0, 0, 0, 0 }
@@ -115,6 +116,7 @@ usage(void)
 	    " -v, --verbose               Increase verbosity\n"
 	    " -b, --background            Launch daemon into the background\n"
 	    " -o, --sock-owner=USER       Allow user/groups to connect to socket\n"
+	    " -g, --sock-group=GROUP      Allow members of GROUP to connect to socket\n"
 	    " -l, --logfile=FILE          Path to cblock daemon log\n"
 	    " -f, --create-forge=FILE     Create the base image to forge containers\n"
 	);
@@ -247,7 +249,7 @@ main(int argc, char *argv [], char *env[])
 	gcfg.c_name = "/var/run/cblock.sock";
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "f:l:o:bd:T:46U:s:p:huzNv", long_options,
+		c = getopt_long(argc, argv, "f:l:o:g:bd:T:46U:s:p:huzNv", long_options,
 		    &option_index);
 		if (c == -1) {
 			break;
@@ -264,6 +266,9 @@ main(int argc, char *argv [], char *env[])
 			break;
 		case 'o':
 			gcfg.c_sock_owner = optarg;
+			break;
+		case 'g':
+			gcfg.c_sock_group = optarg;
 			break;
 		case 'b':
 			gcfg.c_background = 1;

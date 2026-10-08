@@ -45,6 +45,7 @@
 #include <string.h>
 #include <err.h>
 #include <pwd.h>
+#include <grp.h>
 
 #include "main.h"
 #include "sock_ipc.h"
@@ -54,6 +55,9 @@ sock_ipc_setup_unix(struct global_params *cmd)
 {
 	struct sockaddr_un addr;
 	struct passwd *pwd;
+	struct group *grp;
+	uid_t uid;
+	gid_t gid;
 
 	(void) unlink(cmd->c_name);
 	cmd->c_socks[0] = socket(PF_UNIX, SOCK_STREAM, PF_UNSPEC);
@@ -71,17 +75,37 @@ sock_ipc_setup_unix(struct global_params *cmd)
 	if (listen(cmd->c_socks[0], 100) == -1) {
 		err(1, "listen(PF_UNIX) failed");
 	}
-	if (cmd->c_sock_owner == NULL) {
+	/*
+	 * Without --sock-owner or --sock-group the socket keeps the
+	 * ownership and mode it was created with, so only root can
+	 * connect. Otherwise the owner and group can read and write it.
+	 * --sock-owner sets the user and their primary group, and
+	 * --sock-group overrides the group.
+	 */
+	if (cmd->c_sock_owner == NULL && cmd->c_sock_group == NULL) {
 		return (0);
 	}
-	pwd = getpwnam(cmd->c_sock_owner);
-	if (pwd == NULL) {
-		err(1, "could not lookup user %s", cmd->c_sock_owner);
+	uid = (uid_t)-1;
+	gid = (gid_t)-1;
+	if (cmd->c_sock_owner != NULL) {
+		pwd = getpwnam(cmd->c_sock_owner);
+		if (pwd == NULL) {
+			errx(1, "could not lookup user %s", cmd->c_sock_owner);
+		}
+		uid = pwd->pw_uid;
+		gid = pwd->pw_gid;
 	}
-	if (chown(cmd->c_name, pwd->pw_uid, pwd->pw_gid) == -1) {
+	if (cmd->c_sock_group != NULL) {
+		grp = getgrnam(cmd->c_sock_group);
+		if (grp == NULL) {
+			errx(1, "could not lookup group %s", cmd->c_sock_group);
+		}
+		gid = grp->gr_gid;
+	}
+	if (chown(cmd->c_name, uid, gid) == -1) {
 		err(1, "failed to change socket ownership");
 	}
-	if (chmod(cmd->c_name, S_IRWXU | S_IRWXG) == -1) {
+	if (chmod(cmd->c_name, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP) == -1) {
 		err(1, "chmod failed");
 	}
 	return (0);
