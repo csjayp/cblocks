@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -39,6 +40,7 @@ import (
 type CmdArgs struct {
 	ManifestPath *string
 	Prefix       *string
+	DryRun       *bool
 }
 
 type PortMapping struct {
@@ -79,9 +81,7 @@ func (c *CmdVec) AddBool(option string) {
 }
 
 func (c *CmdVec) AddOption(option, value string) {
-	comp := "--" + option
-	comp = comp + " " + value
-	c.Args = append(c.Args, comp)
+	c.Args = append(c.Args, "--"+option, value)
 }
 
 func (c *CmdVec) AddString(option string) {
@@ -155,7 +155,10 @@ func ProcessManifest(gcfg Config, prog string) ([]CmdVec, error) {
 	return cmdvec, nil
 }
 
-func LaunchCellblocks(yamlData []byte, prefix string) {
+// LaunchCellblocks runs cblock launch for each cellblock in the manifest,
+// in order. A failed launch does not stop the others. It returns the
+// number of launches that failed. With dryRun it only prints the commands.
+func LaunchCellblocks(yamlData []byte, prefix string, dryRun bool) int {
 	var gcfg Config
 
 	err := yaml.Unmarshal(yamlData, &gcfg)
@@ -167,21 +170,42 @@ func LaunchCellblocks(yamlData []byte, prefix string) {
 	if err != nil {
 		log.Fatalf("failed to process manifest: %s\n", err)
 	}
+	failed := 0
 	for _, cmd := range clist {
-		fmt.Printf("%s\n", strings.Join(cmd.Args, " "))
+		line := strings.Join(cmd.Args, " ")
+		if dryRun {
+			fmt.Printf("%s\n", line)
+			continue
+		}
+		c := exec.Command(cmd.Args[0], cmd.Args[1:]...)
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		if err := c.Run(); err != nil {
+			log.Printf("launch failed: %s: %v\n", line, err)
+			failed++
+		}
 	}
+	return failed
 }
 
 func main() {
 	cfg := CmdArgs{}
 	cfg.Prefix = pflag.StringP("prefix", "P", "/usr/local", "installation path")
-	manifestPath := *cfg.Prefix + "/etc/cellblocks.yaml"
-	cfg.ManifestPath = pflag.StringP("manifest-path", "p", manifestPath, "path to cellblock manifest")
+	cfg.ManifestPath = pflag.StringP("manifest-path", "p", "",
+		"path to cellblock manifest (default PREFIX/etc/cellblocks.yaml)")
+	cfg.DryRun = pflag.BoolP("dry-run", "n", false,
+		"print the cblock commands instead of running them")
 
 	pflag.Parse()
+	// The default depends on --prefix, so set it after parsing.
+	if *cfg.ManifestPath == "" {
+		*cfg.ManifestPath = *cfg.Prefix + "/etc/cellblocks.yaml"
+	}
 	cf, err := os.ReadFile(*cfg.ManifestPath)
 	if err != nil {
 		log.Fatalf("error reading YAML file: %v", err)
 	}
-	LaunchCellblocks(cf, *cfg.Prefix)
+	if failed := LaunchCellblocks(cf, *cfg.Prefix, *cfg.DryRun); failed > 0 {
+		log.Fatalf("%d cellblock(s) failed to launch", failed)
+	}
 }

@@ -11,7 +11,7 @@
 
 This project is a lightweight container building and runtime environment built on FreeBSD jails, designed for high performance and a minimal memory footprint. It supports both UFS/unionfs and ZFS storage backends and assigns each container its own PTY, providing a persistent, attachable console for interactive access and debugging. The system is implemented in C, Shell, and Go, combining low-level efficiency with scriptable flexibility.
 
-The container build system features a domain-specific language with a syntax closely resembling Dockerfiles, making it intuitive for users familiar with container workflows while remaining tightly integrated with the FreeBSD ecosystem. At start up, container orchestration is handled by Warden, which allows you to declaratively specify containers to launch at startup, define port mappings, volumes, and network modes. Networking leverages FreeBSD’s native mechanisms, supporting both bridge and NAT modes through the PF firewall, and includes support for OS auditing and mtree-based snapshots for file integrity monitoring (FIM).
+The container build system features a domain-specific language with a syntax closely resembling Dockerfiles, making it intuitive for users familiar with container workflows while remaining tightly integrated with the FreeBSD ecosystem. At start up, container orchestration is handled by `cblock_warden`, which allows you to declaratively specify containers to launch at startup, define port mappings, volumes, and network modes. Networking leverages FreeBSD’s native mechanisms, supporting both bridge and NAT modes through the PF firewall, and includes support for OS auditing and mtree-based snapshots for file integrity monitoring (FIM).
 
 For deep observability, the environment also publishes cell block–specific DTrace providers, allowing administrators to trace and troubleshoot container lifecycle events and performance characteristics in real time. Future development will focus on OCI compliance, extending interoperability with existing container ecosystems while preserving the performance, security, and simplicity inherent to the FreeBSD jail model.
 
@@ -35,7 +35,7 @@ In addition to the C compilers, the Go toolchain is required for building compon
 
 The `cblock` client can be built on its own, for example on a Linux host or
 CI runner that talks to a remote cblock daemon. This builds `libcblock` and
-the `cblock` client, but not the daemon, Warden or `libfsoverride`.
+the `cblock` client, but not the daemon, `cblock_warden` or `libfsoverride`.
 `libcblock` is linked statically, so only the `cblock` binary is installed.
 
 The client builds on FreeBSD, macOS and Linux (glibc or musl) with no

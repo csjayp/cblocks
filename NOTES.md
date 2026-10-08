@@ -23,13 +23,13 @@ Cblocks is a lightweight container build and runtime environment built on **Free
   - Syntax is designed to be familiar to users of **Dockerfiles**, but adapted for FreeBSD.  
 - The **forge image** provides the toolchain and environment required to process Cblockfiles.  
   - Acts as the **base (layer 0)** image needed before building any other cellblocks.  
-- Builds produce self-contained container images that can be deployed or orchestrated via **Warden**.  
+- Builds produce self-contained container images that can be deployed or orchestrated via **cblock_warden**.  
 
 ---
 
 ## Orchestration
 
-- **Warden** handles orchestration and startup management.  
+- **cblock_warden** handles orchestration and startup management.  
   - Defines containers to be launched automatically on system startup.  
   - Supports configuration of **port mappings**, **volumes**, and **networking modes**.  
 - Runtime behavior and dependencies are described declaratively alongside container definitions.  

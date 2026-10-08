@@ -1,0 +1,36 @@
+#!/bin/sh
+#
+# PROVIDE: cblock_warden
+# REQUIRE: cblockd
+# KEYWORD: shutdown
+#
+# cblock_warden_enable (bool):  Set to NO by default.
+#                               Set it to YES to launch the cellblocks in
+#                               the manifest at boot.
+# cblock_warden_config (str):   Path to the cellblock manifest. Set to
+#                               /usr/local/etc/cellblocks.yaml by default.
+
+. /etc/rc.subr
+
+name=cblock_warden
+rcvar="${name}_enable"
+command="/usr/local/bin/${name}"
+
+load_rc_config $name
+
+: ${cblock_warden_enable:="NO"}
+: ${cblock_warden_config:="/usr/local/etc/cellblocks.yaml"}
+
+# cblock_warden launches the cellblocks and exits, so there is no
+# process to track. stop does nothing: the cellblocks go down with the
+# system.
+start_cmd="${name}_start"
+stop_cmd=":"
+
+cblock_warden_start()
+{
+    echo "Launching cellblocks."
+    ${command} --manifest-path "${cblock_warden_config}"
+}
+
+run_rc_command "$1"

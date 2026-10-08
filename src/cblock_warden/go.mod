@@ -1,4 +1,4 @@
-module warden
+module cblock_warden
 
 go 1.25.3
 

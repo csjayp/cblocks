@@ -90,7 +90,7 @@ launch_usage(void)
 	exit(1);
 }
 
-static void
+static int
 launch_container(int sock, struct launch_config *lcp)
 {
 	struct cblock_launch pl;
@@ -135,7 +135,7 @@ launch_container(int sock, struct launch_config *lcp)
 	}
 	if (resp.p_ecode != 0) {
 		warnx("failed to spawn container");
-		return;
+		return (1);
 	}
 	printf("cellblock: container launched: instance: %s\n", resp.p_errbuf);
 	if (lcp->l_attach) {
@@ -147,6 +147,7 @@ launch_container(int sock, struct launch_config *lcp)
 		console_main(vec->vec_used, vec_return(vec), sock);
 		vec_free(vec);
 	}
+	return (0);
 }
 
 int
@@ -282,6 +283,5 @@ launch_main(int argc, char *argv [], int ctlsock)
 		}
 		vec_finalize(lc.l_vec);
 	}
-	launch_container(ctlsock, &lc);
-	return (0);
+	return (launch_container(ctlsock, &lc));
 }
