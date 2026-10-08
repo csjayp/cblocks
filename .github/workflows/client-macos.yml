@@ -1,0 +1,35 @@
+#
+# Build and install the cblock client, and build cblock_warden, on
+# macOS. yacc and lex come with the Xcode command line tools on
+# the runner.
+#
+name: client-macos
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and install the client
+        run: |
+          make client-only
+          sudo make client-only-install
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/cblock_warden/go.mod
+          cache-dependency-path: src/cblock_warden/go.sum
+
+      - name: Build cblock_warden
+        run: make -C src/cblock_warden
+
+      - name: Run the client
+        run: |
+          cblock --help 2>&1 | grep '^Usage: cblock'
