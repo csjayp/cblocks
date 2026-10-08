@@ -55,6 +55,7 @@ static struct command_ent command_list[] = {
 	{ "instance_prune",	"cmd_instance_prune.sh" },
 	{ "image_prune",	"cmd_image_prune.sh" },
 	{ "image_list",		"cmd_image.sh" },
+	{ "image_remove",	"cmd_image_remove.sh" },
 	{ NULL,			NULL }
 };
 
@@ -128,6 +129,11 @@ dispatch_generic_command(int sock)
 		vec_append(cmd_vec, script_path);
 		vec_append(cmd_vec, "-R");
 		vec_append(cmd_vec, gcfg.c_data_dir);
+		/*
+		 * The client's arguments follow "--" so the script can't
+		 * take any of them as an option, such as another -R.
+		 */
+		vec_append(cmd_vec, "--");
 		if (vec_merge(vec, cmd_vec) != 0) {
 			err(1, "error argv vectors: HINT: increase cmd_vec");
 		}

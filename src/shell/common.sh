@@ -42,6 +42,46 @@ symlinks()
       -mindepth 1 -maxdepth 1 -type l
 }
 
+# Delete an image directory (or dataset) under ${data_dir}/images. The
+# caller makes sure no tag points at it and nothing is using it.
+remove_image()
+{
+    case $CBLOCK_FS in
+    zfs)
+        zfs destroy -r "$(path_to_vol "$1")"
+        rm -fr "$1"
+        ;;
+    ufs)
+        chflags -R noschg "$1"
+        rm -fr "$1"
+        ;;
+    *)
+        echo "No match on CBLOCK_FS"
+        return 1
+        ;;
+    esac
+}
+
+# Succeeds if a running instance or build is using the image in $1.
+# Launches and builds mount the image's root as the lower layer of a
+# unionfs (ufs), or clone a snapshot of its dataset (zfs).
+image_in_use()
+{
+    case $CBLOCK_FS in
+    zfs)
+        zfs list -H -o clones -t snapshot -d 1 "$(path_to_vol "$1")" | \
+          grep -qv '^-$'
+        ;;
+    ufs)
+        mount -p | awk -v dir="$1/root" '
+            { n = split($1, layer, ":")
+              for (i = 1; i <= n; i++)
+                  if (layer[i] == dir) found = 1 }
+            END { exit !found }'
+        ;;
+    esac
+}
+
 ip_to_int()
 {
     echo "$1" | awk -F. '{ print (($1 * 256 + $2) * 256 + $3) * 256 + $4 }'

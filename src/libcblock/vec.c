@@ -172,7 +172,8 @@ vec_merge(vec_t *from, vec_t *to)
 {
 	int k;
 
-	if ((from->vec_used + to->vec_used) > to->vec_alloc) {
+	/* Leave room for the NULL that vec_finalize() adds. */
+	if ((from->vec_used + to->vec_used) >= to->vec_alloc) {
 		fprintf(stderr, "vec_append: overflow\n");
 		return (VEC_OVERFLOW);
 	}

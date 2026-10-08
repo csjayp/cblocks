@@ -43,12 +43,14 @@
 struct image_config {
 	int		 i_quiet;
 	int		 i_do_prune;
+	int		 i_do_remove;
 };
 
 static struct option image_options[] = {
 	{ "help",		no_argument, 0, 'h' },
 	{ "quiet",		no_argument, 0, 'q' },
 	{ "prune",		no_argument, 0, 'p' },
+	{ "remove",		no_argument, 0, 'r' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -56,10 +58,13 @@ static void
 image_usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: cblock images [OPTIONS]\n\n"
+	    "Usage: cblock images [OPTIONS]\n"
+	    "       cblock images --remove NAME[:TAG] ...\n\n"
 	    "Options\n"
 	    " -h, --help                  Print help\n"
 	    " -p, --prune                 Remove stopped/dead images\n"
+	    " -r, --remove                Remove image tags, and each image\n"
+	    "                             with its last tag unless it is in use\n"
 	    " -q, --quiet                 Do not print column headers\n");
 	exit(1);
 }
@@ -75,6 +80,37 @@ image_prune(struct image_config *icp __attribute__((unused)), int ctlsock)
 	    proto_send_generic_command(ctlsock, &arg, NULL) == -1) {
 		errx(1, "failed to send image request");
 	}
+	sock_ipc_from_sock_to_tty(ctlsock);
+}
+
+static void
+image_remove(int argc, char *argv[], int ctlsock)
+{
+	struct cblock_generic_command arg;
+	char *marshalled;
+	vec_t *vec;
+	int k;
+
+	vec = vec_init(argc + 1);
+	if (vec == NULL) {
+		err(1, "vec_init failed");
+	}
+	for (k = 0; k < argc; k++) {
+		vec_append(vec, argv[k]);
+	}
+	vec_finalize(vec);
+	marshalled = vec_marshal(vec);
+	if (marshalled == NULL) {
+		err(1, "vec_marshal failed");
+	}
+	bzero(&arg, sizeof(arg));
+	snprintf(arg.p_cmdname, sizeof(arg.p_cmdname), "image_remove");
+	arg.p_mlen = vec->vec_marshalled_len;
+	if (sock_ipc_write_u32(ctlsock, PRISON_IPC_GENERIC_COMMAND) == -1 ||
+	    proto_send_generic_command(ctlsock, &arg, marshalled) == -1) {
+		errx(1, "failed to send image request");
+	}
+	vec_free(vec);
 	sock_ipc_from_sock_to_tty(ctlsock);
 }
 
@@ -102,7 +138,7 @@ image_main(int argc, char *argv [], int ctlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "qhp", image_options,
+		c = getopt_long(argc, argv, "qhpr", image_options,
 		    &option_index);
 		if (c == -1) {
 			break;
@@ -110,6 +146,9 @@ image_main(int argc, char *argv [], int ctlsock)
 		switch (c) {
 		case 'p':
 			ic.i_do_prune = 1;
+			break;
+		case 'r':
+			ic.i_do_remove = 1;
 			break;
 		case 'q':
 			ic.i_quiet = 1;
@@ -124,6 +163,13 @@ image_main(int argc, char *argv [], int ctlsock)
 	}
 	argc -= optind;
 	argv += optind;
+	if (ic.i_do_remove) {
+		if (argc == 0) {
+			image_usage();
+		}
+		image_remove(argc, argv, ctlsock);
+		return (0);
+	}
 	if (ic.i_do_prune) {
 		image_prune(&ic, ctlsock);
 		return (0);
