@@ -169,62 +169,93 @@ setup_port_redirects()
     done
 }
 
-emit_mount_specification()
-{   
-    _all_fields=$1
-    _root="${data_root}/instances/${instance_id}/root"
-
-    echo "$1" | grep '[;&<>|]'
-    if [ $? -eq 0 ]; then
+# Print the host path of the mount point for container path $1, creating
+# it if it doesn't exist. Fail if it would land outside the instance root,
+# for example through "..", or a symlink in the image that points outside.
+mount_point()
+{
+    _root=$(realpath "${data_root}/instances/${instance_id}/root")
+    case "/$1/" in
+    */../*)
+        echo "$1: volume path may not contain .." >&2
         return 1
-    fi
-    for spec in $(echo "${_all_fields}" | sed "s/,/ /g"); do
-        case $spec in
-        tmpfs)
-            echo mount -t tmpfs tmpfs ${_root}/tmp\;
-            ;;
+        ;;
+    esac
+    # Resolve the part that exists, and keep the rest to create.
+    _existing="${_root}/$1"
+    _rest=""
+    while [ ! -e "$_existing" ]; do
+        _rest="/$(basename "$_existing")${_rest}"
+        _existing=$(dirname "$_existing")
+    done
+    _real=$(realpath "$_existing")
+    case "${_real}/" in
+    "${_root}"/*)
+        ;;
+    *)
+        echo "$1: volume path leaves the instance root" >&2
+        return 1
+        ;;
+    esac
+    mkdir -p "${_real}${_rest}" || return 1
+    echo "${_real}${_rest}"
+}
+
+# Mount the comma separated volume list $1: devfs (mounted elsewhere),
+# tmpfs, procfs, fdescfs, or fs_type:host_path:container_path:ro|rw.
+# The specs come from the client, so they are only ever passed to mount
+# as arguments, never evaluated by the shell.
+mount_volumes()
+{
+    _ifs="$IFS"
+    set -f
+    IFS=,
+    set -- $1
+    IFS="$_ifs"
+    set +f
+    for spec; do
+        case "$spec" in
         devfs)
+            continue
+            ;;
+        tmpfs)
+            _mnt=$(mount_point /tmp) && mount -t tmpfs tmpfs "$_mnt"
             ;;
         procfs)
-            echo mount -t procfs procfs ${_root}/proc\;
+            _mnt=$(mount_point /proc) && mount -t procfs procfs "$_mnt"
             ;;
         fdescfs)
-            echo mount -t fdescfs fdescfs ${_root}/dev/fd\;
-            ;;
-        *:*:*:*)
-            for field in $(jot 4); do
-                case $field in
-                1)
-                    fs_type=`echo "$spec" | cut -f $field -d:`
-                    ;;
-                2)
-                    fs_host=`echo "$spec" | cut -f $field -d:`
-                    ;;
-                3)
-                    container_mount=`echo "$spec" | cut -f $field -d:`
-                    ;;
-                4)
-                    perms=`echo "$spec" | cut -f $field -d:`
-                    ;;
-                esac
-            done
-            if [ -z $fs_type ] || [ -z $fs_host ] || [ -z $container_mount ] || [ -z $perm ]; then
-                echo must follow fs:local:container:perms >&2
-                echo exit 1
-                return
-            fi
-            echo -n "mount -t $fs_type "
-            if [ "$perms" = "RO" ] || [ "$perms" = "ro" ]; then
-                echo -n "-o ro "
-            fi
-            echo $fs_host ${_root}/$container_mount\;
+            _mnt=$(mount_point /dev/fd) && mount -t fdescfs fdescfs "$_mnt"
             ;;
         *)
-            echo must follow fs:local:container:perms >&2
-            echo exit 1
-            return
+            IFS=: read -r fs_type fs_host container perms extra <<EOF
+$spec
+EOF
+            if [ -z "$fs_type" ] || [ -z "$fs_host" ] || \
+              [ -z "$container" ] || [ -n "$extra" ]; then
+                echo "$spec: must follow fs:local:container:perms" >&2
+                return 1
+            fi
+            case "$perms" in
+            ro|RO)
+                _opts="-o ro"
+                ;;
+            rw|RW)
+                _opts=""
+                ;;
+            *)
+                echo "$spec: perms must be ro or rw" >&2
+                return 1
+                ;;
+            esac
+            _mnt=$(mount_point "$container") && \
+              mount -t "$fs_type" $_opts "$fs_host" "$_mnt"
             ;;
         esac
+        if [ $? -ne 0 ]; then
+            echo "$spec: mount failed" >&2
+            return 1
+        fi
     done
 }
 
@@ -419,12 +450,7 @@ do_launch()
     esac
     mount -t devfs devfs "${instance_root}/dev"
     config_devfs
-    # if mount_spec is *just* devfs skip over mount operations since
-    # devfs is handled elsewhere.
-    if [ "$mount_spec" != "devfs" ]; then
-        mnt_cmd=$(emit_mount_specification "$mount_spec")
-        eval $mnt_cmd
-    fi
+    mount_volumes "$mount_spec" || exit 1
     net_type=$(network_type)
     set $(emit_entrypoint)
     if [ "$net_type" = "bridge" ]; then

@@ -430,3 +430,83 @@ a5ec8053ea  freebsd-13_4    /dev/pts/2   2374    assembled         276s
 % sudo cblock console --name a5ec8053ea
 root@a5ec8053ea:/ # 
 ```
+
+### Volumes
+
+A volume mounts a host file system into a cellblock when it launches:
+
+```
+--volume TYPE:HOST:CONTAINER:ro|rw
+```
+
+* `TYPE` is a file system type for `mount -t`: `nullfs` for a host
+  directory, or `ufs` for a device such as a zvol.
+* `HOST` is the host directory or device.
+* `CONTAINER` is where it appears inside the cellblock. It is created if it
+  does not exist. It may not contain `..`, or pass through a symlink in the
+  image that points outside the cellblock.
+* `ro` mounts it read-only, `rw` read-write.
+
+Paths may not contain `:` or `,`. `--tmpfs`, `--procfs` and `--fdescfs`
+mount an in-memory `/tmp`, `/proc` and `/dev/fd`.
+
+```
+% sudo cblock launch --name nginx --network natnet \
+    --volume nullfs:/storage/www:/usr/local/www:ro
+```
+
+In the `cblock_warden` manifest:
+
+```yaml
+cellblocks:
+  - image: nginx
+    network: natnet
+    volumes:
+      - type: nullfs
+        origin: /storage/www
+        mountpoint: /usr/local/www
+        perms: ro
+```
+
+Anyone who can launch a cellblock can mount any host path into it. This is
+one reason access to cblockd is root-equivalent (see Permissions).
+
+### Secrets
+
+Keep secrets such as keys and passwords out of images and build contexts:
+anything in an image is readable by everyone who can launch it. Instead,
+keep them in a host directory and give each cellblock its own, mounted
+read-only:
+
+```
+% sudo install -d -m 0700 /usr/local/cblocks/secrets
+% sudo install -d -m 0750 -g 80 /usr/local/cblocks/secrets/nginx
+% sudo install -m 0400 -o 80 -g 80 tls.key /usr/local/cblocks/secrets/nginx/
+% sudo cblock launch --name nginx --network natnet \
+    --volume nullfs:/usr/local/cblocks/secrets/nginx:/run/secrets:ro
+```
+
+* The top directory keeps users on the host out. Inside the cellblock,
+  the per-cellblock directory appears as `/run/secrets` with its own
+  owner and mode, so give its group to the service.
+* Cellblocks share user and group IDs with the host, so use the numeric
+  IDs the service runs as inside the image (80 is `www` on FreeBSD).
+* Point the service at the file, for example `ssl_certificate_key
+  /run/secrets/tls.key;` for nginx. Many programs also accept a
+  `*_FILE` setting naming a file to read a password from. Avoid
+  environment variables for secrets: `ps -e` shows them, and every child
+  process inherits them.
+* nullfs shows the host directory as it is now, so a secret replaced on
+  the host is visible in the running cellblock straight away. The
+  service may need a restart or reload to read it again.
+* The files are on the host's disk. To keep them in memory only, mount a
+  tmpfs on the secrets directory at boot.
+
+Secrets from HashiCorp Vault or OpenBao work the same way: run Vault Agent
+(or OpenBao Agent) on the host, have its templates write each cellblock's
+secrets into that cellblock's directory, and mount it as above. The agent
+handles authentication, renewal and rotation, and nothing in the
+cellblock needs a Vault token.
+
+Secrets are not available during `cblock build`. Do not put them in the
+build directory: the whole build context is copied to the cblockd host.
