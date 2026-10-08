@@ -25,6 +25,8 @@
 # SUCH DAMAGE.
 #
 set -e
+# A failed tar on the left of the commit pipeline must fail the build.
+set -o pipefail
 
 . "$(dirname "$0")/common.sh"
 
@@ -71,9 +73,16 @@ commit_image()
                 "${build_root}/${build_index}/root/${dir}"
         fi
     else
-        rm -Wfr "${build_root}/${build_index}/root/tmp/*"
+        # Empty /tmp so it does not end up in the image.
+        find "${build_root}/${build_index}/root/tmp" -mindepth 1 -delete
         src="${build_root}/${build_index}"
     fi
+    #
+    # The build is finished. Unmount its devfs and fdescfs so the image
+    # does not capture device nodes or tar's own file descriptors.
+    #
+    umount "${build_root}/${build_index}/root/dev/fd"
+    umount "${build_root}/${build_index}/root/dev"
     if [ "${fim_spec_mode}" = "ON" ]; then
         printf "\033[1m--\033[0m %s\n" \
           "Generating cryptographic checksums for container image files"
@@ -94,10 +103,7 @@ commit_image()
         rm "${build_root}/${build_index}/TOTALS"
     fi
     lockf -k "${data_dir}/images/${image_name}.lock" \
-      tar -C "${src}" --exclude="/tmp" \
-      --no-xattrs \
-      --exclude="/dev" \
-      -b 32 -cf - . | \
+      tar -C "${src}" --no-xattrs -b 32 -cf - . | \
     tar -b 32 -xpf - -C "${data_dir}/images/${image_name}.${instance}"
     du -sk "${dest}" | awk '{ printf "%d bytes transferred\n", $1 * 1024 }' \
       > "${dest}/TOTALS"
