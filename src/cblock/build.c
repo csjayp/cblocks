@@ -240,7 +240,11 @@ build_send_context(int sock, struct build_config *bcp)
 		errx(1, "connection closed before build status was received");
 	}
 	status = ustatus;
-	return (status);
+	/* cblockd sends the raw wait(2) status of the build process. */
+	if (WIFEXITED(status)) {
+		return (WEXITSTATUS(status));
+	}
+	return (1);
 }
 
 static int

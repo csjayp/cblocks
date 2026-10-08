@@ -242,12 +242,18 @@ NAT networks require PF. Add an outbound NAT rule for each NAT network and the
 anchor cblocks uses to load port mappings to `/etc/pf.conf`:
 
 ```
-nat on re0 from (natnet:network) to any -> (re0)
+nat on re0 from (natnet:network) to any -> (re0:0)
 rdr-anchor "cblock-rdr/*"
 ```
 
 Use the parenthesized `(natnet:network)` form so the ruleset still loads if
 the interface does not exist yet.
+
+The `:0` in `(re0:0)` makes PF use only the interface's primary address. With
+a plain `(re0)`, PF rotates between all of the interface's addresses, so on
+hosts with more than one (common on cloud VMs, e.g. a public address plus a
+private VPC address) some outbound connections leave with the private
+address and never get a reply.
 
 These are translation rules, so they must come before any filter rules
 (`block`, `pass`, `match`) in `/etc/pf.conf`. If they are appended after
