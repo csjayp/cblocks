@@ -10,6 +10,9 @@
 #                         arguments passed to cblockd, and every other
 #                         cblockd_* setting below is ignored. Include
 #                         --background, or the rc script will not return.
+# cblockd_sock_group (str): Set to "cblock" by default. Members of this
+#                         group can use cblockd. Set it to "" to allow
+#                         root only.
 
 . /etc/rc.subr
 
@@ -25,6 +28,7 @@ load_rc_config $name
 : ${cblockd_fs:="ufs"}
 : ${cblockd_sock_path:="/var/run/cblock.sock"}
 : ${cblockd_sock_owner:=""}
+: ${cblockd_sock_group="cblock"}
 : ${cblockd_logfile:="/var/log/cblockd.log"}
 
 # rc.subr passes cblockd_flags to the daemon itself, so when it is set
@@ -51,10 +55,14 @@ if [ -z "$cblockd_flags" ]; then
     if [ "$cblockd_sock_owner" ]; then
         command_args="$command_args --sock-owner $cblockd_sock_owner"
     fi
+    if [ "$cblockd_sock_group" ]; then
+        command_args="$command_args --sock-group $cblockd_sock_group"
+    fi
     if [ "$cblockd_logfile" ]; then
         command_args="$command_args --logfile $cblockd_logfile"
     fi
 fi
-unset cblockd_data_dir cblockd_fs cblockd_sock_path cblockd_sock_owner
+unset cblockd_data_dir cblockd_fs cblockd_sock_path cblockd_sock_owner \
+    cblockd_sock_group
 
 run_rc_command "$1"

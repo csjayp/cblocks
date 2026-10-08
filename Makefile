@@ -24,6 +24,7 @@ install:
 	make -C src/cblock install
 	make -C src/warden install
 	cp src/rc/cblockd /usr/local/etc/rc.d
+	pw groupshow cblock >/dev/null 2>&1 || pw groupadd cblock
 
 client-only-install:
 	make -C src/cblock install

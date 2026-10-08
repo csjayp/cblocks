@@ -116,6 +116,43 @@ cblockd has been started, create it first:
 % sudo make install DESTDIR=/zroot/cblocks
 ```
 
+## Permissions
+
+cblockd listens on a UNIX socket, `/var/run/cblock.sock` by default. `make
+install` creates a `cblock` group, and the rc script makes the socket readable
+and writable by that group (`cblockd_sock_group`, `cblock` by default). To let
+a user run `cblock`, add them to the group:
+
+```
+% sudo pw groupmod cblock -m alice
+```
+
+The user has to log in again for the new group to take effect.
+
+Members of the `cblock` group effectively have root on the host: cblockd runs
+as root, and can be asked to launch containers that mount host directories.
+Only add users you would give root to.
+
+Set `cblockd_sock_group=""` in rc.conf to allow root only. If you use
+`cblockd_flags`, add `--sock-group cblock` to it yourself.
+
+### Remote access over SSH
+
+The client can reach cblockd on another host through ssh, the same way
+`DOCKER_HOST=ssh://` works. It runs `ssh` and connects to the socket on the
+remote side with `nc -U`, so ssh handles all authentication and nothing is
+exposed on the network. The remote user must be in the `cblock` group.
+
+```
+% export CBLOCK_HOST=ssh://alice@cblocks.example.com
+% cblock instances
+```
+
+The host can also be given with `--host`. The full form is
+`ssh://[user@]host[:port][/socket/path]`; the socket path defaults to
+`/var/run/cblock.sock`. Keys, host keys, jump hosts and other options come
+from your ssh configuration.
+
 ## UFS Performance Tuning
 
 When using the UFS backend, cblocks uses unionfs to layer container images. Union
@@ -211,6 +248,13 @@ rdr-anchor "cblock-rdr/*"
 
 Use the parenthesized `(natnet:network)` form so the ruleset still loads if
 the interface does not exist yet.
+
+These are translation rules, so they must come before any filter rules
+(`block`, `pass`, `match`) in `/etc/pf.conf`. If they are appended after
+them, PF rejects the whole file with "Rules must be in order", nothing in it
+is loaded, and port mappings silently do not work. Check the file with
+`pfctl -nf /etc/pf.conf`, which should print nothing, then load it with
+`pfctl -f /etc/pf.conf`. `pfctl -s nat` should list both rules.
 
 Port mappings marked public are redirected from the interface named in the
 loopback's description (`ifconfig_natnet_descr`), or from the interface

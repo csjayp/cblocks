@@ -86,7 +86,8 @@ usage(void)
 	    " -4, --ipv4                IPv4 sockets only\n"
 	    " -6, --ipv6                IPv6 sockets only\n"
 	    " -U, --unix-sock=PATH      Path to UNIX socket\n"
-	    " -s, --host=HOST           Connect to host/address\n"
+	    " -s, --host=HOST           Connect to host/address, or through\n"
+	    "                           ssh with ssh://[user@]host[:port][/path]\n"
 	    " -p, --port=PORT           Connect to port\n"
 	    " -h, --help                Display program usage\n\n"
 	    "Environment\n"
@@ -212,7 +213,9 @@ main(int argc, char *argv [])
 		}
 	}
 	free(main_argv);
-	if (gcfg.c_host) {
+	if (gcfg.c_host && strncmp(gcfg.c_host, "ssh://", 6) == 0) {
+		ctlsock = sock_ipc_connect_ssh(&gcfg);
+	} else if (gcfg.c_host) {
 		ctlsock = sock_ipc_connect_inet(&gcfg);
 	} else {
 		ctlsock = sock_ipc_connect_unix(&gcfg);

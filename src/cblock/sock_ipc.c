@@ -32,6 +32,7 @@
 #include <netinet/in.h>
 
 #include <netdb.h>
+#include <signal.h>
 #include <stdio.h>
 #include <strings.h>
 #include <unistd.h>
@@ -99,4 +100,53 @@ sock_ipc_connect_unix(struct global_params *gc)
 		err(1, "connect(PF_UNIX) failed");
 	}
 	return (sock);
+}
+
+/*
+ * Reach cblockd through ssh: run "ssh DEST nc -U PATH" and use one end of
+ * a socket pair as the connection. The host is
+ * ssh://[user@]host[:port][/socket/path]. ssh understands that URL form
+ * itself, so only the socket path is split off here. Authentication, host
+ * keys and ~/.ssh/config are all left to ssh.
+ */
+int
+sock_ipc_connect_ssh(struct global_params *gc)
+{
+	char *dest, *path;
+	int sv[2];
+	pid_t pid;
+
+	path = strchr(gc->c_host + strlen("ssh://"), '/');
+	if (path == NULL) {
+		dest = strdup(gc->c_host);
+		path = gc->c_name;
+	} else {
+		dest = strndup(gc->c_host, path - gc->c_host);
+	}
+	if (dest == NULL) {
+		err(1, "strdup failed");
+	}
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1) {
+		err(1, "socketpair failed");
+	}
+	pid = fork();
+	if (pid == -1) {
+		err(1, "fork failed");
+	}
+	if (pid == 0) {
+		close(sv[0]);
+		if (dup2(sv[1], STDIN_FILENO) == -1 ||
+		    dup2(sv[1], STDOUT_FILENO) == -1) {
+			err(1, "dup2 failed");
+		}
+		close(sv[1]);
+		/* cblock ignores SIGPIPE; ssh should not inherit that. */
+		signal(SIGPIPE, SIG_DFL);
+		execlp("ssh", "ssh", "-T", dest, "nc", "-U", path,
+		    (char *)NULL);
+		err(1, "failed to exec ssh");
+	}
+	close(sv[1]);
+	free(dest);
+	return (sv[0]);
 }
