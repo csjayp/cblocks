@@ -1,7 +1,7 @@
-TARGETS= warden
+TARGETS= cblock_warden
 PREFIX ?= /usr/local
 
-warden:
+cblock_warden:
 	go mod tidy
 	go build
 
@@ -16,4 +16,4 @@ test:
 	go test -v
 
 clean:
-	rm -fr warden
+	rm -fr cblock_warden

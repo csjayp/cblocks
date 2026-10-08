@@ -1,4 +1,4 @@
-all: cblockd cblock libfsoverride.so warden
+all: cblockd cblock libfsoverride.so cblock_warden
 
 cblock: cblockd
 	make -C src/cblock
@@ -15,15 +15,16 @@ libfsoverride.so:
 libcblock:
 	make -C src/libcblock
 
-warden: cblockd
-	make -C src/warden
+cblock_warden: cblockd
+	make -C src/cblock_warden
 
 install:
 	make -C src/libfsoverride install
 	make -C src/cblockd install
 	make -C src/cblock install
-	make -C src/warden install
+	make -C src/cblock_warden install
 	cp src/rc/cblockd /usr/local/etc/rc.d
+	cp src/rc/cblock_warden /usr/local/etc/rc.d
 	pw groupshow cblock >/dev/null 2>&1 || pw groupadd cblock
 
 client-only-install:
@@ -38,13 +39,13 @@ clean:
 	make -C src/libfsoverride clean
 	make -C src/cblockd clean
 	make -C src/cblock clean
-	make -C src/warden clean
+	make -C src/cblock_warden clean
 
 test:
-	make -C src/warden test
+	make -C src/cblock_warden test
 
 lint:
-	make -C src/warden lint
+	make -C src/cblock_warden lint
 
 forge:
 	cd tools && ./genforge.sh
