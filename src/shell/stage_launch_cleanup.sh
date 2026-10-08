@@ -68,7 +68,12 @@ network_cleanup()
 
 umount_reverse_order()
 {
-    for fs in $(mount -p | awk '{ print $2 }' | grep -F "${instance}" | tail -r); do
+    #
+    # Match on the instance directory, not the bare instance id: images
+    # are committed as <image>.<build instance id> and would match too.
+    #
+    for fs in $(mount -p | awk -v p="${data_root}/instances/${instance}/" \
+      'index($2 "/", p) == 1 { print $2 }' | tail -r); do
         umount -f "$fs"
     done
 }

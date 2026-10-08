@@ -8,7 +8,7 @@
 #   vars.CBLOCK_SSH_USER            ssh user on vmcall (default: ci); it
 #                                   must be in the cblock group
 #
-name: cblock
+name: freebsd
 
 on:
   push:
@@ -71,10 +71,15 @@ jobs:
           EOF
 
       - name: Check the connection to cblockd
-        run: cblock instances
+        run: |
+          set -o pipefail
+          cblock instances | awk 'NR == 1 || /forge/'
 
       - name: Build the Cblockfile
         run: cblock build -n cblocks-ci -t "${GITHUB_SHA::12}" .
+
+      - name: Remove the image
+        run: cblock images --remove "cblocks-ci:${GITHUB_SHA::12}"
 
       - name: Close the ssh connection
         if: always()
