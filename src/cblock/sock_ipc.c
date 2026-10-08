@@ -46,25 +46,39 @@ int
 sock_ipc_connect_inet(struct global_params *gc)
 {
 	struct addrinfo hints, *res, *res0;
-	int s, error;
+	int s, error, save_errno;
 
 	bzero(&hints, sizeof(hints));
 	hints.ai_family = gc->c_family;
 	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_PASSIVE;
 	error = getaddrinfo(gc->c_host, gc->c_port, &hints, &res0);
 	if (error) {
-		errx(1, "getaddrinfo failed: %s\n", gai_strerror(error));
+		errx(1, "%s: %s", gc->c_host, gai_strerror(error));
 	}
-	res = res0;
-	s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	if (s == -1) {
-		err(1, "socket failed");
-	}
-	if (connect(s, res->ai_addr, res->ai_addrlen) == -1) {
-		err(1, "connect failed");
+	/*
+	 * A host name can have several addresses, e.g. both AAAA and A
+	 * records. Try each in turn and use the first one that connects.
+	 */
+	s = -1;
+	save_errno = 0;
+	for (res = res0; res != NULL; res = res->ai_next) {
+		s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (s == -1) {
+			save_errno = errno;
+			continue;
+		}
+		if (connect(s, res->ai_addr, res->ai_addrlen) == 0) {
+			break;
+		}
+		save_errno = errno;
+		close(s);
+		s = -1;
 	}
 	freeaddrinfo(res0);
+	if (s == -1) {
+		errno = save_errno;
+		err(1, "connect to %s port %s failed", gc->c_host, gc->c_port);
+	}
 	return (s);
 }
 

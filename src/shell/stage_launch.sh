@@ -412,7 +412,8 @@ do_launch()
         ;;
     ufs)
         mkdir -p "${instance_root}"
-        mount -t unionfs -o noatime -o below \
+        # See stage_bootstrap_build.sh for why whiteout=whenneeded.
+        mount -t unionfs -o noatime -o below -o whiteout=whenneeded \
           "${image_dir}/root" "${instance_root}"
         ;;
     esac
