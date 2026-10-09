@@ -1,11 +1,11 @@
 #
 # Build the cblock client on the runner, then use it to build this
-# repository's Cblockfile on vmcall.sqrt.ca over ssh.
+# repository's Cblockfile on prod.cblock.sqrt.ca over ssh.
 #
 # Repository settings:
 #   secrets.CBLOCK_SSH_KEY          private key for the ssh user
-#   secrets.CBLOCK_SSH_KNOWN_HOSTS  vmcall.sqrt.ca's known_hosts line(s)
-#   vars.CBLOCK_SSH_USER            ssh user on vmcall (default: ci); it
+#   secrets.CBLOCK_SSH_KNOWN_HOSTS  prod.cblock.sqrt.ca's known_hosts line(s)
+#   vars.CBLOCK_SSH_USER            ssh user on prod (default: ci); it
 #                                   must be in the cblock group
 #
 name: freebsd
@@ -16,16 +16,16 @@ on:
   pull_request:
   workflow_dispatch:
 
-# vmcall is a single build host, so run one build at a time.
+# prod is a single build host, so run one build at a time.
 concurrency:
-  group: cblock-vmcall
+  group: cblock-prod
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      CBLOCK_HOST: ssh://vmcall.sqrt.ca
+      CBLOCK_HOST: ssh://prod.cblock.sqrt.ca
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +39,7 @@ jobs:
           make client-only
           sudo make client-only-install
           command -v cblock
-          # The checkout is also the build context sent to vmcall. Remove
+          # The checkout is also the build context sent to prod. Remove
           # the Linux objects, or make in the FreeBSD build will see
           # libcblock.a as up to date and link it into cblockd.
           make -C src/libcblock clean
@@ -59,7 +59,7 @@ jobs:
           # connection between them so the job does not trip the rate
           # limit on the ssh port.
           cat > ~/.ssh/config <<EOF
-          Host vmcall.sqrt.ca
+          Host prod.cblock.sqrt.ca
               User $SSH_USER
               IdentityFile ~/.ssh/cblock
               IdentitiesOnly yes
@@ -83,4 +83,4 @@ jobs:
 
       - name: Close the ssh connection
         if: always()
-        run: ssh -O exit vmcall.sqrt.ca || true
+        run: ssh -O exit prod.cblock.sqrt.ca || true

@@ -1,0 +1,44 @@
+#
+# A minimal FreeBSD 15-STABLE image built from source, using the knobs in
+# src.conf. The source and object trees stay behind in the build image;
+# ROOTPIVOT makes the freshly installed /new/root the image.
+#
+# Build from this directory:
+#
+#   cblock build -n fbsd-lite .
+#
+FROM base
+
+ENV ASSUME_ALWAYS_YES = "YES"
+ENV IGNORE_OSVERSION = "yes"
+#
+# Install git-lite so we can pull down a fresh freebsd -stable
+RUN "pkg install git-lite"
+RUN "git clone --depth 1 --branch stable/15 https://git.freebsd.org/src.git /usr/src"
+
+#
+# Copy our configuration for a stripped out freebsd userspace
+COPY src.conf /usr/src/src-lite.conf
+
+#
+# Do the dirty
+WORKDIR "/usr/src"
+RUN "make -j $(sysctl -n hw.ncpu) buildworld SRCCONF=/usr/src/src-lite.conf"
+RUN "mkdir -p /new/root"
+RUN "make installworld SRCCONF=/usr/src/src-lite.conf DESTDIR=/new/root"
+
+#
+# Prepare /etc
+RUN "make distribution SRCCONF=/usr/src/src-lite.conf DESTDIR=/new/root"
+
+#
+# Create base databases required by a lot of things
+RUN "cp /etc/resolv.conf /new/root/etc/"
+RUN "cap_mkdb /new/root/usr/share/misc/termcap"
+RUN "cap_mkdb /new/root/etc/login.conf"
+RUN "pwd_mkdb -p -d /new/root/etc /new/root/etc/master.passwd"
+
+ROOTPIVOT /new
+OSRELEASE 15.1-STABLE
+
+ENTRYPOINT [ "/bin/sh" ]
