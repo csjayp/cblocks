@@ -25,7 +25,11 @@ COPY src.conf /usr/src/src-lite.conf
 WORKDIR "/usr/src"
 RUN "make -j $(sysctl -n hw.ncpu) buildworld SRCCONF=/usr/src/src-lite.conf"
 RUN "mkdir -p /new/root"
-RUN "make installworld SRCCONF=/usr/src/src-lite.conf DESTDIR=/new/root"
+#
+# Leave out headers and static libraries -- nothing compiles inside the
+# image. Drop these two if ports or native extensions will be built in the
+# container. They only work here: buildworld fails if they are in src.conf.
+RUN "make installworld SRCCONF=/usr/src/src-lite.conf DESTDIR=/new/root WITHOUT_INCLUDES=yes WITHOUT_INSTALLLIB=yes"
 
 #
 # Prepare /etc
