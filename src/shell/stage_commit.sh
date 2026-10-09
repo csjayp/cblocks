@@ -105,8 +105,21 @@ commit_image()
     lockf -k "${data_dir}/images/${image_name}.lock" \
       tar -C "${src}" --no-xattrs -b 32 -cf - . | \
     tar -b 32 -xpf - -C "${data_dir}/images/${image_name}.${instance}"
-    du -sk "${dest}" | awk '{ printf "%d bytes transferred\n", $1 * 1024 }' \
-      > "${dest}/TOTALS"
+    #
+    # ZFS does not account for newly written blocks until the transaction
+    # group is synced, so sync the pool before asking for the logical
+    # (uncompressed) size of the image.
+    #
+    case $CBLOCK_FS in
+    zfs)
+        zpool sync "${nvol%%/*}"
+        bytes=$(zfs get -Hp -o value logicalreferenced "${nvol}")
+        ;;
+    ufs)
+        bytes=$(du -sk "${dest}" | awk '{ printf "%d", $1 * 1024 }')
+        ;;
+    esac
+    printf "%d bytes transferred\n" "${bytes}" > "${dest}/TOTALS"
     # NB: we need to do this atomically
     #
     if [ -h "${data_dir}/images/${image_name}:${build_tag}" ]; then
