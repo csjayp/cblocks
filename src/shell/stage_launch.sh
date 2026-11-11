@@ -24,6 +24,13 @@
 # SUCH DAMAGE.
 #
 . "$(dirname "$0")/common.sh"
+# do_launch re-runs this script with --setup-network, holding the network
+# lock, to allocate the instance's interface or address. See setup_network.
+mode=launch
+if [ "$1" = "--setup-network" ]; then
+    mode=setup_network
+    shift
+fi
 data_root="$1"
 image_name="$2"
 instance_id="$3"
@@ -394,13 +401,14 @@ network_to_ip6()
     for ip in $(subcalc inet6 $net_addr print | grep -v "^;"); do
         if [ $(is_assigned $ip 6) = "no" ] && \
            [ $(is_broadcast $net_addr $ip 6) = "no" ]; then
-            ifconfig "$network" inet6 "${ip}/128" alias
+            ifconfig "$network" inet6 "${ip}/128" alias || exit 1
             echo "${ip}"
             echo "nat,${instance_id},${ip},$network,6" >> \
               $data_root/networks/cur
-            return
+            return 0
         fi
     done
+    echo "No free addresses left on NAT interface $network" >&2
     exit 1
 }
 
@@ -410,18 +418,60 @@ network_to_ip()
     for ip in $(subcalc inet $net_addr print | grep -v "^;"); do
         if [ $(is_assigned $ip 4) = "no" ] && \
            [ $(is_broadcast $net_addr $ip 4) = "no" ]; then
-            ifconfig "$network" inet "${ip}/32" alias
+            ifconfig "$network" inet "${ip}/32" alias || exit 1
             echo "nat,${instance_id},${ip},$network,4" >> \
               $data_root/networks/cur
             echo "${ip}"
             rdr_rules=$(setup_port_redirects "$ports" "$ip" "$(nat_outif)")
-            if [ "$rdr_rules" ]; then
-                echo "$rdr_rules" | pfctl -a cblock-rdr/${instance_id} -f -
+            if [ "$rdr_rules" ] && ! echo "$rdr_rules" | \
+              pfctl -a cblock-rdr/${instance_id} -f -; then
+                echo "Failed to load port redirects for ${ip}" >&2
+                exit 1
             fi
-            return
+            return 0
         fi
     done
+    echo "No free addresses left on NAT interface $network" >&2
     exit 1
+}
+
+# Create the instance's epair (bridge) or pick its address and load its port
+# redirects (NAT), recording them in networks/cur, and print the interface or
+# address. This runs under the network lock, which stage_launch_cleanup.sh
+# also takes, because concurrent launches would otherwise:
+#  - pick the same free NAT address,
+#  - fail to load redirects with EBUSY: pf stages rule addresses in a single,
+#    global buffer, so concurrent rdr loads invalidate each other's ticket,
+#  - lose their networks/cur entry while a cleanup rewrites the file.
+setup_network()
+{
+    case $(network_type) in
+    bridge)
+        get_jail_interface
+        ;;
+    nat)
+        if [ "$(nat_ip_version)" = "6" ]; then
+            network_to_ip6
+        else
+            network_to_ip
+        fi
+        ;;
+    esac
+}
+
+# Run setup_network in a separate invocation of this script, holding the
+# network lock.
+setup_network_locked()
+{
+    _flags=""
+    case $- in
+    *x*)
+        _flags=-x
+        ;;
+    esac
+    lockf -k "${data_root}/networks/lock" /bin/sh $_flags "$0" \
+      --setup-network "$data_root" "$image_name" "$instance_id" \
+      "$mount_spec" "$network" "$tag" "$ports"
 }
 
 do_launch()
@@ -454,7 +504,7 @@ do_launch()
     net_type=$(network_type)
     set $(emit_entrypoint)
     if [ "$net_type" = "bridge" ]; then
-       netif=$(get_jail_interface) || exit 1
+       netif=$(setup_network_locked) || exit 1
        jail -c \
           "host.hostname=${instance_hostname}" \
           "vnet" \
@@ -467,16 +517,13 @@ do_launch()
     else
         if [ "$net_type" = "host" ]; then
             netspec="ip4.addr=$(get_default_ip)"
-        elif [ $(nat_ip_version) = "6" ]; then
-            ip=$(network_to_ip6)
-            netspec="ip6.addr=$ip"
         else
-            ip=$(network_to_ip)
-            netspec="ip4.addr=$ip"
-        fi
-        if [ "$net_type" = "nat" ] && [ ! "$ip" ]; then
-            echo "No free addresses left on NAT interface $network"
-            exit 1
+            ip=$(setup_network_locked) || exit 1
+            if [ "$(nat_ip_version)" = "6" ]; then
+                netspec="ip6.addr=$ip"
+            else
+                netspec="ip4.addr=$ip"
+            fi
         fi
         jailcmd=""
         if [ -f "${image_dir}/AUDITCFG" ]; then
@@ -496,4 +543,8 @@ launch_block()
     do_launch
 }
 
+if [ "$mode" = "setup_network" ]; then
+    setup_network
+    exit
+fi
 launch_block

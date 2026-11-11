@@ -2,7 +2,7 @@ FROM base
 
 ENV ASSUME_ALWAYS_YES = "YES"
 ENV LC_ALL = "C"
-RUN "pkg install go125 git"
+RUN "pkg install go git"
 ENV PATH = "/usr/local/go125/bin:$PATH"
 RUN "go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
 RUN "mkdir /build"
