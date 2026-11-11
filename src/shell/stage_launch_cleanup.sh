@@ -25,6 +25,14 @@
 # SUCH DAMAGE.
 #
 . "$(dirname "$0")/common.sh"
+# The script re-runs itself with --network-cleanup, holding the network lock,
+# to release the instance's network resources. See setup_network in
+# stage_launch.sh.
+mode=cleanup
+if [ "$1" = "--network-cleanup" ]; then
+    mode=network_cleanup
+    shift
+fi
 data_root="$1"
 instance="$2"
 type=$3
@@ -34,11 +42,12 @@ network_cleanup()
     if [ ! -f "$data_root"/networks/cur ]; then
         return 0
     fi
-    newdb=$(mktemp)
+    # Same directory, so the mv below is an atomic rename.
+    newdb=$(mktemp "$data_root"/networks/cur.XXXXXX) || return 1
     while read ln; do
         ins=$(echo "$ln" | awk -F, '{ print $2 }')
         if [ "$ins" != "$instance" ]; then
-            echo $ln >> $newdb
+            echo "$ln" >> "$newdb"
             continue
         fi
         type=$(echo "$ln" | awk -F, '{ print $1 }')
@@ -62,8 +71,7 @@ network_cleanup()
             ;;
         esac
     done < "$data_root"/networks/cur
-    rm "$data_root"/networks/cur
-    mv $newdb "$data_root"/networks/cur
+    mv "$newdb" "$data_root"/networks/cur
 }
 
 umount_reverse_order()
@@ -125,5 +133,16 @@ cleanup()
     esac
 }
 
+if [ "$mode" = "network_cleanup" ]; then
+    network_cleanup
+    exit
+fi
 cleanup
-network_cleanup
+_flags=""
+case $- in
+*x*)
+    _flags=-x
+    ;;
+esac
+lockf -k "${data_root}/networks/lock" /bin/sh $_flags "$0" \
+  --network-cleanup "$data_root" "$instance"
