@@ -168,26 +168,12 @@ tty_console_session(const char *instance, int sock, int ttyfd) {
 char *
 tty_trim_buffer(char *input, size_t len, size_t *newlen)
 {
-	uintptr_t old, new;
-	char  *ep;
 
-	if (len == 0) {
-		*newlen = 0;
-		return (input);
+	while (len > 0 && (isspace((unsigned char)input[len - 1]) ||
+	    input[len - 1] == '\0')) {
+		len--;
 	}
-	new = 0;
-	ep = input + len - 1;
-	old = (uintptr_t) ep;
-	while (ep > input) {
-		if (isspace(*ep) || *ep == '\0') {
-			ep--;
-			continue;
-		}
-		new = (uintptr_t) ep;
-		ep++;
-		*ep = '\0';
-		break;
-	}
-	*newlen = len - (old - new);
+	input[len] = '\0';
+	*newlen = len;
 	return (input);
 }
