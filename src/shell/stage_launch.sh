@@ -511,6 +511,7 @@ do_launch()
           "vnet.interface=$netif" \
           "name=${image_name}-${instance_hostname}" \
           "allow.chflags=1" \
+          "sysvshm=${CBLOCK_SYSVSHM:-disable}" \
           "osrelease=$(emit_os_release)" \
           "path=${instance_root}" \
           command="$@"
@@ -531,7 +532,7 @@ do_launch()
         fi
         jailcmd="$jailcmd jail -c host.hostname=${instance_hostname} "
         jailcmd="$jailcmd name=${image_name}-${instance_hostname} "
-        jailcmd="$jailcmd allow.chflags=1 path=${instance_root} "
+        jailcmd="$jailcmd allow.chflags=1 sysvshm=${CBLOCK_SYSVSHM:-disable} path=${instance_root} "
         jailcmd="$jailcmd $netspec osrelease=$(emit_os_release) command=$@"
         eval $jailcmd
     fi

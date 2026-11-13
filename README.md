@@ -510,3 +510,18 @@ cellblock needs a Vault token.
 
 Secrets are not available during `cblock build`. Do not put them in the
 build directory: the whole build context is copied to the cblockd host.
+
+### SysV shared memory
+
+Cellblocks cannot use SysV shared memory unless launched with
+`--sysvshm` (`sysvshm: true` in the `cblock_warden` manifest). Some
+services need it, PostgreSQL among them. The flag gives the jail its own
+namespace (`sysvshm=new`): segments created in the cellblock are hidden
+from the host's namespace and from other cellblocks, even ones running as
+the same user ID.
+
+The kernel limits (`kern.ipc.shmmni`, `kern.ipc.shmall` and so on) are
+shared by the whole system, so one cellblock can use them up for
+everyone. With `kern.racct.enable=1` set at boot, RCTL rules such as
+`jail:<name>:nshm:deny=8` and `jail:<name>:shmsize:deny=64m` cap each
+cellblock.

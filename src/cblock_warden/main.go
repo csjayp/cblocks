@@ -62,6 +62,7 @@ type Cellblock struct {
 	Fdescfs bool          `yaml:"fdescfs"`
 	Procfs  bool          `yaml:"procfs"`
 	Tmpfs   bool          `yaml:"tmpfs"`
+	Sysvshm bool          `yaml:"sysvshm"`
 	Volumes []Volume      `yaml:"volumes"`
 	Ports   []PortMapping `yaml:"ports"`
 }
@@ -142,6 +143,9 @@ func ProcessManifest(gcfg Config, prog string) ([]CmdVec, error) {
 		}
 		if cb.Tmpfs {
 			cmd.AddBool("tmpfs")
+		}
+		if cb.Sysvshm {
+			cmd.AddBool("sysvshm")
 		}
 		if len(cb.Volumes) > 0 {
 			processVolumes(cb.Volumes, &cmd)
