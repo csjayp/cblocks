@@ -71,7 +71,7 @@ enum {
  * CBLOCK_PROTO_VERSION. Bump the version whenever the wire format changes.
  */
 #define	CBLOCK_PROTO_MAGIC		0x43424c4b	/* "CBLK" */
-#define	CBLOCK_PROTO_VERSION		1
+#define	CBLOCK_PROTO_VERSION		2
 
 /*
  * Maximum size of a single framed message. Console output larger than this
@@ -125,6 +125,7 @@ struct cblock_launch {
 	char					p_ports[MAX_ARG_STRING];
 	char					p_network[IF_NAMESIZE];
 	int					p_verbose;
+	int					p_sysvshm;
 };
 
 struct cblock_signal_instance {

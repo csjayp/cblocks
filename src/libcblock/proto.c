@@ -169,6 +169,7 @@ launch_enc(struct wire *w, const void *arg)
 	wire_put_str(w, l->p_ports);
 	wire_put_str(w, l->p_network);
 	wire_put_u32(w, l->p_verbose);
+	wire_put_u32(w, l->p_sysvshm);
 }
 
 static void
@@ -184,6 +185,7 @@ launch_dec(struct wire *w, void *arg)
 	wire_get_str(w, l->p_ports, sizeof(l->p_ports));
 	wire_get_str(w, l->p_network, sizeof(l->p_network));
 	l->p_verbose = wire_get_int(w);
+	l->p_sysvshm = wire_get_int(w);
 }
 
 int
