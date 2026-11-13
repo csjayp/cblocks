@@ -1,6 +1,6 @@
 #
-# Build the cblock client on the runner, then use it to build this
-# repository's Cblockfile on prod.cblock.sqrt.ca over ssh.
+# Install the cblock client from the latest release, then use it to
+# build this repository's Cblockfile on prod.cblock.sqrt.ca over ssh.
 #
 # Repository settings:
 #   secrets.CBLOCK_SSH_KEY          private key for the ssh user
@@ -29,21 +29,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Install the released client
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y flex bison
-
-      - name: Build and install the client
-        run: |
-          make client-only
-          sudo make client-only-install
+          # The latest release speaks the same protocol as cblockd on
+          # prod. To keep using an older release until prod is upgraded,
+          # set the repository variable CBLOCK_CLIENT_VERSION to its tag.
+          # See LINUX-RELEASE.md.
+          gh release download ${{ vars.CBLOCK_CLIENT_VERSION }} \
+            --repo "$GITHUB_REPOSITORY" -p 'cblock_*_amd64.deb' \
+            -D "$RUNNER_TEMP"
+          sudo dpkg -i "$RUNNER_TEMP"/cblock_*_amd64.deb
           command -v cblock
-          # The checkout is also the build context sent to prod. Remove
-          # the Linux objects, or make in the FreeBSD build will see
-          # libcblock.a as up to date and link it into cblockd.
-          make -C src/libcblock clean
-          make -C src/cblock clean
 
       - name: Set up ssh
         env:
