@@ -125,6 +125,7 @@ func TestLaunchCellblocks(t *testing.T) {
 						"--fdescfs",
 						"--procfs",
 						"--tmpfs",
+						"--sysvshm",
 					},
 				},
 			},

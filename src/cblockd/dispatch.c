@@ -301,6 +301,15 @@ dispatch_launch_cblock(int sock)
 
 	sprintf(buf, "CBLOCK_FS=%s", gcfg.c_underlying_fs);
 	vec_append(env_vec, buf);
+	/*
+	 * --sysvshm gives the jail its own SysV shared memory namespace.
+	 * Without it the jail cannot use SysV shared memory at all.
+	 */
+	if (pl.p_sysvshm) {
+		vec_append(env_vec, "CBLOCK_SYSVSHM=new");
+	} else {
+		vec_append(env_vec, "CBLOCK_SYSVSHM=disable");
+	}
 	vec_finalize(env_vec);
 	sprintf(buf, "%s/lib/stage_launch.sh", gcfg.c_data_dir);
 	vec_append(cmd_vec, "/bin/sh");

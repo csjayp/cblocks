@@ -52,6 +52,7 @@ struct launch_config {
 	char		*l_tag;
 	char		*l_ports;
 	int		 l_host_networking;
+	int		 l_sysvshm;
 };
 
 static struct option launch_options[] = {
@@ -67,6 +68,7 @@ static struct option launch_options[] = {
 	{ "verbose",		no_argument, 0, 'v' },
 	{ "port",		required_argument, 0, 'P' },
 	{ "host-networking",	no_argument, 0, 'H' },
+	{ "sysvshm",		no_argument, 0, 'S' },
 	{ 0, 0, 0, 0 }
 };
 
@@ -86,6 +88,7 @@ launch_usage(void)
 	    " -A, --no-attach            Do not attach to container console\n"
 	    " -v, --verbose              Launch container with verbosity enabled\n"
 	    " -H, --host-networking      Use host networking instead of NAT/bridge\n"
+	    " -S, --sysvshm              Give the container its own SysV shared memory\n"
 	);
 	exit(1);
 }
@@ -120,6 +123,7 @@ launch_container(int sock, struct launch_config *lcp)
 		vec_free(lcp->l_vec);
 	}
 	pl.p_verbose = lcp->l_verbose;
+	pl.p_sysvshm = lcp->l_sysvshm;
 	snprintf(pl.p_tag, sizeof(pl.p_tag), "%s", lcp->l_tag);
 	snprintf(pl.p_name, sizeof(pl.p_name), "%s", lcp->l_name);
 	snprintf(pl.p_term, sizeof(pl.p_term), "%s", term);
@@ -180,7 +184,7 @@ launch_main(int argc, char *argv [], int ctlsock)
 	reset_getopt_state();
 	while (1) {
 		option_index = 0;
-		c = getopt_long(argc, argv, "AHP:vN:Fpn:t:V:T", launch_options,
+		c = getopt_long(argc, argv, "AHP:vN:Fpn:t:V:TS", launch_options,
 		    &option_index);
 		if (c == -1) {
 			break;
@@ -188,6 +192,9 @@ launch_main(int argc, char *argv [], int ctlsock)
 		switch (c) {
 		case 'H':
 			lc.l_host_networking = 1;
+			break;
+		case 'S':
+			lc.l_sysvshm = 1;
 			break;
 		case 'P':
 			vec_append(ports, optarg);
