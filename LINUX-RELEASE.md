@@ -27,7 +27,9 @@ higher than the last release. List the existing tags with:
 
 If the release changes the wire protocol, make sure `CBLOCK_PROTO_VERSION` in
 `src/include/cblock/libcblock.h` was bumped, and that `cblockd` on the
-servers is upgraded along with the client.
+servers is upgraded along with the client. See
+[The freebsd CI job and protocol changes](#the-freebsd-ci-job-and-protocol-changes)
+for the order to do this in.
 
 ## 2. Tag the release
 
@@ -50,7 +52,77 @@ locally and on GitHub, then tag again:
 % git push origin :refs/tags/v0.1.0
 ```
 
-## 3. Build the package
+## 3. Let the release workflow build and publish
+
+Pushing the tag starts the `release` workflow
+(`.github/workflows/release.yml`). It:
+
+1. Checks out the tag on clean Ubuntu 22.04 runners, one amd64 and one
+   arm64. Ubuntu 22.04 is the oldest supported glibc: a package built
+   against it also installs on newer releases.
+2. Runs `make deb` on each (see [What `make deb` does](#what-make-deb-does)).
+3. Fails if the package version is not exactly the tag without its `v`.
+   A `+N.gHASH` suffix means the tag does not point at the commit that
+   was built.
+4. Installs each package and runs `cblock`.
+5. Once both builds have passed, creates a GitHub release for the tag
+   with both `.deb` files attached and notes generated from the pull
+   requests merged since the last release.
+
+Follow it in the **Actions** tab. If a build fails, nothing is
+published: fix the problem, delete the tag (step 2) and tag again.
+
+Edit the release afterwards on GitHub (**Releases → Edit**) to add to the
+generated notes.
+
+## 4. Check the release
+
+```
+% gh release view v0.1.0
+% gh release download v0.1.0 -p 'cblock_*_amd64.deb' -D out
+% docker run --rm -v "$PWD/out":/out ubuntu:24.04 sh -c '
+    dpkg -i /out/cblock_0.1.0_amd64.deb && cblock'
+```
+
+`cblock` with no arguments prints its usage. For a full check, run a
+command against a test daemon, for example over an SSH tunnel:
+
+```
+% ssh -fNL 3333:/var/run/cblock.sock user@testhost
+% cblock -s 127.0.0.1 -p 3333 instances
+```
+
+Users install it with:
+
+```
+% curl -LO https://github.com/csjayp/cblocks/releases/download/v0.1.0/cblock_0.1.0_amd64.deb
+% sudo apt-get install ./cblock_0.1.0_amd64.deb
+```
+
+## The freebsd CI job and protocol changes
+
+The `freebsd` workflow (`.github/workflows/cblock.yml`) installs the
+client from the latest release and uses it to build this repository's
+Cblockfile on prod.cblock.sqrt.ca. The latest release therefore has to
+speak the same protocol version as `cblockd` on prod.
+
+For a release that bumps `CBLOCK_PROTO_VERSION`:
+
+1. Merge the change. CI keeps passing because it still uses the previous
+   release's client.
+2. Upgrade `cblockd` on prod.
+3. Tag the release.
+
+If the release has to be tagged before prod is upgraded, first set the
+repository variable `CBLOCK_CLIENT_VERSION` (**Settings → Secrets and
+variables → Actions → Variables**) to the previous tag, for example
+`v0.1.0`. CI then keeps using that release. Delete the variable once prod
+is upgraded.
+
+## Building a package by hand
+
+The workflow is the normal way to release. To build a package locally,
+for example to test packaging changes, use one of the methods below.
 
 Build from a fresh clone of the tag, never from a working tree. `git describe`
 does not notice uncommitted changes, so a package built from a dirty tree
@@ -138,50 +210,4 @@ package is written to the top of the clone, for example
 % git clone --branch v0.1.0 https://github.com/csjayp/cblocks.git
 % cd cblocks
 % make deb
-```
-
-## 4. Check the package
-
-Make sure the version has no `+N.gHASH` suffix. If it does, the build was
-not done on the tagged commit.
-
-```
-% dpkg-deb -I out/cblock_0.1.0_amd64.deb
-% dpkg-deb -c out/cblock_0.1.0_amd64.deb
-```
-
-Then install it in a clean container and run it:
-
-```
-% docker run --rm -v "$PWD/out":/out ubuntu:22.04 sh -c '
-    dpkg -i /out/cblock_0.1.0_amd64.deb && cblock'
-```
-
-`cblock` with no arguments prints its usage. For a full check, run a command
-against a test daemon, for example over an SSH tunnel:
-
-```
-% ssh -fNL 3333:/var/run/cblock.sock user@testhost
-% cblock -s 127.0.0.1 -p 3333 instances
-```
-
-## 5. Publish
-
-Create a GitHub release for the tag and attach the packages.
-
-With the `gh` CLI:
-
-```
-% gh release create v0.1.0 out/cblock_0.1.0_*.deb \
-    --title "cblock v0.1.0" --notes "Release notes here"
-```
-
-Or on the web: go to **Releases → Draft a new release**, choose the
-`v0.1.0` tag, and upload the `.deb` files.
-
-Users install it with:
-
-```
-% curl -LO https://github.com/csjayp/cblocks/releases/download/v0.1.0/cblock_0.1.0_amd64.deb
-% sudo apt-get install ./cblock_0.1.0_amd64.deb
 ```
